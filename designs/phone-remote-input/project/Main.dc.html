@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>方案 A · 极简白</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+.skey{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:8px;height:56px;background:#1D242F;border-radius:14px;font-size:15px;color:#C9D4E2;cursor:pointer}
+.skey:hover{background:#242C39}
+.pbtn{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:342px;height:56px;background:#38BDF8;border-radius:16px;font-size:17px;font-weight:700;color:#052330;cursor:pointer}
+.pbtn:hover{background:#5BC9FA}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC',system-ui,sans-serif">
+
+  <div style="position:absolute;top:110px;left:24px;font-size:28px;font-weight:700;color:#F2F6FB;letter-spacing:1px">远程输入</div>
+  <div style="position:absolute;top:164px;left:24px;display:flex;align-items:center;gap:8px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#34D399"></span>
+    <span style="font-size:13px;color:#F2F6FB">已连接 · 次卧的小米盒子</span>
+    <span style="width:1px;height:12px;background:rgba(255,255,255,.15)"></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(56,189,248,.8)" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8.5 21h7"/><path d="M12 17.5V21"/></svg>
+    <span style="font-size:12px;color:rgba(232,239,246,.55)">文字将实时显示在电视上</span>
+  </div>
+
+  <div style="position:absolute;top:188px;left:24px;width:342px;height:336px;box-sizing:border-box;background:#12161E;border:1.5px solid rgba(56,189,248,.4);border-radius:20px;padding:20px">
+    <div style="display:flex;align-items:center;gap:3px">
+      <span style="font-size:22px;font-weight:500;color:#F2F6FB">客厅的小米盒子</span>
+      <span style="width:2px;height:26px;background:#38BDF8;border-radius:1px"></span>
+    </div>
+    <div style="position:absolute;right:16px;bottom:14px;font-size:12px;color:rgba(232,239,246,.4)">7 / 200</div>
+  </div>
+
+  <div style="position:absolute;top:552px;left:24px;display:flex;gap:12px">
+    <button class="skey" style="width:165px" aria-label="删除一个字符">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8.5 5h11A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-11L3 12z"/><path d="M11.5 9.5l5 5"/><path d="M16.5 9.5l-5 5"/></svg>
+      删除
+    </button>
+    <button class="skey" style="width:165px">清空</button>
+  </div>
+
+  <button class="pbtn" style="position:absolute;top:636px;left:24px">上 屏</button>
+
+  <div style="position:absolute;top:724px;left:0;width:390px;text-align:center;font-size:12px;color:rgba(232,239,246,.35)">同一 Wi-Fi 下与电视保持连接</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-01T18:05:00+08:00" },
+  "title": "安卓电视输入法 · 跨屏输入",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1920, "h": 644, "title": "1 · 字母键盘（小写）" },
+    "Uppercase.dc.html": { "x": 0, "y": 764, "w": 1920, "h": 644, "title": "2 · 字母键盘（大写）" },
+    "Symbols.dc.html": { "x": 0, "y": 1528, "w": 1920, "h": 644, "title": "3 · 符号键盘（全角）" },
+    "HalfWidth.dc.html": { "x": 0, "y": 2292, "w": 1920, "h": 644, "title": "4 · 符号键盘（半角）" },
+    "Remote.dc.html": { "x": 0, "y": 3056, "w": 1920, "h": 644, "title": "5 · 远程模式（点击 副卡「远程输入」后）" }
+  },
+  "order": ["Main.dc.html", "Uppercase.dc.html", "Symbols.dc.html", "HalfWidth.dc.html", "Remote.dc.html"],
+  "notes": {},
+  "designSystems": []
+}

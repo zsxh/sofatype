@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>星夜青</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+.key{all:unset;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;width:76px;height:44px;background:#1D242F;border-radius:8px;color:#F2F6FB;font-size:15px;cursor:pointer}
+.key:hover{filter:brightness(1.15)}
+.chip{all:unset;box-sizing:border-box;display:flex;align-items:center;height:30px;padding:0 14px;border-radius:8px;font-size:13px;color:#7F848D;cursor:pointer}
+.chip.on{background:rgba(56,189,248,.14);border:1px solid #38BDF8;color:#7DD3FC}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <div style="position:absolute;top:64px;left:80px;display:flex;align-items:baseline;gap:18px">
+    <span style="font-size:34px;font-weight:700;color:#F2F6FB">配色 1 · 星夜青</span>
+    <span style="font-size:15px;color:#7DD3FC;letter-spacing:2px">Aurora Cyan · 全深色 · 青主色</span>
+  </div>
+  <div style="position:absolute;top:120px;left:80px;width:1400px;font-size:15px;color:#7F848D">现状的完全体：电视维持深色青调，手机远程输入由浅色转为深色，三端融为一致的夜间生态。</div>
+  <div style="position:absolute;top:152px;right:80px;display:flex;align-items:center;gap:8px;background:rgba(56,189,248,.14);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:7px 16px">
+    <span style="font-size:13px;color:#7DD3FC">改动点：手机端 浅色 → 深色青调；电视端保持不变</span>
+  </div>
+
+  <div style="position:absolute;top:216px;left:80px;display:flex;gap:20px">
+    <div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#06080C;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">背景</div><div style="font-size:12px;color:#7F848D;opacity:.75">#06080C</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#12161E;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">卡片</div><div style="font-size:12px;color:#7F848D;opacity:.75">#12161E</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#38BDF8;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">主色</div><div style="font-size:12px;color:#7F848D;opacity:.75">#38BDF8</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#7DD3FC;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">主色文字</div><div style="font-size:12px;color:#7F848D;opacity:.75">#7DD3FC</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#34D399;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">成功</div><div style="font-size:12px;color:#7F848D;opacity:.75">#34D399</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#F2F6FB;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">主文字</div><div style="font-size:12px;color:#7F848D;opacity:.75">#F2F6FB</div></div><div style="width:124px"><div style="width:124px;height:72px;border-radius:14px;background:#7F848D;border:1px solid rgba(255,255,255,.08)"></div><div style="margin-top:8px;font-size:12px;color:#F2F6FB">次级文字</div><div style="font-size:12px;color:#7F848D;opacity:.75">#7F848D</div></div>
+  </div>
+
+  <div style="position:absolute;top:368px;left:80px;font-size:16px;font-weight:500;color:#F2F6FB">电视 · 键盘</div>
+  <div style="position:absolute;top:368px;left:680px;font-size:16px;font-weight:500;color:#F2F6FB">电视 · 设置</div>
+  <div style="position:absolute;top:368px;left:1280px;font-size:16px;font-weight:500;color:#F2F6FB">手机 · 远程输入</div>
+
+  <!-- 电视键盘 -->
+  <div style="position:absolute;top:404px;left:80px;width:560px;height:592px;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);border-radius:20px;background:#06080C;padding:24px">
+    <div style="background:#12161E;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px">
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <span class="chip on">客厅的</span><span class="chip">客厅</span><span class="chip">客</span>
+      </div>
+      <div class="krow" style="display:flex;gap:10px;margin-bottom:10px">
+        <button class="key">a</button><button class="key">s</button><button class="key">d</button><button class="key">f</button><button class="key">g</button><button class="key">h</button>
+      </div>
+      <div class="krow" style="display:flex;gap:10px;margin-bottom:10px">
+        <button class="key">j</button><button class="key">k</button><button class="key">l</button><button class="key">z</button><button class="key">x</button><button class="key" style="background:#38BDF8;color:#052330;font-size:12px">删除</button>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="key" style="width:300px;font-size:13px">空格</button><button class="key" style="width:96px;background:#38BDF8;color:#052330;font-size:13px">完成</button>
+      </div>
+    </div>
+    <div style="margin-top:18px;display:flex;align-items:center;gap:8px">
+      <span style="width:7px;height:7px;border-radius:50%;background:#34D399"></span>
+      <span style="font-size:12px;color:#7F848D">连接指引副卡使用同色系 · 聚焦态 = 主色描边</span>
+    </div>
+  </div>
+
+  <!-- 电视设置 -->
+  <div style="position:absolute;top:404px;left:680px;width:560px;height:592px;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);border-radius:20px;background:#06080C;padding:24px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <span style="width:52px;height:52px;background:#38BDF8;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#052330">S</span>
+      <div><div style="font-size:22px;font-weight:700;color:#F2F6FB">sofatype</div><div style="font-size:12px;color:#7F848D">输入法 · 设置</div></div>
+    </div>
+    <div style="margin-top:24px;background:#12161E;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:56px">
+        <span style="font-size:15px;color:#7F848D">当前版本</span>
+        <span style="font-size:16px;font-weight:600;color:#F2F6FB">v1.2.3 (63)</span>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.08)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;height:78px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:150px;height:48px;background:rgba(56,189,248,.14);border:1px solid #38BDF8;border-radius:12px;font-size:15px;font-weight:600;color:#7DD3FC;cursor:pointer">检查更新</button>
+        <span style="display:flex;align-items:center;gap:7px"><span style="width:6px;height:6px;border-radius:50%;background:#34D399"></span><span style="font-size:13px;color:#7F848D">已是最新版本</span></span>
+      </div>
+    </div>
+    <div style="margin-top:18px;display:flex;align-items:center;gap:8px">
+      <span style="width:7px;height:7px;border-radius:50%;background:#34D399"></span>
+      <span style="font-size:12px;color:#7F848D">品牌 S 标 / 按钮 / 反馈色均取自本页色板</span>
+    </div>
+  </div>
+
+  <!-- 手机 -->
+  <div style="position:absolute;top:404px;left:1280px;width:560px;height:592px;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);border-radius:20px;background:#06080C;padding:24px">
+    <div style="width:260px;height:540px;margin:0 auto;box-sizing:border-box;border:1.5px solid rgba(255,255,255,.12);border-radius:26px;background:#06080C;padding:16px 14px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#34D399"></span>
+        <span style="font-size:9px;color:#7F848D">已连接 · 次卧的小米盒子</span>
+      </div>
+      <div style="margin-top:14px;font-size:16px;font-weight:700;color:#F2F6FB">远程输入</div>
+      <div style="margin-top:6px;font-size:9px;color:#7F848D">文字将实时显示在电视上</div>
+      <div style="margin-top:14px;height:110px;background:#1D242F;border-radius:12px;padding:10px">
+        <span style="font-size:12px;color:#F2F6FB">客厅的</span><span style="display:inline-block;width:2px;height:13px;background:#38BDF8;border-radius:1px;vertical-align:-2px;margin-left:1px"></span>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:111px;height:30px;background:#1D242F;border-radius:8px;font-size:10px;color:#7F848D;cursor:pointer">删除</button>
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:111px;height:30px;background:#1D242F;border-radius:8px;font-size:10px;color:#7F848D;cursor:pointer">清空</button>
+      </div>
+      <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:230px;height:34px;background:#38BDF8;border-radius:9px;font-size:11px;font-weight:600;color:#052330;cursor:pointer;margin-top:10px">上 屏</button>
+      <div style="margin-top:14px;text-align:center;font-size:8px;color:#7F848D">同一 Wi-Fi 下与电视保持连接</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

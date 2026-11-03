@@ -1,0 +1,13 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-01T22:02:00+08:00" },
+  "title": "手机远程输入",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 390, "h": 844, "title": "手机远程输入 · 星夜青" }
+  },
+  "order": ["Main.dc.html"],
+  "notes": {},
+  "designSystems": []
+}

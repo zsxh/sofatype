@@ -1,0 +1,26 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T23:20:00+08:00"
+  },
+  "title": "三端配色 · 星夜青",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "P1-Cyan.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "title": "三端配色 · 星夜青（全深色 · 青）"
+    }
+  },
+  "order": [
+    "P1-Cyan.dc.html"
+  ],
+  "notes": {},
+  "designSystems": []
+}
