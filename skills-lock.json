@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "ste": {
+      "source": "dualface/ste-zh",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "ee5dbf723889f3deb17e727f0d59e8e21e4156471f84aa02ac16dc97f8d3376b"
+    }
+  }
+}
