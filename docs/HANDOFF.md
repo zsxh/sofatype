@@ -20,10 +20,11 @@
 
 ## 当前状态（截至 2026-11-03）
 
-- 代码工程未创建。仓库只有文档与设计稿。
+- 代码工程未创建。仓库只有文档、设计稿与开发环境 `flake.nix`。
 - PRD v1.1 与设计稿已定稿。开发期间不得改动（AGENTS.md 文档原则）。
 - 下一步是 PRD 第 10 章的 M1（键盘可用，FR-A1~A11）。
-- 工具链与工程选型未拍板。动手前先向用户确认。
+- 工具链已拍板（2026-11-03）：语言 Kotlin；拼音引擎自研词组级 + 内置词库；局域网 HTTP/WS 服务自研、二维码用 ZXing core（纯 Java、无传递依赖）；工具链由根目录 `flake.nix` 声明，不在系统手工安装 SDK。
+- `flake.nix` 已通过真实求值验证（2026-11-03）：环境构建成功，工具、TV 镜像、AVD 创建逐项核实，详见版本记录。
 
 ## 版本记录
 
@@ -49,3 +50,44 @@
 - 开工顺序：`AGENTS.md` → `docs/PRD.md` → `docs/devices/` 设备档案 → `designs/`。
 - 实机部署、传输、系统设置写入前，先读设备档案。
 - 工程位置与构建工具链未拍板。动手前先向用户确认。结论记入本文下一节版本记录。
+
+### 开发环境配置 · Nix flake（2026-11-03，随未发布 0.1.0）
+
+**改动**
+
+- 新增根目录 `flake.nix`：JDK 17（darwin 上解析为 Zulu 17 预编译二进制）+ Android SDK（platform android-34、build-tools 34.0.0、cmdline-tools、platform-tools、emulator）+ TV 模拟器镜像 `system-images;android-34;android-tv;arm64-v8a`。
+- 两个 app 入口：`nix run .#tv-avd` 创建 AVD（tv_1080p 形态），`nix run .#tv-emulator` 启动。遥控器对应：方向键=十字键、回车=OK、退格=返回。
+- 支持宿主机：`aarch64-darwin` / `aarch64-linux` / `x86_64-linux`。Nix 按当前机器架构自动选择对应输出；列表外机器明确报错。
+- 镜像 ABI 跟随宿主机：aarch64 → `arm64-v8a`（原生）；`x86_64-linux` → x86（android-tv 系列没有 x86_64 镜像）。
+- Linux 上模拟器需要 `/dev/kvm`，使用者需在 kvm 组。
+- 工具链最小集全部在 flake 内声明：JDK 17、Android SDK、git、gradle；不依赖宿主机已装的任何开发工具，保证跨机器可复现（用户拍板）。开发中需要新工具，先加进 flake 再使用。
+- 不装 NDK / CMake / Sources：项目依赖均为纯 Java/Kotlin（含 ZXing core）。
+- 许可证声明在 nixpkgs config：`android_sdk.accept_license = true` + `allowUnfree = true`（原因见坑 A / 坑 B）。
+- `flake.lock` 已生成，锁定 nixpkgs `nixos-26.05`（commit `7dcdd873`）。
+
+**原因**
+
+- 用户拍板：先不手工安装 SDK，改用 Nix flake 声明工具链。声明式、可复现、不污染系统。
+- compileSdk 34 / build-tools 34.0.0 / TV 镜像 API 34 的组合已逐项核对 androidenv repo.json（nixos-26.05 分支），包均存在；镜像用标准 `android-sdk-license`，无需预览许可。
+
+**验证结果（2026-11-03，真实求值）**
+
+- `nix develop -c true` 构建成功，exit 0。首次下载约 2 GB，耗时约 10 分钟。
+- 环境内逐一核实：JDK Zulu 17.0.19、adb 37.0.0、emulator 36.5.11、gradle 8.14.4、build-tools 34.0.0、platform android-34；TV 镜像完整（kernel / ramdisk / build.prop 齐全，符号链接正确）。
+- `nix run .#tv-avd` 成功创建 AVD `sofatype-tv`（tv_1080p / Android 14 / android-tv arm64-v8a）。
+- 未验证：模拟器 GUI 实际启动（避免无人值守开窗口）。由户主手动 `nix run .#tv-emulator` 验证。
+
+**踩过的坑 / 注意**
+
+1. 坑 A：nixos-26.05 的 `composeAndroidPackages` 不再收 `licenseAccepted` 参数（上移到 androidenv 层，经 nixpkgs config 的 `android_sdk.accept_license` 声明）。传了直接报 `unexpected argument`。
+2. 坑 B：SDK 组件（cmdline-tools / emulator / 系统镜像）在 nixpkgs 标记 unfree，需 `config.allowUnfree = true`，否则求值报 `Refusing to evaluate`。
+3. 坑 C：组合 SDK 的统一可执行入口在包根 `${sdk}/bin`。mkShell 自动加该路径，但 `nix run` 的 app 脚本不会——PATH 必须自己带 `${sdk}/bin`；脚本要 `set -euo pipefail`，否则失败还打印成功文案（首次 `tv-avd` 就这样静默失败过）。
+4. 坑 D：排查镜像注意两点——组合 SDK 里镜像路径是 `system-images/android-34/…`（带 `android-` 前缀）；镜像目录是符号链接，`find -type d` 看不见，要用 `ls -la`。
+5. TV arm64 镜像从 API 31 才有；模拟器是 API 34（Android 14），与验收机 API 23 系统行为不同。模拟器只做逻辑回归，API 23 差异与最终验收靠真机。
+6. 模拟器不覆盖：性能预算、微信内核兼容、真实遥控器。真机部署按设备档案执行，无线 adb 不传 APK。
+
+**给下一个 agent**
+
+- flake 已验证可用，M0 开工直接 `nix develop` 进入环境。
+- `flake.lock` 必须随本批变更一起提交，保证跨机器可复现。
+- 构建入口：shell 内用 `gradle wrapper` 生成包装器（gradle 包只为此存在），之后固定 AGP/Gradle 版本于 `build.gradle.kts` 与 wrapper 配置，日常只用 `./gradlew`。
