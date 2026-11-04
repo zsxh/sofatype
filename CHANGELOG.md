@@ -13,10 +13,6 @@
 - Nix flake 开发环境配置（`flake.nix` + `flake.lock`）：JDK 17 + Android SDK（compileSdk 34）+ Android TV 模拟器镜像（API 34 / arm64）；含 `tv-avd`、`tv-emulator` 两个运行入口。求值验证通过：环境构建成功、AVD 创建成功。
 - 产品需求文档 PRD v1.1（`docs/PRD.md`）：三端功能需求、星夜青设计规范、跨屏通信协议草案、13 条已拍板决策。
 - 设计稿定稿（`designs/`）：TV 输入法键盘 5 画板、手机远程输入页、设置页、三端配色方案。
-- 设备档案（`docs/devices/MiTV4-ANSM0.md`）：验收实机参数、ABI 约束、无线 ADB 传输卡死的排查结论。
+- 设备档案（`docs/devices/MiTV4-ANSM0.md`）：验收实机参数、ABI 约束。
 - Agent 工作指引（`AGENTS.md`）：文档 / 工具 / 开发原则与禁止事项。
 - 开发交接文档（`docs/HANDOFF.md`）：版本详细改动与踩过的坑。
-
-### 修复
-
-- 消除文档双源风险：无线 ADB 排查报告原独立放在 `faq/` 目录，与设备档案内容重叠；要点并入设备档案后删除 `faq/`，同一事实只保留单一出处。

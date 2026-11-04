@@ -20,11 +20,10 @@
 
 ## 当前状态（截至 2026-11-04）
 
-- 2026-11-04：T1 验收关闭（户主拍板；issue 已挪 `docs/issues/closed/T1.md`，任务状态「真机已验证」）。户主裁决 wrapper 版本口径（决策 24）：以 nix package 为准，文档不规定 Gradle 版本。Gradle 工程位于仓库根：Kotlin 1.9.24 / AGP 8.2.2；minSdk 23、compileSdk 34、versionName 0.1.0(1)。构建：`nix develop` 内 `./gradlew assembleDebug`。真机安装实证：`com.sofatype.ime` 0.1.0(1) 已装小米电视4（见下行复测记录）。
+- 2026-11-04：T1 验收关闭（户主拍板；issue 已挪 `docs/issues/closed/T1.md`，任务状态「真机已验证」）。户主裁决 wrapper 版本口径（决策 24）：以 nix package 为准，文档不规定 Gradle 版本。Gradle 工程位于仓库根：Kotlin 1.9.24 / AGP 8.2.2；minSdk 23、compileSdk 34、versionName 0.1.0(1)。构建：`nix develop` 内 `./gradlew assembleDebug`。真机安装实证：`com.sofatype.ime` 0.1.0(1) 已装小米电视4。
 - PRD v1.1 与设计稿已定稿。开发期间不得改动（AGENTS.md 文档原则）。
 - 2026-11-04：施工前任务拆解定稿。施工计划、任务清单与状态见 `docs/TASKS.md`；新增拍板决策 14~22，见 PRD 第 12 章。
 - 2026-11-04：变更记录规范拍板。issue 与任务一一对应（`docs/issues/`，规范见 `docs/issues/README.md`）；HANDOFF 记会话、CHANGELOG 记发版；TASKS 任务编号改为全局顺序、从 1 开始（T1~T27）；issue 桩文件已预建于 `open/`，任务开工时填充正文。
-- 2026-11-04：真机传输复测（户主发起的临时探测，非 TASKS 任务，无 issue）。无线 adb 单次连接安装成功：778 KB 纯 dex 包传输段瞬时 233.8 MB/s，2026-10-28 塌陷未复现；网络接口归属未确认，归因待 T4。数据与口径见 `docs/devices/MiTV4-ANSM0.md` 坑 2 复测段。
 - 下一步：T1 已拍板验收通过并归档（2026-11-04）。T2 未派——户主指示暂不开始 T2，派发时机由 manager / 户主定。
 - 工具链已拍板（2026-11-03）：语言 Kotlin；拼音引擎自研词组级 + 内置词库；局域网 HTTP/WS 服务自研、二维码用 ZXing core（纯 Java、无传递依赖）；工具链由根目录 `flake.nix` 声明，不在系统手工安装 SDK。
 - `flake.nix` 已通过真实求值验证（2026-11-03）：环境构建成功，工具、TV 镜像、AVD 创建逐项核实，详见版本记录。
@@ -35,15 +34,14 @@
 
 **改动**
 
-- 2026-10-28：无线 ADB 传输排查。结论与未解决问题见 `docs/devices/MiTV4-ANSM0.md`。报告当时存放在 `faq/`。
 - 2026-11-01：PRD v1.1 定稿。评审结论合入第 12 章（决策 1–12）。
 - 2026-11-02：设计稿四组定稿。决策 13 拍板，兼容基线按验收实机调整。
-- 2026-11-03：git init。排查报告要点并入设备档案，删除 `faq/`。创建 AGENTS.md，三次修订后定稿。
+- 2026-11-03：git init。创建 AGENTS.md，三次修订后定稿。
 
 **踩过的坑**
 
-1. 实机传输与 ABI 约束：见设备档案「踩过的坑」。不要重走已排除的路径。
-2. 同一事实只在一处维护。排查报告曾在 `faq/` 与设备档案两处，已合并。
+1. ABI 约束：见设备档案「踩过的坑」。不要重走已排除的路径。
+2. 同一事实只在一处维护。
 3. 给 agent 的指引只写原则。具体值查 PRD 与设备档案。
 4. 写 `enabled_accessibility_services` 只追加、不覆盖。zsh 里写 `${VAR}:...`。见 AGENTS.md 禁止事项 5。
 5. 未在真机验证的功能不说「已完成」。见 AGENTS.md 开发规范。
@@ -87,7 +85,7 @@
 3. 坑 C：组合 SDK 的统一可执行入口在包根 `${sdk}/bin`。mkShell 自动加该路径，但 `nix run` 的 app 脚本不会——PATH 必须自己带 `${sdk}/bin`；脚本要 `set -euo pipefail`，否则失败还打印成功文案（首次 `tv-avd` 就这样静默失败过）。
 4. 坑 D：排查镜像注意两点——组合 SDK 里镜像路径是 `system-images/android-34/…`（带 `android-` 前缀）；镜像目录是符号链接，`find -type d` 看不见，要用 `ls -la`。
 5. TV arm64 镜像从 API 31 才有；模拟器是 API 34（Android 14），与验收机 API 23 系统行为不同。模拟器只做逻辑回归，API 23 差异与最终验收靠真机。
-6. 模拟器不覆盖：性能预算、微信内核兼容、真实遥控器。真机部署按设备档案执行，无线 adb 不传 APK。
+6. 模拟器不覆盖：性能预算、微信内核兼容、真实遥控器。真机部署按设备档案执行。
 
 **给下一个 agent**
 
@@ -109,5 +107,5 @@
 
 **没干成 / 待办**
 
-- 真机安装通道（T4）未动。真机部署按设备档案执行（坑 1 armeabi-v7a / 坑 2 不走无线传大文件）。
+- 真机安装通道（T4）未动。真机部署按设备档案执行（坑 1 armeabi-v7a）。
 - 验收第 2 条「APK 含 `lib/armeabi-v7a/`」口径已按 PRD 决策 23 拍板（2026-11-04）：纯 Kotlin/Java 工程 APK 允许无 `lib/` 目录，ABI 核查视为通过；TASKS 与设备档案已回写。

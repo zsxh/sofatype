@@ -16,6 +16,8 @@ sofatype/
 │   ├── issues/             # 变更记录：一个任务一个 issue，open / closed 分目录
 │   └── devices/            # 设备档案，一机一档
 │       └── MiTV4-ANSM0.md  # 验收实机档案
+├── local/                  # 本地文件，不提交（签名密钥、IP、开发指南）
+│   └── DEV-GUIDE.md        # 本地开发指南：开发环境问题唯一记录处
 └── designs/                # 设计稿定稿，只作视觉参考
     ├── tv-ime-crossscreen/ # TV 键盘 · 跨屏输入
     ├── phone-remote-input/ # 手机远程输入页
@@ -24,13 +26,14 @@ sofatype/
 ```
 
 - 代码工程尚未创建。创建位置（仓库根）与工具链（Kotlin + Nix flake，见 HANDOFF 当前状态）已拍板；开工须用户明确指令，施工计划见 `docs/TASKS.md`。
-- `local/`（本地敏感文件：签名密钥、IP）不提交，尚未创建。
+- `local/`（本地文件：签名密钥、IP、本地开发指南）不提交。开发环境问题只在 `local/DEV-GUIDE.md` 记录；git 管理的其余文档不记录、不指向其内容，本条是唯一指向。
 
 ## 二、文档原则
 
 - **PRD（[`docs/PRD.md`](docs/PRD.md)）是需求的唯一来源**：动手前先读；实现范围、兼容基线、技术约束一律以 PRD 为准，与 PRD 冲突时先向用户确认，不自行改需求。
 - **已拍板决策不重开**：[PRD 决策记录章节](docs/PRD.md) 的结论视为定论，不质疑、不绕开，不改设计稿定稿（[`designs/`](designs/)）；确有必要变更，先向用户提出。
 - **设备档案（[`docs/devices/`](docs/devices/)）一机一档**：涉及实机部署、调试、传输前，先读目标设备的「踩过的坑」与「已知问题」；已实测失败的路径不要重走，已排除的原因不要重新验证。
+- **本地开发指南（`local/DEV-GUIDE.md`，不提交）**：开发环境问题（网络传输等）的唯一记录处；实机部署、调试、传输前先读。git 管理的其余文档不重复其内容。
 - **设计稿（[`designs/`](designs/)）只作视觉与交互参考**：色值/规格以 [PRD 设计规范章节](docs/PRD.md) 为准。
 - **[docs/](docs/) 下文档用 STE 规范输出**：按简化技术中文（ASD-STE100 原则）写——关键信息先行、一句一事、状态词固定；具体问题引用对应文档，不重复细节。可以直接用 `/ste` skill。
 
@@ -52,7 +55,7 @@ sofatype/
   - **issue（[`docs/issues/`](docs/issues/)）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 [`docs/TASKS.md`](docs/TASKS.md) 任务同名同编号；agent 通过模拟器 / 模拟过程验证后通知户主，户主验收拍板后由 `open/` 挪入 `closed/`。纯文档调整不建 issue。
   - **HANDOFF（[`docs/HANDOFF.md`](docs/HANDOFF.md)）**：agent 每次独立完成一批活后更新——简短几句：干了啥、遇到什么坑、还有什么没干成；细节指向 issue，不重复展开。
   - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
-- **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD.md)，编号顺延、不重排。
+- **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；开发环境问题写入 `local/DEV-GUIDE.md`（不提交）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD.md)，编号顺延、不重排。
 - 提交信息与代码注释用中文。
 
 ## 五、禁止事项
