@@ -375,6 +375,14 @@ flowchart TD
 21. 验收辅助输入：设置页内提供测试输入区，仅 debug 构建显示（`BuildConfig.DEBUG` 门控），release 构建设置页与设计稿一致；不单独创建测试宿主应用。
 22. 成功指标埋点：首版仅本地 logcat 打点事件计数与耗时，不含任何输入内容，不做上报通道；验收阶段人工统计。
 
+以下为 2026-11-04 施工中拍板（T1 验收口径）：
+
+23. APK ABI 验收口径：纯 Kotlin/Java 工程（无原生库）的 APK 允许不含 `lib/` 目录，ABI 核查视为通过；未来引入原生库时，`lib/` 仅允许 `armeabi-v7a`（或 `universal` / `noarch`），Gradle 用 `abiFilters` 锁死，并恢复 `unzip` 字面核查。依据：dex 与 ABI 无关；工具链拍板不装 NDK。
+
+以下为 2026-11-04 施工中拍板（T1 评审 · Gradle 工具链口径）：
+
+24. Gradle 版本口径：以 nix package 为准，文档与工程描述不写死 Gradle 版本号；wrapper 三件套由 nix 包内 Gradle 生成，wrapper 发行版版本与 nix 包一致，经已拍板镜像下载并以 `distributionSha256Sum` 钉官方校验和。
+
 ---
 
 ## 13. 附录 · 设计稿索引

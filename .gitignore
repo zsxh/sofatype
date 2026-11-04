@@ -1,3 +1,23 @@
+# 设计稿工具产物
 /designs/*/.artifact-server.json
 /designs/*/.artifact-server.log
 /designs/*/comments.json
+
+# Gradle / Android 构建产物
+.gradle/
+build/
+local.properties
+
+# 户主本地敏感文件：签名密钥、IP 等（AGENTS.md 禁止事项 7，禁止提交）
+/local/
+# adb 密钥（电视信任的 adbkey 私钥，禁止提交）
+/.adbhome/
+
+# 工作区内重定向的工具缓存（沙箱环境：nix 求值缓存 / Gradle 用户目录 / Android 工具 HOME）
+.nix-cache/
+.gradle-home/
+.home/
+
+# IDE
+.idea/
+*.iml

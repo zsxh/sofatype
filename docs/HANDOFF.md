@@ -20,11 +20,12 @@
 
 ## 当前状态（截至 2026-11-04）
 
-- 代码工程未创建。仓库只有文档、设计稿与开发环境 `flake.nix`。
+- 2026-11-04：T1 验收关闭（户主拍板；issue 已挪 `docs/issues/closed/T1.md`，任务状态「真机已验证」）。户主裁决 wrapper 版本口径（决策 24）：以 nix package 为准，文档不规定 Gradle 版本。Gradle 工程位于仓库根：Kotlin 1.9.24 / AGP 8.2.2；minSdk 23、compileSdk 34、versionName 0.1.0(1)。构建：`nix develop` 内 `./gradlew assembleDebug`。真机安装实证：`com.sofatype.ime` 0.1.0(1) 已装小米电视4（见下行复测记录）。
 - PRD v1.1 与设计稿已定稿。开发期间不得改动（AGENTS.md 文档原则）。
 - 2026-11-04：施工前任务拆解定稿。施工计划、任务清单与状态见 `docs/TASKS.md`；新增拍板决策 14~22，见 PRD 第 12 章。
 - 2026-11-04：变更记录规范拍板。issue 与任务一一对应（`docs/issues/`，规范见 `docs/issues/README.md`）；HANDOFF 记会话、CHANGELOG 记发版；TASKS 任务编号改为全局顺序、从 1 开始（T1~T27）；issue 桩文件已预建于 `open/`，任务开工时填充正文。
-- 下一步：户主明确指令后，从 `docs/TASKS.md` 的 T1（工程骨架）开工。
+- 2026-11-04：真机传输复测（户主发起的临时探测，非 TASKS 任务，无 issue）。无线 adb 单次连接安装成功：778 KB 纯 dex 包传输段瞬时 233.8 MB/s，2026-10-28 塌陷未复现；网络接口归属未确认，归因待 T4。数据与口径见 `docs/devices/MiTV4-ANSM0.md` 坑 2 复测段。
+- 下一步：T1 已拍板验收通过并归档（2026-11-04）。T2 未派——户主指示暂不开始 T2，派发时机由 manager / 户主定。
 - 工具链已拍板（2026-11-03）：语言 Kotlin；拼音引擎自研词组级 + 内置词库；局域网 HTTP/WS 服务自研、二维码用 ZXing core（纯 Java、无传递依赖）；工具链由根目录 `flake.nix` 声明，不在系统手工安装 SDK。
 - `flake.nix` 已通过真实求值验证（2026-11-03）：环境构建成功，工具、TV 镜像、AVD 创建逐项核实，详见版本记录。
 
@@ -92,4 +93,21 @@
 
 - flake 已验证可用，M0 开工直接 `nix develop` 进入环境。
 - `flake.lock` 必须随本批变更一起提交，保证跨机器可复现。
-- 构建入口：shell 内用 `gradle wrapper` 生成包装器（gradle 包只为此存在），之后固定 AGP/Gradle 版本于 `build.gradle.kts` 与 wrapper 配置，日常只用 `./gradlew`。
+- 构建入口：shell 内用 `gradle wrapper` 生成包装器（gradle 包只为此存在），之后固定 AGP 版本于 `build.gradle.kts`，日常只用 `./gradlew`。（2026-11-04 决策 24 修订：wrapper 版本以 nix package 为准，文档不写死 Gradle 版本号；重生成在 flake 环境内跑 `gradle wrapper`，不带指定版本参数。）
+
+### T1 · 工程骨架（2026-11-04，随未发布 0.1.0）
+
+**干了啥**
+
+- 仓库根创建 Gradle 工程：Kotlin 1.9.24 + AGP 8.2.2（wrapper 版本以 nix package 为准，决策 24）；minSdk 23 / compileSdk 34 / 0.1.0(1)；app 模块最小 manifest（无 Activity / Service，T2/T3 补入）。
+- `./gradlew assembleDebug` 出包；模拟器（AVD sofatype-tv，API 34）`adb install` 成功。细节与验收证据见 `docs/issues/open/T1.md`。
+
+**踩过的坑**
+
+1. 官方 Gradle 发行版域名（services.gradle.org / downloads.gradle.org）网络超时：wrapper `distributionUrl` 改腾讯镜像，`distributionSha256Sum` 钉 nixpkgs fetchurl 权威校验和（与镜像下载字节比对一致）；wrapper 版本以 nix package 为准（决策 24）。细节见 issue T1 坑 3/6。
+2. 沙箱（agent 环境）下 `~/.android`、`~/.gradle`、`~/.cache/nix` 不可写：构建与模拟器需把 HOME / JAVA_TOOL_OPTIONS(-Duser.home) / GRADLE_USER_HOME / ANDROID_USER_HOME / XDG_CACHE_HOME 重定向进工作区（已 gitignore）。非沙箱终端不受影响，细节见 issue T1 坑 1/2/4。
+
+**没干成 / 待办**
+
+- 真机安装通道（T4）未动。真机部署按设备档案执行（坑 1 armeabi-v7a / 坑 2 不走无线传大文件）。
+- 验收第 2 条「APK 含 `lib/armeabi-v7a/`」口径已按 PRD 决策 23 拍板（2026-11-04）：纯 Kotlin/Java 工程 APK 允许无 `lib/` 目录，ABI 核查视为通过；TASKS 与设备档案已回写。

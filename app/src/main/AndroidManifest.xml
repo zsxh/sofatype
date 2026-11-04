@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T1 工程骨架：最小应用声明，产出可安装 APK。
+  后续任务补入：T2 设置页 Activity、T3 输入法服务（IME service）。
+  allowBackup=false：隐私红线姿态，应用数据不参与系统备份（AGENTS.md 禁止事项 2）。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="sofatype" />
+
+</manifest>
