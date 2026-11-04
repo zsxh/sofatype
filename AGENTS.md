@@ -12,6 +12,8 @@ sofatype/
 ├── docs/                   # 项目文档
 │   ├── PRD.md              # 需求唯一来源
 │   ├── HANDOFF.md          # 开发交接：版本详细改动与踩过的坑
+│   ├── TASKS.md            # 施工任务拆解：任务、验收点、状态
+│   ├── issues/             # 变更记录：一个任务一个 issue，open / closed 分目录
 │   └── devices/            # 设备档案，一机一档
 │       └── MiTV4-ANSM0.md  # 验收实机档案
 └── designs/                # 设计稿定稿，只作视觉参考
@@ -21,7 +23,7 @@ sofatype/
     └── color-schemes/      # 三端配色方案
 ```
 
-- 代码工程尚未创建。创建位置与工具链未拍板，动手前先向用户确认。
+- 代码工程尚未创建。创建位置（仓库根）与工具链（Kotlin + Nix flake，见 HANDOFF 当前状态）已拍板；开工须用户明确指令，施工计划见 `docs/TASKS.md`。
 - `local/`（本地敏感文件：签名密钥、IP）不提交，尚未创建。
 
 ## 二、文档原则
@@ -46,7 +48,10 @@ sofatype/
 - **无障碍**：全部可交互元素提供无障碍标注，焦点与状态满足可读性要求。
 - **性能预算**：以 [PRD 非功能需求章节](docs/PRD.md) 的指标为准，实现时逐条对照。
 - **「已完成」的唯一标准是真机验证**：没有在真机上验证过的功能，不说「已完成」；汇报时明确区分「已实现」与「真机已验证」。
-- **工作留痕**：**每次提交代码变更后，必须更新 [`docs/HANDOFF.md`](docs/HANDOFF.md)**——记录本次改动的详细内容、原因和踩过的坑；同时在根目录 [`CHANGELOG.md`](CHANGELOG.md) 加一条简短记录（新增 / 变更 / 修复）。两者维护格式见 [`docs/HANDOFF.md`](docs/HANDOFF.md) 开头的「维护约定」。
+- **工作留痕（三处分工，操作规范见 [`docs/issues/README.md`](docs/issues/README.md) 与 [`docs/HANDOFF.md`](docs/HANDOFF.md) 开头的「维护约定」）**：
+  - **issue（[`docs/issues/`](docs/issues/)）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 [`docs/TASKS.md`](docs/TASKS.md) 任务同名同编号；agent 通过模拟器 / 模拟过程验证后通知户主，户主验收拍板后由 `open/` 挪入 `closed/`。纯文档调整不建 issue。
+  - **HANDOFF（[`docs/HANDOFF.md`](docs/HANDOFF.md)）**：agent 每次独立完成一批活后更新——简短几句：干了啥、遇到什么坑、还有什么没干成；细节指向 issue，不重复展开。
+  - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
 - **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD.md)，编号顺延、不重排。
 - 提交信息与代码注释用中文。
 
