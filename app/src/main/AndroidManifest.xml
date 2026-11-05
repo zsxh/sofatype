@@ -8,6 +8,18 @@
 
     <application
         android:allowBackup="false"
-        android:label="sofatype" />
+        android:label="sofatype"
+        android:theme="@style/Theme.Sofatype">
+
+        <!-- T2：设置页 Activity（FR-D1 最小集）。
+             exported=true：TASKS T2 验收方式要求 adb `am start` 直达；
+             系统输入法设置的入口由 @xml/method.xml 的 settingsActivity 声明（FR-D1），
+             该 meta-data 在 T3 声明 IME service 时引用生效。 -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:label="@string/settings_label" />
+
+    </application>
 
 </manifest>

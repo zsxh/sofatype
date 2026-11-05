@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用主题：全深色星夜青基底（PRD 第 6 章）。只用 framework Material 主题，不引第三方依赖。 -->
+<resources>
+    <style name="Theme.Sofatype" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <!-- 光标/选区控制色走主色 Token -->
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+    </style>
+</resources>

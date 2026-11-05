@@ -24,6 +24,11 @@ android {
         }
     }
 
+    buildFeatures {
+        // T2（PRD 决策 21）：测试输入区以 BuildConfig.DEBUG 门控，需生成 BuildConfig 类
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

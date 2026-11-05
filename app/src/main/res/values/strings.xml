@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 设置页 -->
+    <string name="settings_label">sofatype 输入法设置</string>
+    <string name="breadcrumb_app">sofatype 输入法</string>
+    <string name="breadcrumb_settings">设置</string>
+    <!-- 测试输入区（仅 debug 构建显示，PRD 决策 21） -->
+    <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
+    <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>
+    <string name="btn_fill_sample">填入示例文本</string>
+    <string name="cd_btn_fill_sample">填入示例文本</string>
+    <string name="btn_select_all">全选</string>
+    <string name="cd_btn_select_all">全选测试输入框文本</string>
+    <string name="sample_text">sofatype 测试文本 ABC123</string>
+</resources>

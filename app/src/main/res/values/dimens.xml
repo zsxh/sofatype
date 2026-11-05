@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  星夜青规格 Token · 尺寸（PRD 第 6.3 节，基准 1080p）。
+  换算口径：tv_1080p 模拟器密度 320dpi（xhdpi），1080p 基准 px ÷ 2 = dp/sp；
+  4K 屏等比 2x，由系统密度缩放承担。禁止在此文件外散落尺寸值。
+-->
+<resources>
+    <!-- 面包屑区（设计稿 ime-settings：top 56px / left 96px / 字 20px / 间距 14px / 竖线 1×16px） -->
+    <dimen name="page_padding_top">28dp</dimen>
+    <dimen name="page_padding_start">48dp</dimen>
+    <dimen name="breadcrumb_text_size">10sp</dimen>
+    <dimen name="breadcrumb_gap">7dp</dimen>
+    <dimen name="breadcrumb_divider_w">0.5dp</dimen>
+    <dimen name="breadcrumb_divider_h">8dp</dimen>
+    <!-- 测试输入区（仅 debug）：容器对齐设置卡宽 620px；输入框 96px 高、圆角 20px、字 30px -->
+    <dimen name="test_area_width">310dp</dimen>
+    <dimen name="test_input_height">48dp</dimen>
+    <dimen name="test_input_corner">10dp</dimen>
+    <dimen name="test_input_text">15sp</dimen>
+    <dimen name="test_input_padding">12dp</dimen>
+    <!-- 辅助按钮（对齐 PRD 6.3「检查更新按钮」196×64 / 圆角 14 / 字 19px；间距 14px） -->
+    <dimen name="btn_width">98dp</dimen>
+    <dimen name="btn_height">32dp</dimen>
+    <dimen name="btn_corner">7dp</dimen>
+    <dimen name="btn_text">9.5sp</dimen>
+    <dimen name="btn_gap">7dp</dimen>
+    <!-- 描边宽：PRD 6.1 卡片描边 1~1.5px，取 1.5px -->
+    <dimen name="stroke_width">0.75dp</dimen>
+</resources>

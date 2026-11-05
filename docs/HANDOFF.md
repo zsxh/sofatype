@@ -25,7 +25,7 @@
 - 2026-11-04：施工前任务拆解定稿。施工计划、任务清单与状态见 `docs/TASKS.md`；新增拍板决策 14~22，见 PRD 第 12 章。
 - 2026-11-04：变更记录规范拍板。issue 与任务一一对应（`docs/issues/`，规范见 `docs/issues/README.md`）；HANDOFF 记会话、CHANGELOG 记发版；TASKS 任务编号改为全局顺序、从 1 开始（T1~T27）；issue 桩文件已预建于 `open/`，任务开工时填充正文。
 - 2026-11-04：issue 模板补「目标」章节：目标描述本 issue 交付的功能与结果（结果导向），「改动」只记具体执行内容（执行导向），两者分开写（规范见 `docs/issues/README.md` 规则 6）。全部 27 个 issue 文件已按新模板补齐目标，T1 亦补（纯文档调整，不建 issue）。
-- 下一步：T1 已拍板验收通过并归档（2026-11-04）。T2 未派——户主指示暂不开始 T2，派发时机由 manager / 户主定。
+- 2026-11-04：T2 曾按户主指示暂缓。2026-11-05 lead 派发并完成 T2 开发与模拟器验证（见下方版本记录）。2026-11-05 T2 验收关闭：模拟器 + 真机双验收通过，户主拍板归档（issue 挪 `docs/issues/closed/T2.md`，任务状态「已实现」）；验收后环境已清理——真机卸载 `com.sofatype.ime`、模拟器关闭、`~/.android` 重复 AVD 副本（2.9G）删除，细节见 issue T2「户主拍板」节。
 - 工具链已拍板（2026-11-03）：语言 Kotlin；拼音引擎自研词组级 + 内置词库；局域网 HTTP/WS 服务自研、二维码用 ZXing core（纯 Java、无传递依赖）；工具链由根目录 `flake.nix` 声明，不在系统手工安装 SDK。
 - `flake.nix` 已通过真实求值验证（2026-11-03）：环境构建成功，工具、TV 镜像、AVD 创建逐项核实，详见版本记录。
 
@@ -110,3 +110,21 @@
 
 - 真机安装通道（T4）未动。真机部署按设备档案执行（坑 1 armeabi-v7a）。
 - 验收第 2 条「APK 含 `lib/armeabi-v7a/`」口径已按 PRD 决策 23 拍板（2026-11-04）：纯 Kotlin/Java 工程 APK 允许无 `lib/` 目录，ABI 核查视为通过；TASKS 与设备档案已回写。
+
+### T2 · 最小设置页壳子（2026-11-05，随未发布 0.1.0）
+
+**干了啥**
+
+- 设置页 Activity + 面包屑「sofatype 输入法 ｜ 设置」；debug 独有测试输入区（输入框 + 「填入示例文本」「全选」，`BuildConfig.DEBUG` 门控，工程开启 `buildConfig` feature）；`res/xml/method.xml` 声明 IME 设置入口（service 与 meta-data 留 T3，lead 拍板方案 A）。色值/规格全部 Token 化：`res/values/colors.xml`（PRD 6.1 全集）、`dimens.xml`（1080p 基准 px ÷ 2 = dp/sp）。无第三方依赖，仍只有 Kotlin stdlib。
+- `./gradlew assembleDebug` + `assembleRelease` 均出包；模拟器（AVD sofatype-tv / API 34）三项验收走查通过：adb 启动、输入框聚焦/输入/选中、release 无测试区。证据与截图说明见 `docs/issues/closed/T2.md` 验收节；2026-11-05 模拟器 + 真机验收均通过，户主拍板归档（见当前状态）。
+
+**踩过的坑**
+
+1. release 未配签名，unsigned APK 装不上模拟器：本地 apksigner + debug keystore 测试签名后安装；仅验证手段，仓库不加签名配置。
+2. `selectAll()` 置中的选中区间，高亮只在输入框持焦时渲染；「全选」点击后焦点在按钮，走查需先把焦点移回输入框（DPAD 上移）才见高亮。
+
+**没干成 / 待办**
+
+- 系统输入法设置的入口未生效也未走查：依赖 T3 声明 IME service 时引用 `@xml/method`；「从系统入口进入」属 T20 走查范围。
+- 品牌区、版本信息卡、底部操作提示属 T20，未实现。
+- 模拟器已关闭（2026-11-05 验收后，进程精确匹配终止，无残留）；后续关闭仍按 T1 坑 5 用 /nix/store 路径精确匹配，勿 pkill 宽匹配。

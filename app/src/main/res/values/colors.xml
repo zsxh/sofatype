@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  星夜青（Aurora Cyan）设计 Token · 色彩（PRD 第 6.1 节，唯一色值来源）。
+  禁止在此文件外硬编码色值；后续任务（T5 键盘、T20 设置页补全）复用本文件。
+  rgba → ARGB 的 alpha 换算：alpha × 255 四舍五入取十六进制（如 .5 → 80）。
+-->
+<resources>
+    <!-- 三端页面背景 -->
+    <color name="bg">#06080C</color>
+    <!-- 卡片/悬浮面板底色（描边见 card_stroke，PRD 6.1） -->
+    <color name="card">#12161E</color>
+    <!-- 键帽底色 -->
+    <color name="key">#1D242F</color>
+    <!-- 键帽 hover/按压提亮 -->
+    <color name="key_hover">#242C39</color>
+    <!-- 主色：强调键底色、品牌块、光标、上屏主按钮 -->
+    <color name="accent">#38BDF8</color>
+    <!-- 主色 hover -->
+    <color name="accent_hover">#5BC9FA</color>
+    <!-- 主色上的文字/描边文字、焦点描边文字、URL -->
+    <color name="accent_text">#7DD3FC</color>
+    <!-- 主色底上的深青文字 -->
+    <color name="on_accent">#052330</color>
+    <!-- 连接成功/最新版本状态点 -->
+    <color name="success">#34D399</color>
+    <!-- 主文字（标题、大字内容、品牌字标） -->
+    <color name="text_primary">#F2F6FB</color>
+    <!-- 键帽字符正文 -->
+    <color name="text_body">#E8EEF5</color>
+    <!-- 功能键文字 -->
+    <color name="text_secondary">#C9D4E2</color>
+    <!-- 次级文字、说明文案 -->
+    <color name="text_muted">#7F848D</color>
+    <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
+    <color name="border_accent">#8038BDF8</color>
+    <!-- 主色描边文字态，rgba(56,189,248,.45) -->
+    <color name="border_accent_text">#7338BDF8</color>
+    <!-- 编辑卡描边（PRD 6.3 手机编辑卡），rgba(56,189,248,.4) -->
+    <color name="border_accent_edit">#6638BDF8</color>
+    <!-- 主色淡底（副卡按钮、候选高亮 chip、完成键），rgba(56,189,248,.14) -->
+    <color name="accent_wash">#2438BDF8</color>
+    <!-- 主色淡底上限，rgba(56,189,248,.16)（PRD 6.1 accent-wash 区间上界） -->
+    <color name="accent_wash_strong">#2938BDF8</color>
+    <!-- 分隔线上限，rgba(255,255,255,.15) -->
+    <color name="divider">#26FFFFFF</color>
+    <!-- 分隔线下限，rgba(255,255,255,.07) -->
+    <color name="divider_soft">#12FFFFFF</color>
+    <!-- 卡片描边，rgba(255,255,255,.08) -->
+    <color name="card_stroke">#14FFFFFF</color>
+</resources>

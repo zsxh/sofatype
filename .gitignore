@@ -21,3 +21,8 @@ local.properties
 # IDE
 .idea/
 *.iml
+
+# 开发走查截图（模拟器验证证据，T2 起）
+/.shots-t2/
+# 验收方走查证据（截图 / uiautomator dump，验收结束按户主指令清理）
+/.verify-tmp/
