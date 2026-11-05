@@ -22,8 +22,6 @@ local.properties
 .idea/
 *.iml
 
-# 开发走查截图（模拟器验证证据，T2 起）
-/.shots-t2/
-/.shots-t3/
-# 验收方走查证据（截图 / uiautomator dump，验收结束按户主指令清理）
-/.verify-tmp/
+# 截图验证产物（统一目录，2026-11-05 户主拍板；真机验证完成后询问户主是否删除）
+# 历史散目录（.shots-t2/.shots-t3/.shots-t4/.shots-t5/.verify-tmp）已于 2026-11-05 清理并废弃
+/.screenshots/

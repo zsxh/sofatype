@@ -47,4 +47,7 @@
     <color name="divider_soft">#12FFFFFF</color>
     <!-- 卡片描边，rgba(255,255,255,.08) -->
     <color name="card_stroke">#14FFFFFF</color>
+    <!-- 悬浮卡片底部柔影（PRD 6.3「黑 55% 模糊 30」）：画板① 为 rgba(0,0,0,.55)+blur(30px)，
+         垫层近似取 blur 扩散后边缘的可见强度（黑 40%） -->
+    <color name="card_shadow">#66000000</color>
 </resources>

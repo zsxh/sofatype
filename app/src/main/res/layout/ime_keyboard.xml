@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T5 · 键盘悬浮层静态布局（画板①「字母键盘·小写」/ FR-A2 / 决策 7 R-1）。
+  根容器 = 覆盖区 322dp：停靠屏幕底部，透明底透出宿主内容（悬浮卡片形态）。
+  主卡 = 候选栏占位 + 键盘区（数字列/字母区/功能键区）；键帽由 KeyboardLayout
+  模型驱动程序化生成（SofatypeImeService），跨两行完成键也在代码中挂载到键区。
+  副卡 = 跨屏输入引导占位（内容与状态机属 T17，FR-B1）。
+  主/副卡均含底部柔影垫层（PRD 6.3「黑 55% 模糊 30」的近似实现，见 bg_card_shadow）。
+  全部色值/规格走 Token（colors.xml / dimens.xml），本文件不出现字面值。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/ime_panel_height"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- 卡片行：主卡 + 副卡，贴底排布 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="@dimen/ime_card_margin_bottom"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/ime_card_margin_h"
+        android:paddingEnd="@dimen/ime_card_margin_h">
+
+        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行 -->
+        <FrameLayout
+            android:layout_width="@dimen/ime_main_card_width"
+            android:layout_height="@dimen/ime_card_height"
+            android:clipChildren="false">
+
+            <!-- 底部柔影（PRD 6.3 黑 55% 模糊 30 的垫层近似，画板① 柔影层）：垫在卡体之下 -->
+            <View
+                android:layout_width="@dimen/ime_card_shadow_width"
+                android:layout_height="@dimen/ime_card_shadow_height"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_card_shadow" />
+
+            <!-- 主卡：候选栏 + 键盘区 -->
+            <LinearLayout
+                android:layout_width="@dimen/ime_main_card_width"
+                android:layout_height="@dimen/ime_card_height"
+                android:background="@drawable/bg_card"
+                android:clipChildren="false"
+                android:orientation="vertical"
+                android:paddingStart="@dimen/ime_card_padding_h"
+                android:paddingTop="@dimen/ime_card_padding_v"
+                android:paddingEnd="@dimen/ime_card_padding_h">
+
+            <!-- 候选词栏占位：候选 chips（首候选高亮）属 T10（FR-A7） -->
+            <FrameLayout
+                android:id="@+id/candidates_bar"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/ime_candidates_height" />
+
+            <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->
+            <FrameLayout
+                android:id="@+id/key_area"
+                android:layout_width="@dimen/ime_key_area_width"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="@dimen/ime_key_area_margin_top"
+                android:clipChildren="false">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:id="@+id/key_row_1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/ime_key_height"
+                        android:orientation="horizontal" />
+
+                    <LinearLayout
+                        android:id="@+id/key_row_2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/ime_key_height"
+                        android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:orientation="horizontal" />
+
+                    <LinearLayout
+                        android:id="@+id/key_row_3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/ime_key_height"
+                        android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:orientation="horizontal" />
+
+                    <LinearLayout
+                        android:id="@+id/key_row_4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/ime_key_height"
+                        android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:orientation="horizontal" />
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
+        </FrameLayout>
+
+        <!-- 副卡占位（含柔影垫层）：跨屏输入引导内容与状态机属 T17（FR-B1） -->
+        <FrameLayout
+            android:layout_width="@dimen/ime_side_card_width"
+            android:layout_height="@dimen/ime_card_height"
+            android:layout_marginStart="@dimen/ime_card_gap"
+            android:clipChildren="false">
+
+            <View
+                android:layout_width="@dimen/ime_side_card_shadow_width"
+                android:layout_height="@dimen/ime_card_shadow_height"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_card_shadow" />
+
+            <FrameLayout
+                android:id="@+id/side_card"
+                android:layout_width="@dimen/ime_side_card_width"
+                android:layout_height="@dimen/ime_card_height"
+                android:background="@drawable/bg_card" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

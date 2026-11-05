@@ -26,7 +26,54 @@
     <dimen name="btn_gap">7dp</dimen>
     <!-- 描边宽：PRD 6.1 卡片描边 1~1.5px，取 1.5px -->
     <dimen name="stroke_width">0.75dp</dimen>
-    <!-- 占位键盘（T3，程序化构建；T5 真实布局按 PRD 6.3 重做，届时移除本节） -->
-    <dimen name="ime_placeholder_height">64dp</dimen>
-    <dimen name="ime_key_gap">8dp</dimen>
+
+    <!-- ═══ 键盘悬浮层（T5，画板①「字母键盘·小写」/ FR-A2 / 决策 7 R-1；1080p px ÷ 2 = dp/sp） ═══ -->
+    <!-- 覆盖区：停靠屏幕底部、覆盖高 644px（决策 7 / R-1），透明底透出宿主内容 -->
+    <dimen name="ime_panel_height">322dp</dimen>
+    <!-- 悬浮卡片：主卡 1272×548、副卡 472×548，圆角 38（PRD 6.3），距底 48px、左右 72px、卡间 32px -->
+    <dimen name="ime_card_height">274dp</dimen>
+    <dimen name="ime_card_corner">19dp</dimen>
+    <dimen name="ime_card_margin_h">36dp</dimen>
+    <dimen name="ime_card_margin_bottom">24dp</dimen>
+    <dimen name="ime_card_gap">16dp</dimen>
+    <dimen name="ime_main_card_width">636dp</dimen>
+    <dimen name="ime_side_card_width">236dp</dimen>
+    <!-- 主卡内边距 26px/32px（画板① padding 26px 32px） -->
+    <dimen name="ime_card_padding_v">13dp</dimen>
+    <dimen name="ime_card_padding_h">16dp</dimen>
+    <!-- 候选词栏：高 52px（PRD 6.3 候选 chip 行），chips 内容属 T10 -->
+    <dimen name="ime_candidates_height">26dp</dimen>
+    <!-- 键盘区：宽 1200px、距候选栏 18px（画板① margin 18px auto 0） -->
+    <dimen name="ime_key_area_width">600dp</dimen>
+    <dimen name="ime_key_area_margin_top">9dp</dimen>
+    <!-- 键帽：80×92、圆角 14、字符 30px；功能键文字 22px（PRD 6.3） -->
+    <dimen name="ime_key_width">40dp</dimen>
+    <dimen name="ime_key_height">46dp</dimen>
+    <dimen name="ime_key_corner">7dp</dimen>
+    <dimen name="ime_key_text">15sp</dimen>
+    <dimen name="ime_key_fn_text">11sp</dimen>
+    <!-- 键间 12px、行距 12px、列间隔本体 42px（画板① gap/spacer）。
+         列间隔实宽 = 键距 12 + spacer 42 + 键距 12 = 66px：.krow 的 flex gap 对 spacer 两侧均生效，
+         24px 键距由代码侧键 margin 与 spacer margin 合成，此处只存 spacer 本体宽 -->
+    <dimen name="ime_key_spacing">6dp</dimen>
+    <dimen name="ime_row_spacing">6dp</dimen>
+    <dimen name="ime_column_spacer">21dp</dimen>
+    <!-- 完成键：84×196 跨两行高键（FR-A10），字 26px，键区内偏移 1120px/208px（画板①） -->
+    <dimen name="ime_done_key_width">42dp</dimen>
+    <dimen name="ime_done_key_height">98dp</dimen>
+    <dimen name="ime_done_key_text">13sp</dimen>
+    <dimen name="ime_done_key_start">560dp</dimen>
+    <dimen name="ime_done_key_top">104dp</dimen>
+    <!-- 键帽图标尺寸：上档 24px / 下屏 28px / 删除 32px / 光标 28px（画板① SVG 尺寸） -->
+    <dimen name="ime_icon_shift">12dp</dimen>
+    <dimen name="ime_icon_hide">14dp</dimen>
+    <dimen name="ime_icon_backspace">16dp</dimen>
+    <dimen name="ime_icon_cursor">14dp</dimen>
+    <!-- 底部柔影垫层（PRD 6.3 黑 55% 模糊 30 / 画板① rgba(0,0,0,.55) blur(30px)、圆角 48）：
+         尺寸 = 各自卡片 + 每侧 6dp 外扩（主卡 1272px / 副卡 472px，高 548px），近似 blur 扩散；
+         主副卡宽度不同，垫层宽 Token 分列，禁止互相复用（评审第 2 轮 Major：副卡复用主卡宽致左溢 412dp） -->
+    <dimen name="ime_card_shadow_width">648dp</dimen>
+    <dimen name="ime_side_card_shadow_width">248dp</dimen>
+    <dimen name="ime_card_shadow_height">286dp</dimen>
+    <dimen name="ime_card_shadow_corner">24dp</dimen>
 </resources>

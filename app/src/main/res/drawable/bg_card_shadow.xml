@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮卡片底部柔影垫层（PRD 6.3「黑 55% 模糊 30」/ 画板① rgba(0,0,0,.55) blur(30px) 圆角 48）：
+     Android 传统 View 无低版本安全的模糊能力，用「卡片后垫层 + 外扩 6dp + 40% 黑圆角」
+     近似 blur 扩散后的边缘暗晕观感；色值见 colors.xml card_shadow 注释 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/card_shadow" />
+    <corners android:radius="@dimen/ime_card_shadow_corner" />
+</shape>

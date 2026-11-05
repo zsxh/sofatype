@@ -12,10 +12,6 @@
     <string name="btn_select_all">全选</string>
     <string name="cd_btn_select_all">全选测试输入框文本</string>
     <string name="sample_text">sofatype 测试文本 ABC123</string>
-    <!-- 输入法（T3 占位键盘；系统输入法列表显示 label） -->
+    <!-- 输入法（T5：键面文字与无障碍标注由 KeyboardLayout 模型承载，系统输入法列表 label 走资源） -->
     <string name="ime_service_label">sofatype 输入法</string>
-    <string name="ime_key_sample">A</string>
-    <string name="ime_key_dismiss">下屏</string>
-    <string name="cd_ime_key_sample">输入示例字符 A</string>
-    <string name="cd_ime_key_dismiss">下屏，收起键盘</string>
 </resources>

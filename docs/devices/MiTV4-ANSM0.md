@@ -62,3 +62,15 @@ adb shell getprop ro.product.cpu.abilist
 
 **适用范围**：预装搜狗小米版输入法为默认 IME 时。切换默认 IME 可规避，但需户主确认。
 
+### 坑 3：切换默认输入法被系统自动夺回（2026-11-05）
+
+**现象**：`ime set` 切到第三方 IME（sofatype）后，搜狗弹崩溃反馈弹窗（其进程被切走时异常），系统随后自动把 `default_input_method` 切回搜狗——表现为「ime set 已生效，弹出键盘却是搜狗」。
+
+**处置**：重新 `ime set` 后立即走查；每次弹键盘前先 `settings get secure default_input_method` 核对。搜狗异常反馈弹窗用 BACK 关闭（不点发送）。根治（第三方 IME 稳态默认）待后续任务处理。
+
+### 坑 4：电视空闲自动进屏保，走查指令全部落空（2026-11-05）
+
+**现象**：走查间隔电视空闲后自动进 `com.mitv.screensaver`，前台被屏保压住：`input tap` 全落空、uiautomator dump 全是屏保节点。
+
+**处置**：真机走查连贯执行；恢复操作前先 `dumpsys window` 核对前台，或先按遥控键唤醒退出屏保。
+
