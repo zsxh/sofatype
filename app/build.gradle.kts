@@ -38,3 +38,8 @@ android {
         jvmTarget = "17"
     }
 }
+
+dependencies {
+    // T3：占位键盘纯逻辑单元测试（仅 test 作用域，不进产品依赖，AGENTS.md 禁止事项 1）
+    testImplementation("junit:junit:4.13.2")
+}

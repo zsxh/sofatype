@@ -26,4 +26,7 @@
     <dimen name="btn_gap">7dp</dimen>
     <!-- 描边宽：PRD 6.1 卡片描边 1~1.5px，取 1.5px -->
     <dimen name="stroke_width">0.75dp</dimen>
+    <!-- 占位键盘（T3，程序化构建；T5 真实布局按 PRD 6.3 重做，届时移除本节） -->
+    <dimen name="ime_placeholder_height">64dp</dimen>
+    <dimen name="ime_key_gap">8dp</dimen>
 </resources>
