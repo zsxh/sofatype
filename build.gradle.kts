@@ -3,4 +3,6 @@
 plugins {
     id("com.android.application") version "8.2.2" apply false
     id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    // T9：拼音引擎独立模块为纯 Kotlin JVM 模块，与 android 模块共用同一 Kotlin 版本
+    id("org.jetbrains.kotlin.jvm") version "1.9.24" apply false
 }

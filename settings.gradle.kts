@@ -18,3 +18,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "sofatype"
 include(":app")
+// T9：拼音引擎独立模块（纯 Kotlin JVM，不依赖 UI，PRD 决策 28）
+include(":pinyin")

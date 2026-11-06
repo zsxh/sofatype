@@ -1,0 +1,20 @@
+# NOTICE
+
+SofaType 输入法 · 第三方数据说明
+
+本产品的拼音词库（`app` 模块 assets 内置的 `dict/pinyin_dict.bin`，SPD1 自有精简格式）
+由 AOSP 谷歌拼音词库在构建期转换生成（PRD 决策 28，2026-11-06；源文件入库条款经
+决策 29 同日修订）。
+
+- 词库来源：AOSP（Android Open Source Project）PinyinIME 项目
+  文件：`jni/data/rawdict_utf16_65105_freq.txt`（65 105 条词条）
+  仓库：https://android.googlesource.com/platform/packages/inputmethods/PinyinIME/
+- 原始许可：Apache License, Version 2.0
+  许可全文：https://www.apache.org/licenses/LICENSE-2.0
+- Copyright（原始词库）：The Android Open Source Project
+- 转换口径（决策 29）：原始词库源文件随本仓库入库
+  （`pinyin/dictsrc/rawdict_utf16_65105_freq.txt`，sha256 锁定）；构建期校验一致后
+  转换为 SPD1 精简格式随 APK 内置，构建全程零网络依赖；SPD1 产物不入库；
+  词频取词库内建频次。
+
+除上述第三方词库数据外，本仓库其余内容版权归 sofatype 项目所有。

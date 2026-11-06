@@ -13,6 +13,9 @@ local.properties
 # adb 密钥（电视信任的 adbkey 私钥，禁止提交）
 /.MiTV4-adbhome/
 
+# T30 拼音词库（PRD 决策 29：源文件 pinyin/dictsrc/ 入库零网络；SPD1 产物为构建产物不入库）
+/pinyin/assets/dict/
+
 # 工作区内重定向的工具缓存（沙箱环境：nix 求值缓存 / Gradle 用户目录 / 模拟器 Android 工具 HOME）
 .nix-cache/
 .gradle-home/

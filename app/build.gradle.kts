@@ -37,6 +37,14 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    sourceSets {
+        // T9（PRD 决策 28）：拼音词库 SPD1 转换产物入包 —— pinyin 模块的
+        // assets/dict/pinyin_dict.bin 以 APK assets 形式内置（原始源文件不入库）。
+        getByName("main") {
+            assets.srcDir(rootDir.resolve("pinyin/assets"))
+        }
+    }
 }
 
 dependencies {
