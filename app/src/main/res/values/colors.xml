@@ -31,6 +31,8 @@
     <color name="text_secondary">#C9D4E2</color>
     <!-- 次级文字、说明文案 -->
     <color name="text_muted">#7F848D</color>
+    <!-- 「更多⌄」入口文字（T11 · 画板① 候选行：text_body 50% 透明度） -->
+    <color name="text_faint">#80E8EEF5</color>
     <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
     <color name="border_accent">#8038BDF8</color>
     <!-- 主色描边文字态，rgba(56,189,248,.45) -->

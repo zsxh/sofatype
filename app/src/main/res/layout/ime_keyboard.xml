@@ -26,21 +26,25 @@
         android:paddingStart="@dimen/ime_card_margin_h"
         android:paddingEnd="@dimen/ime_card_margin_h">
 
-        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行 -->
+        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行；
+             展开态高度由服务层切换 ime_card_height / ime_card_height_expanded（T11 · FR-A15） -->
         <FrameLayout
+            android:id="@+id/main_card_wrap"
             android:layout_width="@dimen/ime_main_card_width"
             android:layout_height="@dimen/ime_card_height"
             android:clipChildren="false">
 
             <!-- 底部柔影（PRD 6.3 黑 55% 模糊 30 的垫层近似，画板① 柔影层）：垫在卡体之下 -->
             <View
+                android:id="@+id/main_card_shadow"
                 android:layout_width="@dimen/ime_card_shadow_width"
                 android:layout_height="@dimen/ime_card_shadow_height"
                 android:layout_gravity="center"
                 android:background="@drawable/bg_card_shadow" />
 
-            <!-- 主卡：候选栏 + 键盘区 -->
+            <!-- 主卡：候选栏 + 展开行（T11，默认 GONE）+ 键盘区 -->
             <LinearLayout
+                android:id="@+id/main_card"
                 android:layout_width="@dimen/ime_main_card_width"
                 android:layout_height="@dimen/ime_card_height"
                 android:background="@drawable/bg_card"
@@ -51,13 +55,22 @@
                 android:paddingEnd="@dimen/ime_card_padding_h">
 
             <!-- 候选词栏（T10 · FR-A7）：仅候选词 chips（决策 1 不显示拼音串、决策 2 无语音入口），
-                 首候选高亮（PRD 6.3 高亮态 = accent-wash 底 + border-accent 描边）；
+                 无常亮高亮（决策 30，高亮仅随遥控器焦点态）；
                  chips 由服务层依组合态候选程序化生成，英文/数字模式整栏 GONE、键盘区上移 -->
             <LinearLayout
                 android:id="@+id/candidates_bar"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/ime_candidates_height"
                 android:orientation="horizontal" />
+
+            <!-- 更多候选展开行（T11 · FR-A15）：候选栏下方第二行候选，分页展示（页内容由服务层装载），
+                 默认 GONE；可见时主卡切展开态高度，键区随之下移 -->
+            <LinearLayout
+                android:id="@+id/more_bar"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/ime_candidates_height"
+                android:orientation="horizontal"
+                android:visibility="gone" />
 
             <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->
             <FrameLayout
@@ -104,10 +117,12 @@
         </LinearLayout>
         </FrameLayout>
 
-        <!-- 副卡占位（含柔影垫层）：跨屏输入引导内容与状态机属 T17（FR-B1） -->
+        <!-- 副卡占位（含柔影垫层）：跨屏输入引导内容与状态机属 T17（FR-B1）；
+             底对齐：主卡展开态加高时主/副卡保持底缘对齐（T11） -->
         <FrameLayout
             android:layout_width="@dimen/ime_side_card_width"
             android:layout_height="@dimen/ime_card_height"
+            android:layout_gravity="bottom"
             android:layout_marginStart="@dimen/ime_card_gap"
             android:clipChildren="false">
 

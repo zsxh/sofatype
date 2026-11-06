@@ -10,6 +10,10 @@
 // 空格 R-2（有候选选首候选、无候选输入空格）；候选行焦点进出与行内移动（CandidateRow 模型）；
 // 英文/数字模式候选栏 GONE、键盘区上移占满主卡片。组合态状态机在 ChineseComposer（纯模型，单测锁定），
 // 候选查询接 :pinyin 引擎（决策 28/29，assets 内置 SPD1 产物，加载失败降级为无候选不崩溃）。
+// T11 接线：候选栏右侧「更多 ⌄」入口（首行放不下时出现）展开第二行候选（候选栏下方 more_bar，
+// 分页展示、页缘左右翻页，CandidateMoreRow 模型）；再次点按收起；展开行焦点导航
+//（候选行 DOWN 进展开行、展开行 UP 回候选行、DOWN 出候选区回键盘）；展开态主卡加高
+//（ime_card_height_expanded，键位结构与列节奏不变）。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -46,11 +50,28 @@ class SofatypeImeService : InputMethodService() {
         /** assets 内置拼音词库产物路径（T9 接线，决策 28/29）。 */
         const val DICT_ASSET_PATH = "dict/pinyin_dict.bin"
 
-        /** 候选查询上限：多于可见数查询，可见数由 CandidateChips.fitCount 依宽度截断。 */
-        const val CANDIDATE_QUERY_LIMIT = 12
+        /**
+         * 候选查询上限（T11 提至 24）：多于可见数查询；首行 + 展开行需多页候选支撑
+         * FR-A15 分页翻页（12 时溢出候选不足一页，翻页无从演示）。
+         */
+        const val CANDIDATE_QUERY_LIMIT = 24
 
         /** 候选 chip 视图 tag 前缀（候选行焦点路由识别用；下标接后缀）。 */
         const val CANDIDATE_ID_PREFIX = "cand_"
+
+        /** 「更多 ⌄」入口视图 tag（T11 · FR-A15，候选行末尾、展开/收起开关）。 */
+        const val MORE_TOGGLE_ID = "more_toggle"
+
+        /** 展开行 chip 视图 tag 前缀（下标 = 展开行候选全局下标）。 */
+        const val MORE_ID_PREFIX = "more_"
+
+        /** 「更多⌄」入口键面：收起态（画板① 原文）与展开态（chevron 翻转，FR-A15「再次点按收起」）。 */
+        const val MORE_LABEL_COLLAPSED = "更多 ⌄"
+        const val MORE_LABEL_EXPANDED = "更多 ⌃"
+
+        /** 「更多⌄」入口无障碍标注（PRD 第 8 章）。 */
+        const val MORE_DESC_COLLAPSED = "更多候选，点按展开"
+        const val MORE_DESC_EXPANDED = "更多候选，点按收起"
     }
 
     /**
@@ -111,6 +132,44 @@ class SofatypeImeService : InputMethodService() {
     /** 候选词栏引用（onCreateInputView 绑定；chips 由 refreshCandidatesBar 装载）。 */
     private var candidatesBar: LinearLayout? = null
 
+    // ---- 更多候选展开行（T11 · FR-A15） ----
+
+    /** 展开行容器（候选栏下方，默认 GONE；onCreateInputView 绑定）。 */
+    private var moreBar: LinearLayout? = null
+
+    /** 「更多⌄」入口视图（候选行末尾；无溢出候选时不存在）。 */
+    private var moreToggleView: TextView? = null
+
+    /** 展开态：第二行候选是否展开（「更多 ⌄」开关；候选集变化即收起）。 */
+    private var moreExpanded = false
+
+    /** 当前展开行页号（0 起）。 */
+    private var morePage = 0
+
+    /** 展开行分页区间（CandidateMoreRow.paginate 结果，溢出段相对坐标系，随展开行候选刷新）。 */
+    private var morePages: List<IntRange> = emptyList()
+
+    /** 当前页 chip 视图（页内按溢出段相对序）；展开行焦点路由与上屏用。 */
+    private val moreViews = mutableListOf<View>()
+
+    /** 最近一次候选装载的全量 chip 测量宽度（与 composer.candidates 序一致；展开行分页复用）。 */
+    private var candidateWidths: List<Int> = emptyList()
+
+    /** 最近一次候选装载的首行可见数（溢出 = 总数 - 此值）。 */
+    private var firstRowCount = 0
+
+    /** 焦点进入展开行前的候选行 chip tag（UP 回首行落点）。 */
+    private var moreReturnChip: String? = null
+
+    /** 主卡几何视图（展开态高度切换用；onCreateInputView 绑定）。 */
+    private var mainCardWrap: FrameLayout? = null
+
+    /** 主卡卡体（展开态高度切换用）。 */
+    private var mainCard: LinearLayout? = null
+
+    /** 主卡柔影垫层（展开态高度随卡同步）。 */
+    private var mainCardShadow: View? = null
+
     /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
     private var keyArea: FrameLayout? = null
 
@@ -133,10 +192,22 @@ class SofatypeImeService : InputMethodService() {
         languageMode = LanguageMode.CHINESE
         composer.reset()
         navigator = FocusNavigator()
+        // T11 展开行状态复位
+        moreExpanded = false
+        morePage = 0
+        morePages = emptyList()
+        moreViews.clear()
+        candidateWidths = emptyList()
+        firstRowCount = 0
+        moreReturnChip = null
         val root = LayoutInflater.from(this).inflate(R.layout.ime_keyboard, null) as ViewGroup
         keyboardView = root
         candidatesBar = root.findViewById(R.id.candidates_bar)
         keyArea = root.findViewById(R.id.key_area)
+        mainCardWrap = root.findViewById(R.id.main_card_wrap)
+        mainCard = root.findViewById(R.id.main_card)
+        mainCardShadow = root.findViewById(R.id.main_card_shadow)
+        moreBar = root.findViewById(R.id.more_bar)
         rebuildKeys(root, requestInitialFocus = false)
         return root
     }
@@ -208,12 +279,14 @@ class SofatypeImeService : InputMethodService() {
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 val currentId = (keyboardView?.findFocus() as? View)?.tag as? String
                 if (currentId != null) {
-                    // 候选行与键盘格网分层路由（T10 · FR-A7）：焦点在 chip 上走候选行语义，
-                    // 其余（键盘键）走 FocusNavigator 格网语义，含从行 1 键向上进入候选行
-                    if (currentId.isCandidateId()) {
-                        handleCandidateRowDirection(currentId, direction)
-                    } else {
-                        handleKeyboardDirection(currentId, direction)
+                    // 候选区与键盘格网分层路由（T10 · FR-A7 / T11 · FR-A15）：焦点在候选区
+                    //（首行 chip、「更多⌄」入口、展开行 chip）走候选区语义，其余（键盘键）
+                    // 走 FocusNavigator 格网语义，含从行 1 键向上进入候选行
+                    when {
+                        currentId == MORE_TOGGLE_ID -> handleMoreToggleDirection(direction)
+                        currentId.isMoreChipId() -> handleMoreRowDirection(currentId, direction)
+                        currentId.isCandidateId() -> handleCandidateRowDirection(currentId, direction)
+                        else -> handleKeyboardDirection(currentId, direction)
                     }
                 }
             }
@@ -241,9 +314,19 @@ class SofatypeImeService : InputMethodService() {
     /** 候选 chip 视图 tag → 候选下标。 */
     private fun String.candidateIndex(): Int? = removePrefix(CANDIDATE_ID_PREFIX).toIntOrNull()
 
+    /** 展开行 chip 视图 tag 判定（T11 · FR-A15）。 */
+    private fun String.isMoreChipId(): Boolean = startsWith(MORE_ID_PREFIX)
+
+    /** 展开行 chip 视图 tag → 展开行全局下标。 */
+    private fun String.moreChipIndex(): Int? = removePrefix(MORE_ID_PREFIX).toIntOrNull()
+
+    /** 焦点是否在候选区任一视图（首行 chip /「更多⌄」入口 / 展开行 chip）；候选区移除后的焦点回归判定用。 */
+    private fun String.isCandidateLayerId(): Boolean =
+        isCandidateId() || this == MORE_TOGGLE_ID || isMoreChipId()
+
     /**
      * 键盘键方向导航（T6 格网语义 + T10 候选行进入）：
-     * 行 1 键向上且候选栏可见时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选高亮 chip）；
+     * 行 1 键向上且候选栏可见时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选 chip）；
      * 其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
      */
     private fun handleKeyboardDirection(currentId: String, direction: FocusDirection) {
@@ -261,8 +344,10 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 候选行方向导航（T10 · FR-A7）：左右在候选间移动、向上到顶不动、向下出候选行
-     * 回键盘（落点 = 进入前的键盘键，丢失时回初始键）。行内语义见 CandidateRow（纯模型，单测锁定）。
+     * 候选行方向导航（T10 · FR-A7 + T11 · FR-A15）：左右在候选间移动、向上到顶不动、
+     * 向下 = 展开行可见时进入展开行（展开行在首行正下方，符合视觉行列关系）、否则出候选区回键盘
+     *（落点 = 进入前的键盘键，丢失时回初始键）。行末 chip 向右 →「更多⌄」入口（入口可见时）。
+     * 行内语义见 CandidateRow（纯模型，单测锁定）。
      */
     private fun handleCandidateRowDirection(currentId: String, direction: FocusDirection) {
         val index = currentId.candidateIndex() ?: return
@@ -271,14 +356,96 @@ class SofatypeImeService : InputMethodService() {
                 trace("focus $currentId $direction -> cand_${move.index}")
                 candidateViews[move.index].requestFocus(View.FOCUS_DOWN)
             }
-            CandidateRowMove.ExitDown -> {
-                val targetId = candidateReturnKey?.takeIf { keyViews.containsKey(it) }
-                    ?: navigator.initialKey()
-                trace("focus $currentId DOWN -> $targetId（出候选行）")
-                keyViews[targetId]?.requestFocus(View.FOCUS_DOWN)
+            CandidateRowMove.ExitDown ->
+                if (isMoreRowActive()) {
+                    enterMoreRow(currentId)
+                } else {
+                    exitCandidatesLayerToKeyboard(currentId)
+                }
+            CandidateRowMove.Stay -> {
+                // 行 1 末 chip 向右 → 「更多⌄」入口（T11）；其余表缘保持不动（T10 口径）
+                if (direction == FocusDirection.RIGHT && index == candidateViews.size - 1) {
+                    moreToggleView?.requestFocus(View.FOCUS_DOWN)
+                }
             }
-            CandidateRowMove.Stay -> Unit
         }
+    }
+
+    /**
+     * 「更多⌄」入口方向导航（T11 · FR-A15）：LEFT 回首行末 chip（与 chip 向右互进对称）；
+     * 向上到顶不动、向右表缘不动；向下 = 展开行可见时进入展开行、收起时出候选区回键盘。
+     */
+    private fun handleMoreToggleDirection(direction: FocusDirection) {
+        when (direction) {
+            FocusDirection.LEFT -> candidateViews.lastOrNull()?.requestFocus(View.FOCUS_DOWN)
+            FocusDirection.DOWN ->
+                if (isMoreRowActive()) {
+                    enterMoreRow(MORE_TOGGLE_ID)
+                } else {
+                    exitCandidatesLayerToKeyboard(MORE_TOGGLE_ID)
+                }
+            FocusDirection.RIGHT, FocusDirection.UP -> Unit
+        }
+    }
+
+    /**
+     * 展开行方向导航（T11 · FR-A15「展开行同样支持焦点导航」）：页内左右移动、页缘同方向翻页
+     *（右缘向后翻落新页首 chip、左缘向前翻落新页末 chip，模型见 CandidateMoreRow，单测锁定）；
+     * UP 回候选首行（落点 = 进入前 chip，丢失回「更多⌄」入口）；DOWN 出候选区回键盘。
+     */
+    private fun handleMoreRowDirection(currentId: String, direction: FocusDirection) {
+        val index = currentId.moreChipIndex() ?: return
+        when (val move = CandidateMoreRow.move(index, direction, morePages)) {
+            is CandidateMoreMove.To -> {
+                trace("focus $currentId $direction -> more_${move.index}")
+                focusMoreChip(move.index)
+            }
+            is CandidateMoreMove.Flip -> {
+                trace("focus $currentId $direction -> page ${move.page}（翻页，落 more_${move.index}）")
+                morePage = move.page
+                bindMorePage()
+                focusMoreChip(move.index)
+            }
+            CandidateMoreMove.ExitUp -> {
+                val returnTag = moreReturnChip
+                    ?.takeIf { it == MORE_TOGGLE_ID || it.isCandidateId() }
+                trace("focus $currentId UP -> ${returnTag ?: "cand_0"}（回首行）")
+                if (returnTag == MORE_TOGGLE_ID) {
+                    moreToggleView?.requestFocus(View.FOCUS_DOWN)
+                } else {
+                    val idx = returnTag?.candidateIndex()?.takeIf { it in candidateViews.indices } ?: 0
+                    candidateViews.getOrNull(idx)?.requestFocus(View.FOCUS_DOWN)
+                }
+            }
+            CandidateMoreMove.ExitDown -> exitCandidatesLayerToKeyboard(currentId)
+            CandidateMoreMove.Stay -> Unit
+        }
+    }
+
+    /** 展开行是否处于可用状态（展开态 + 容器可见 + 当前页有 chip）。 */
+    private fun isMoreRowActive(): Boolean =
+        moreExpanded && moreBar?.visibility == View.VISIBLE && moreViews.isNotEmpty()
+
+    /** 进入展开行（落当前页首 chip），记录 UP 回首行的落点 chip。 */
+    private fun enterMoreRow(returnChip: String) {
+        moreReturnChip = returnChip
+        trace("focus $returnChip DOWN -> more（进入展开行）")
+        focusMoreChip(morePages.getOrNull(morePage)?.first ?: return)
+    }
+
+    /** 焦点落展开行 chip（展开行全局下标；越界不落）。 */
+    private fun focusMoreChip(globalIndex: Int) {
+        val page = morePages.getOrNull(morePage) ?: return
+        if (globalIndex !in page) return
+        moreViews.getOrNull(globalIndex - page.first)?.requestFocus(View.FOCUS_DOWN)
+    }
+
+    /** 出候选区回键盘（T10 落点口径：进入候选区前的键盘键，丢失时回初始键）。 */
+    private fun exitCandidatesLayerToKeyboard(fromId: String) {
+        val targetId = candidateReturnKey?.takeIf { keyViews.containsKey(it) }
+            ?: navigator.initialKey()
+        trace("focus $fromId DOWN -> $targetId（出候选区）")
+        keyViews[targetId]?.requestFocus(View.FOCUS_DOWN)
     }
 
     /** 行容器 id 与 KeyboardLayout.rows 一一对应（顺序即行序）。 */
@@ -527,14 +694,14 @@ class SofatypeImeService : InputMethodService() {
         ic.setComposingText(composer.composition, 1)
     }
 
-    /** 选中候选上屏（FR-A8 选词上屏 / R-2 空格选首候选 / 候选行 OK 选中）：候选词替换组合串区域，组合态结束。 */
+    /** 选中候选上屏（FR-A8 选词上屏 / R-2 空格选首候选 / 候选行·展开行 OK 选中）：候选词替换组合串区域，组合态结束。 */
     private fun selectCandidate(word: String) {
-        // 先记焦点：chips 将随组合态结束被清空，chip 上的焦点需回归键盘；键盘键上的焦点不动（继续输入）
+        // 先记焦点：chips 将随组合态结束被清空，候选区上的焦点需回归键盘；键盘键上的焦点不动（继续输入）
         val focusTag = (keyboardView?.findFocus() as? View)?.tag as? String
         composer.reset()
         commitText(word)
         refreshCandidatesBar()
-        if (focusTag?.isCandidateId() == true) {
+        if (focusTag?.isCandidateLayerId() == true) {
             refocusKeyboardAfterBarHidden()
         }
     }
@@ -545,12 +712,13 @@ class SofatypeImeService : InputMethodService() {
         return engine.query(input, CANDIDATE_QUERY_LIMIT).map { it.word }
     }
 
-    // ---- 候选词栏（T10 · FR-A7） ----
+    // ---- 候选词栏（T10 · FR-A7）与更多候选展开行（T11 · FR-A15） ----
 
     /**
      * 刷新候选栏可见性与内容（组合态变化、模式切换、键盘重建后调用）。
      * 栏区显隐 = 字母键盘 × 中文模式（英文/数字/符号键盘整栏 GONE、键盘区上移占满主卡片，FR-A7 评审补充）；
-     * chips 仅组合态有候选时装载（决策 1：只显示候选词，无组合态时栏区留空）。
+     * chips 仅组合态有候选时装载（决策 1：只显示候选词，无组合态时栏区留空）；
+     * 候选区整体移除 / 候选集变化时展开行同步收起（T11，展开态只在同一候选集内有效）。
      */
     private fun refreshCandidatesBar() {
         val bar = candidatesBar ?: return
@@ -563,8 +731,10 @@ class SofatypeImeService : InputMethodService() {
             setKeyAreaTopMargin(visible = false)
             bar.removeAllViews()
             candidateViews.clear()
-            // 焦点原在 chip 上：随栏移除，焦点回落键盘
-            if (focusTag?.isCandidateId() == true) {
+            moreToggleView = null
+            collapseMoreRow()
+            // 焦点原在候选区（chip / 更多⌄ / 展开行）：随栏移除，焦点回落键盘
+            if (focusTag?.isCandidateLayerId() == true) {
                 refocusKeyboardAfterBarHidden()
             }
             return
@@ -576,42 +746,47 @@ class SofatypeImeService : InputMethodService() {
         } else {
             bar.removeAllViews()
             candidateViews.clear()
+            moreToggleView = null
+            collapseMoreRow()
         }
     }
 
-    /** 依候选装载 chips：先测宽、依可用宽度截断（CandidateChips.fitCount），放不下的候选不展示（更多候选展开属 T11）。 */
+    /**
+     * 依候选装载首行 chips 与「更多 ⌄」入口（T11 · FR-A15）：
+     * 先测宽、依可用宽度截断（CandidateChips.fitCount）；全宽截断后仍有溢出时，首行可用宽度按
+     * 入口占位宽度收缩后再截断（防入口与 chips 重叠），行末追加「更多 ⌄」入口；
+     * 入口可见 = 仍有候选未展示。候选集变化即收起展开行。
+     */
     private fun bindCandidates(bar: LinearLayout) {
         bar.removeAllViews()
         candidateViews.clear()
+        moreToggleView = null
+        collapseMoreRow()
         val candidates = composer.candidates
         if (candidates.isEmpty()) return
         val gap = resources.getDimensionPixelSize(R.dimen.ime_chip_gap)
-        val available = bar.takeIf { it.width > 0 }?.width
-            ?: resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
-                2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+        val available = candidatesAvailablePx()
         // 未挂载状态下先量宽再装载（TextView measure UNSPECIFIED = 文字自适应宽，结果已含 padding）。
         // 未挂载 TextView 也必须有 LayoutParams：setText 触发 checkForRelayout 会解引用
         // layoutParams，为 null 时 NPE（模拟器走查实测崩溃点，已修）
-        val measurer = TextView(this)
-        measurer.layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-        )
-        measurer.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_chip_text))
-        measurer.setPadding(
-            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
-            0,
-            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
-            0,
-        )
+        val measurer = createChipMeasurer()
         val widths = candidates.map { word ->
             measurer.text = word
             measurer.measure(0, 0)
             measurer.measuredWidth
         }
-        val count = CandidateChips.fitCount(widths, gap, available)
+        candidateWidths = widths
+        val fitFull = CandidateChips.fitCount(widths, gap, available)
+        var count = fitFull
+        var toggleVisible = false
+        if (CandidateMoreRow.overflowCount(candidates.size, fitFull) > 0) {
+            // 入口实际占位 = 测量宽 + 入口前间距（gap），收缩量按占位全额计（评审 Round 1 建议 2）
+            count = CandidateChips.fitCount(widths, gap, available - moreToggleReservedPx())
+            toggleVisible = count < candidates.size
+        }
+        firstRowCount = count
         for (index in 0 until count) {
-            val view = createChipView(candidates[index], index)
+            val view = createChipView(candidates[index], CANDIDATE_ID_PREFIX + index)
             candidateViews.add(view)
             bar.addView(
                 view,
@@ -619,14 +794,20 @@ class SofatypeImeService : InputMethodService() {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 ).apply {
+                    // 末 chip 免 marginEnd：与入口的间距由入口自身 marginStart 提供，
+                    // 不叠加双倍 gap（评审 Round 1 建议 1）
                     if (index != count - 1) marginEnd = gap
                 },
             )
         }
+        if (toggleVisible) bindMoreToggle(bar, gap)
     }
 
-    /** 候选 chip 视图：可聚焦（遥控器候选行导航）、OK 选中上屏；首候选高亮（PRD 6.3 高亮态）。 */
-    private fun createChipView(word: String, index: Int): TextView {
+    /**
+     * 候选 chip 视图（首行 / 展开行共用，T10/T11）：可聚焦（遥控器候选行导航）、OK 选中上屏。
+     * 无常亮高亮（决策 30：含首候选，高亮仅表达遥控器焦点态，样式见 applyChipAppearance）。
+     */
+    private fun createChipView(word: String, tag: String): TextView {
         val view = TextView(this).apply {
             text = word
             gravity = Gravity.CENTER
@@ -639,24 +820,227 @@ class SofatypeImeService : InputMethodService() {
                 resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
                 0,
             )
-            tag = CANDIDATE_ID_PREFIX + index
+            this.tag = tag
             isFocusable = true
             isFocusableInTouchMode = true
             setOnClickListener { selectCandidate(word) }
-            onFocusChangeListener = View.OnFocusChangeListener { v, _ -> applyChipAppearance(v, index == 0) }
+            onFocusChangeListener = View.OnFocusChangeListener { v, _ -> applyChipAppearance(v) }
         }
-        applyChipAppearance(view, index == 0)
+        applyChipAppearance(view)
         return view
     }
 
+    /** 候选 chip 测量用 TextView（未挂载；先设 LayoutParams 防 NPE，T10 坑口径）。 */
+    private fun createChipMeasurer(): TextView {
+        val measurer = TextView(this)
+        measurer.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+        measurer.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_chip_text))
+        measurer.setPadding(
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+        )
+        return measurer
+    }
+
+    /** 候选行可用宽度（候选栏实宽，未挂载时按主卡 Token 推算，T10 口径）。 */
+    private fun candidatesAvailablePx(): Int =
+        candidatesBar?.takeIf { it.width > 0 }?.width
+            ?: resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
+                2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+
     /**
-     * chip 底形与文字色（全部走 Token）：高亮（首候选）与焦点态同形 ——
-     * accent-wash 底 + border-accent 描边（PRD 6.3 高亮态 / PRD 6.4「聚焦态 = 主色描边」）+ accent-text 文字；
-     * 普通 chip 无底色 + 键帽字符正文色（画板① .bchip）。
+     * 「更多⌄」入口实际占位宽度（首行可用宽度收缩量）：
+     * 测量文字宽 + 入口前间距（gap）——入口与末 chip 的间距由入口自身 marginStart 提供，
+     * 末 chip 免 marginEnd，占位须全额计入防贴边溢出（评审 Round 1 建议 2）。
      */
-    private fun applyChipAppearance(view: View, highlighted: Boolean) {
-        val active = highlighted || view.isFocused
-        if (active) {
+    private fun moreToggleReservedPx(): Int {
+        val measurer = TextView(this)
+        measurer.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+        measurer.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_key_fn_text))
+        measurer.setPadding(
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+        )
+        measurer.text = MORE_LABEL_COLLAPSED
+        measurer.measure(0, 0)
+        return measurer.measuredWidth + resources.getDimensionPixelSize(R.dimen.ime_chip_gap)
+    }
+
+    /** 「更多⌄」入口视图（T11 · FR-A15）：候选行末尾文字入口，OK 切换展开/收起。 */
+    private fun bindMoreToggle(bar: LinearLayout, gap: Int) {
+        val view = TextView(this).apply {
+            text = MORE_LABEL_COLLAPSED
+            contentDescription = MORE_DESC_COLLAPSED
+            gravity = Gravity.CENTER
+            maxLines = 1
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_key_fn_text))
+            setPadding(
+                resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+                0,
+                resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+                0,
+            )
+            tag = MORE_TOGGLE_ID
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { toggleMoreCandidates() }
+            onFocusChangeListener = View.OnFocusChangeListener { v, _ -> applyToggleAppearance(v as TextView) }
+        }
+        applyToggleAppearance(view)
+        moreToggleView = view
+        bar.addView(
+            view,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ).apply { marginStart = gap },
+        )
+    }
+
+    /**
+     * 「更多⌄」入口底形与文字色：普通态 = 无底色 + 画板① 入口淡文字色（text_faint）；
+     * 焦点态 = 主色描边 + accent-text 文字（PRD 6.4，与候选 chip 焦点态同形）。
+     */
+    private fun applyToggleAppearance(view: TextView) {
+        if (view.isFocused) {
+            view.background = getDrawable(R.drawable.bg_chip_highlight)
+            view.setTextColor(getColor(R.color.accent_text))
+        } else {
+            view.background = null
+            view.setTextColor(getColor(R.color.text_faint))
+        }
+    }
+
+    /**
+     * 「更多⌄」开关（FR-A15「点按展开、再次点按收起」）：切换展开态并刷新展开行；
+     * 入口保持焦点，键面 chevron 翻转（收起 ⌄ / 展开 ⌃）与无障碍标注随态更新。
+     */
+    private fun toggleMoreCandidates() {
+        moreExpanded = !moreExpanded
+        morePage = 0
+        moreReturnChip = null
+        trace("more -> ${if (moreExpanded) "EXPANDED" else "COLLAPSED"}")
+        refreshMoreRow()
+        moreToggleView?.let { toggle ->
+            toggle.text = if (moreExpanded) MORE_LABEL_EXPANDED else MORE_LABEL_COLLAPSED
+            toggle.contentDescription = if (moreExpanded) MORE_DESC_EXPANDED else MORE_DESC_COLLAPSED
+            applyToggleAppearance(toggle)
+        }
+    }
+
+    /**
+     * 刷新展开行（T11 · FR-A15）：展开态 = 主卡切展开态高度（展开行占候选栏下方一行）
+     * + 依 CandidateMoreRow.paginate 分页装载当前页 chips；收起 / 无溢出候选 = 整行 GONE + 主卡回收起态。
+     */
+    private fun refreshMoreRow() {
+        val bar = moreBar ?: return
+        val overflow = CandidateMoreRow.overflowCount(composer.candidates.size, firstRowCount)
+        if (!moreExpanded || overflow <= 0 || firstRowCount <= 0) {
+            collapseMoreRow()
+            return
+        }
+        val gap = resources.getDimensionPixelSize(R.dimen.ime_chip_gap)
+        morePages = CandidateMoreRow.paginate(
+            candidateWidths.drop(firstRowCount),
+            gap,
+            candidatesAvailablePx(),
+        )
+        if (morePages.isEmpty()) {
+            collapseMoreRow()
+            return
+        }
+        morePage = morePage.coerceIn(0, morePages.size - 1)
+        bar.visibility = View.VISIBLE
+        applyMoreGeometry(expanded = true)
+        bindMorePage()
+    }
+
+    /**
+     * 装载展开行当前页 chips（tag = 溢出段相对下标，与 CandidateMoreRow 模型同一坐标系；
+     * 词条 = 首行可见数 + 相对下标；OK 选中上屏，无常亮高亮）。
+     */
+    private fun bindMorePage() {
+        val bar = moreBar ?: return
+        bar.removeAllViews()
+        moreViews.clear()
+        val page = morePages.getOrNull(morePage) ?: return
+        val gap = resources.getDimensionPixelSize(R.dimen.ime_chip_gap)
+        val candidates = composer.candidates
+        for (relIndex in page) {
+            val wordIndex = firstRowCount + relIndex
+            if (wordIndex !in candidates.indices) break
+            val view = createChipView(candidates[wordIndex], MORE_ID_PREFIX + relIndex)
+            moreViews.add(view)
+            bar.addView(
+                view,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ).apply {
+                    if (relIndex != page.last) marginEnd = gap
+                },
+            )
+        }
+    }
+
+    /**
+     * 收起展开行：整行 GONE、主卡回收起态高度、页状态清零。
+     * 不在此回归焦点：可能同时收起候选栏的调用方（refreshCandidatesBar 隐藏路径 / selectCandidate）
+     * 各自按候选区焦点判定统一回归，避免双重回归二次消费 candidateReturnKey（落错初始键，走查实测）。
+     */
+    private fun collapseMoreRow() {
+        val bar = moreBar ?: return
+        if (bar.visibility == View.GONE && !moreExpanded && moreViews.isEmpty()) return
+        bar.visibility = View.GONE
+        applyMoreGeometry(expanded = false)
+        bar.removeAllViews()
+        moreViews.clear()
+        moreExpanded = false
+        morePage = 0
+        morePages = emptyList()
+        moreReturnChip = null
+    }
+
+    /**
+     * 主卡高度随展开行显隐切换（T11）：展开态卡顶上移 15dp（ime_card_height_expanded，
+     * 收起态内容余量 11dp 耗尽后的净增量），柔影随卡同步；键位结构不变（列节奏断言不受影响）。
+     */
+    private fun applyMoreGeometry(expanded: Boolean) {
+        val wrap = mainCardWrap ?: return
+        val card = mainCard ?: return
+        val shadow = mainCardShadow ?: return
+        val cardHeight = resources.getDimensionPixelSize(
+            if (expanded) R.dimen.ime_card_height_expanded else R.dimen.ime_card_height,
+        )
+        val shadowHeight = resources.getDimensionPixelSize(
+            if (expanded) R.dimen.ime_card_shadow_height_expanded else R.dimen.ime_card_shadow_height,
+        )
+        for (pair in listOf(wrap to cardHeight, card to cardHeight, shadow to shadowHeight)) {
+            val params = pair.first.layoutParams ?: continue
+            if (params.height != pair.second) {
+                params.height = pair.second
+                pair.first.layoutParams = params
+            }
+        }
+    }
+
+    /**
+     * chip 底形与文字色（全部走 Token）：高亮仅表达遥控器焦点态（决策 30，无常亮高亮）——
+     * 焦点态 = accent-wash 底 + border-accent 描边（PRD 6.4「聚焦态 = 主色描边」）+ accent-text 文字；
+     * 非焦点 chip 无底色 + 键帽字符正文色（画板① .bchip）。
+     */
+    private fun applyChipAppearance(view: View) {
+        if (view.isFocused) {
             view.background = getDrawable(R.drawable.bg_chip_highlight)
             (view as? TextView)?.setTextColor(getColor(R.color.accent_text))
         } else {
