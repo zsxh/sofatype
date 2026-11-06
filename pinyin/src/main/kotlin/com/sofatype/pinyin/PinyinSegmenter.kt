@@ -13,6 +13,11 @@ class PinyinSegmenter(syllableSet: Set<String>) {
         require(syllableSet.all { it.isNotEmpty() && it.all { c -> c in 'a'..'z' } }) {
             "音节表必须为非空小写字母串"
         }
+        // 公开构造防御：音节超长会让 byLength[s.length] 越界（表长 = MAX_SYLLABLE_LEN + 1），
+        // 实际路径由词库产物保证（音节最长 6 字母），此处显式校验给出明确报错
+        require(syllableSet.all { it.length <= MAX_SYLLABLE_LEN }) {
+            "音节长度不能超过 $MAX_SYLLABLE_LEN 字母：${syllableSet.filter { it.length > MAX_SYLLABLE_LEN }}"
+        }
     }
 
     /** 按长度分组索引：音节最长 6 字母（如 zhuang），长度 1..6 各自一个集合（下标 0 弃用） */

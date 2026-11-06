@@ -8,7 +8,7 @@ import java.io.OutputStream
 /**
  * SPD1（SofaType Pinyin Dict v1）自有精简格式的读写（T9，决策 28 构建期转换产物）。
  *
- * 二进制布局（全部小端由 Java DataOutputStream 的 big-endian 写出，见下方逐字段说明）：
+ * 二进制布局（多字节字段全部大端——Java DataOutput 的默认字节序，见下方逐字段说明）：
  * ```
  * 魔数       4 字节  "SPD1"
  * 版本       int32   1
@@ -37,7 +37,7 @@ object DictFormat {
     /** 单音节最大字母数（拼音全拼音节最长 6，如 zhuang） */
     private const val MAX_SYLLABLE_BYTES = 6
 
-    /** 单词条最大字数（源词库实测最长 4 字，防御上限放宽到 8） */
+    /** 单词条最大 UTF-8 字节数（源词库实测最长 4 字 = 12 字节，防御上限放宽到 64 字节） */
     private const val MAX_WORD_BYTES = 64
 
     /** 把 [data] 以 SPD1 格式写入 [output]（调用方负责关闭流） */

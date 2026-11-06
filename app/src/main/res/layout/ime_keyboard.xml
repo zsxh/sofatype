@@ -50,11 +50,14 @@
                 android:paddingTop="@dimen/ime_card_padding_v"
                 android:paddingEnd="@dimen/ime_card_padding_h">
 
-            <!-- 候选词栏占位：候选 chips（首候选高亮）属 T10（FR-A7） -->
-            <FrameLayout
+            <!-- 候选词栏（T10 · FR-A7）：仅候选词 chips（决策 1 不显示拼音串、决策 2 无语音入口），
+                 首候选高亮（PRD 6.3 高亮态 = accent-wash 底 + border-accent 描边）；
+                 chips 由服务层依组合态候选程序化生成，英文/数字模式整栏 GONE、键盘区上移 -->
+            <LinearLayout
                 android:id="@+id/candidates_bar"
                 android:layout_width="match_parent"
-                android:layout_height="@dimen/ime_candidates_height" />
+                android:layout_height="@dimen/ime_candidates_height"
+                android:orientation="horizontal" />
 
             <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->
             <FrameLayout

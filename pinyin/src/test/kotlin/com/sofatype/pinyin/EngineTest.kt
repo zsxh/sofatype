@@ -100,6 +100,25 @@ class EngineTest {
     }
 
     @Test
+    fun `同词双读音桶同现时一次查询内去重取最高频次`() {
+        // T9 评审建议补充的合成双桶用例：同一词在首音节倒排的两个桶（xiang 桶 / xi 桶）
+        // 各有一条词条，且两条全拼均以输入 "xiang" 为前缀——一次查询内双桶同现，
+        // 去重路径（bestFreq 已有词 id）必须走通并取最高频次 500
+        val syllables = listOf("xi", "xiang", "ang")
+        val data = DictData(
+            syllables,
+            listOf("想"),
+            listOf(
+                DictData.Entry(intArrayOf(1), 0, 200.0),        // 想 = xiang（xiang 桶）
+                DictData.Entry(intArrayOf(0, 2), 0, 500.0),     // 想 = xi ang（xi 桶）
+            ),
+        )
+        val result = PinyinEngine.fromData(data).query("xiang")
+        assertEquals(listOf("想"), result.map { it.word })
+        assertEquals(500.0, result.single().freq, 0.0)
+    }
+
+    @Test
     fun `limit 截断候选数`() {
         assertEquals(2, engine().query("ke", limit = 2).size)
         assertEquals(0, engine().query("ke", limit = 0).size)

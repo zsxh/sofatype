@@ -25,7 +25,7 @@
 - 工具链拍板（2026-11-03）：纯 Kotlin、无第三方 SDK；拼音引擎自研词组级 + 内置词库；跨屏 HTTP/WS 自研、二维码 ZXing core；一切工具由 `flake.nix` 声明，不手工装 SDK，新工具先进 flake 再用。
 - 词库现行口径：AOSP 谷歌拼音词库（65 105 条，词 + 逐字拼音 + 内建频次，Apache-2.0）；源文件入库 + sha256 门禁 + 构建零网络。演变：决策 15（CC-CEDICT，作废）→ 28（换源）→ 29（源文件入库），全文见 PRD 第 12 章。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落 handoff 文件（6.2-10）。
-- 待办焦点：T10 中文模式接入 + 候选栏（顺带处理 T9 的 5 条、T30 的 2 条评审非阻塞建议）；真机验证统一走 T12 里程碑；T9/T30 变更等户主提交（另有 `.agents/skills/dev/SKILL.md` 一处非本会话 staged 改动，户主取舍）。
+- 待办焦点：T11 更多候选展开（非里程碑，评审通过即自动归档）；真机验证统一走 T12 里程碑。
 
 ## 关键决策速查（本文涉及项，全文以 PRD 第 12 章为准）
 
@@ -51,6 +51,7 @@
 6. 同轮构建中 `processResources` 与 `convertDict` 无依赖边则执行顺序不定，测试可能复制旧产物；JavaExec 任务 classpath 用 `compileClasspath + classesDirs`，用 `runtimeClasspath` 会经 processResources 成环（T9）。
 7. JUnit 4 `Assert.fail` 返回 void 非 Kotlin `Nothing`，`?: fail(...)` 的 elvis 推断失效；同包双 top-level `main` 裸调引用歧义——校验逻辑抽命名函数（T30）。
 8. 词库转换必须确定性 + sha256 门禁：`verifyDict` 无输出声明每次必跑，防 up-to-date 跳过校验（T30）。
+9. app 依赖 `:pinyin` 后两模块同图构建：`mergeDebugAssets` 需显式 `dependsOn(":pinyin:buildDict")`，否则隐式依赖校验失败（T10）；`pinyin/assets` 同时是 JVM resources 与 app assets 源目录，词库产物会双份入包（`assets/dict/` + 根级 `dict/`，各 1.5 MB），待后续任务 resources 排除（T10 评审非阻塞建议）。
 
 ### 模拟器走查
 
@@ -61,6 +62,8 @@
 5. CENTER 键收起延迟 120ms（`hideSelfAfterKeyDispatch`）防宿主 showSoftInput 覆盖，时序常量真机待复核；BACK 在宿主文本选择手柄激活时第一下被宿主消费（T6/T7）。
 6. `adb force-stop` IME 包会把系统输入法打回 Gboard：恢复用 `ime set` + BACK + 重 tap 输入框，勿 force-stop（T29）。
 7. 新增键盘布局必须同 `columnRhythmMatchesArtboard` 口径加列节奏 x 原点断言：格网列号断言拦不住视觉错位（T28/T29 教训）。
+8. 未挂载的测量用 `TextView` 先设 `LayoutParams` 再 `setText`，否则 NPE 崩溃（系统自动重启 IME 恢复，不阻塞宿主）（T10）。
+9. 候选行进入口径：仅行 1 键 UP 进候选行（栏区在行 1 上方）；行 2/3/4 先按格网到行 1 再进（T10）。
 
 ### 真机走查（前置检查；细节以设备档案为准）
 
@@ -78,7 +81,7 @@
 
 - 阶段 0（2026-10-28~11-03）：PRD v1.1 定稿、设计稿四组定稿、AGENTS.md 定稿、git init。
 - Nix flake（2026-11-03，无 issue 档案，坑见上文清单）：JDK 17（Zulu）+ Android SDK + TV 镜像 API 34 + `nix run .#tv-avd/.#tv-emulator`；真实求值验证通过（环境内 JDK/adb/gradle/build-tools/镜像逐项核实）；`flake.lock` 锁 nixos-26.05、必须随批提交；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake。
-- T1 工程骨架（2026-11-04，真机已验证）/ T2 设置页壳（debug 测试输入区 + 全集 Token 化，真机已验证）/ T3 最小 IME（service 注册 + `onEvaluateFullscreenMode` 恒 false + 收起不丢内容，真机已验证）/ T5 星夜青键盘布局（盲审 3 轮闭环，真机已验证）/ T4 真机无线 adb 通道（真机已验证）/ T28 列间隔 66px 口径修复（真机已验证）/ T6 焦点导航基座 / T7 英文完整输入 / T8 符号键盘（决策 27）/ T29 符号键盘列对齐回归修复 / T9 拼音引擎（决策 28）/ T30 词库入库零网络（决策 29）：全部归档于 `docs/issues/closed/`，状态标注以 TASKS 为准。
+- T1 工程骨架（2026-11-04，真机已验证）/ T2 设置页壳（debug 测试输入区 + 全集 Token 化，真机已验证）/ T3 最小 IME（service 注册 + `onEvaluateFullscreenMode` 恒 false + 收起不丢内容，真机已验证）/ T5 星夜青键盘布局（盲审 3 轮闭环，真机已验证）/ T4 真机无线 adb 通道（真机已验证）/ T28 列间隔 66px 口径修复（真机已验证）/ T6 焦点导航基座 / T7 英文完整输入 / T8 符号键盘（决策 27）/ T29 符号键盘列对齐回归修复 / T9 拼音引擎（决策 28）/ T30 词库入库零网络（决策 29）/ T10 中文模式接入 + 候选词栏：全部归档于 `docs/issues/closed/`，状态标注以 TASKS 为准。
 
 ## 给下一个 agent（T10 接入相关）
 

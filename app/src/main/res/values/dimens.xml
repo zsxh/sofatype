@@ -43,6 +43,12 @@
     <dimen name="ime_card_padding_h">16dp</dimen>
     <!-- 候选词栏：高 52px（PRD 6.3 候选 chip 行），chips 内容属 T10 -->
     <dimen name="ime_candidates_height">26dp</dimen>
+    <!-- 候选 chip（T10 · PRD 6.3：高 52px=候选栏高、圆角 12、文字 28px、水平内边距 22px；
+         chips 间距 16px（画板① 候选行 flex gap）） -->
+    <dimen name="ime_chip_corner">6dp</dimen>
+    <dimen name="ime_chip_text">14sp</dimen>
+    <dimen name="ime_chip_padding_h">11dp</dimen>
+    <dimen name="ime_chip_gap">8dp</dimen>
     <!-- 键盘区：宽 1200px、距候选栏 18px（画板① margin 18px auto 0） -->
     <dimen name="ime_key_area_width">600dp</dimen>
     <dimen name="ime_key_area_margin_top">9dp</dimen>

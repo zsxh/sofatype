@@ -15,7 +15,7 @@ internal fun verifySourceFile(path: String) {
     if (!source.exists() || source.length() == 0L) {
         throw IllegalStateException(
             "词库源文件缺失：${source.absolutePath}\n" +
-                "期望文件：pinyin/dictsrc/rawdict_utf16_65105_freq.txt（3 570 346 字节，随仓库入库）\n" +
+                "期望文件：pinyin/dictsrc/rawdict_utf16_65105_freq.txt（$EXPECTED_SOURCE_BYTES 字节，随仓库入库）\n" +
                 "期望 sha256：$EXPECTED_SHA256",
         )
     }
@@ -26,7 +26,7 @@ internal fun verifySourceFile(path: String) {
             "词库源文件 sha256 校验不一致（文件可能被改动或损坏）：${source.absolutePath}\n" +
                 "期望 sha256：$EXPECTED_SHA256\n" +
                 "实际 sha256：$actual\n" +
-                "文件大小：${source.length()} 字节（期望 3 570 346 字节）",
+                "文件大小：${source.length()} 字节（期望 $EXPECTED_SOURCE_BYTES 字节）",
         )
     }
 
@@ -57,3 +57,6 @@ private fun sha256(file: File): String {
 /** 入库基线 sha256（PRD 决策 29 锁定） */
 internal const val EXPECTED_SHA256: String =
     "408700f28a56091fa07f3b849a0f134fbfc71e6b2ae9b3f52973a5b076f599ff"
+
+/** 入库基线文件字节数（PRD 决策 29 锁定，与 sha256 一并维护） */
+internal const val EXPECTED_SOURCE_BYTES: Long = 3_570_346L

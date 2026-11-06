@@ -67,6 +67,12 @@ class SegmenterTest {
         PinyinSegmenter(setOf("ke", "T1"))
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `超过六字母的音节表拒绝构建`() {
+        // 公开构造防御（T9 评审建议）：音节长超 MAX_SYLLABLE_LEN 时显式报错，不越界访问 byLength
+        PinyinSegmenter(setOf("ke", "toolong"))
+    }
+
     @Test
     fun `超过六字母的连续串无法整体成音节但可逐段切分`() {
         // 音节表含 "a"，"aaaa" 逐段全切

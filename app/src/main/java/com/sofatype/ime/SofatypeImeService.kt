@@ -1,10 +1,15 @@
 // T5 · 键盘悬浮层（FR-A2 静态布局，画板①「字母键盘·小写」）+ T6 · 遥控器焦点导航基座（FR-A1/A10/A11）
-// + T7 · 英文模式完整输入（FR-A3 大小写切换 / FR-A9 特殊键）。
+// + T7 · 英文模式完整输入（FR-A3 大小写切换 / FR-A9 特殊键）+ T10 · 中文模式接入 + 候选词栏（FR-A4/A7/A8）。
 // 键帽由 KeyboardLayout 模型驱动程序化生成（键位结构单一事实源在模型，单测锁定）；
 // T6 接线：DPAD 焦点导航（FocusNavigator 模型 + onKeyDown 层处理，见 onKeyDown 注释）、
 // 初始焦点、OK 触发、系统返回键收起、「完成」键确认收起；「下屏」收起（T5 已有）。
 // T7 接线：字母/数字/.com/@ 直出、空格、删除、光标移动、大小写切换与键面/态提示刷新。
-// 范围边界：符号键盘属 T8；拼音与候选词属 T9/T10；副卡引导内容与状态机属 T17。
+// T8 接线：符号键盘进出与全/半切换。
+// T10 接线：中/英切换（默认中文，PRD 5.2「弹出键盘（中文·小写）」）；中文模式字母入拼音组合
+//（组合串经 setComposingText 上屏显示，候选栏只显示候选词 chips，决策 1/2）；
+// 空格 R-2（有候选选首候选、无候选输入空格）；候选行焦点进出与行内移动（CandidateRow 模型）；
+// 英文/数字模式候选栏 GONE、键盘区上移占满主卡片。组合态状态机在 ChineseComposer（纯模型，单测锁定），
+// 候选查询接 :pinyin 引擎（决策 28/29，assets 内置 SPD1 产物，加载失败降级为无候选不崩溃）。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -21,6 +26,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sofatype.pinyin.PinyinEngine
 
 class SofatypeImeService : InputMethodService() {
 
@@ -36,6 +42,15 @@ class SofatypeImeService : InputMethodService() {
 
         /** 光标移动时向宿主探测文本的窗口长度（IC 光标估算 fallback 用）。 */
         const val CURSOR_PROBE_CHARS = 1000
+
+        /** assets 内置拼音词库产物路径（T9 接线，决策 28/29）。 */
+        const val DICT_ASSET_PATH = "dict/pinyin_dict.bin"
+
+        /** 候选查询上限：多于可见数查询，可见数由 CandidateChips.fitCount 依宽度截断。 */
+        const val CANDIDATE_QUERY_LIMIT = 12
+
+        /** 候选 chip 视图 tag 前缀（候选行焦点路由识别用；下标接后缀）。 */
+        const val CANDIDATE_ID_PREFIX = "cand_"
     }
 
     /**
@@ -65,6 +80,40 @@ class SofatypeImeService : InputMethodService() {
     /** 符号键盘全/半角状态（FR-A6）；仅符号键盘内有效。 */
     private var symbolsWidth = SymbolsWidth.FULL_WIDTH
 
+    /** 语言模式（FR-A4）：中文（拼音组合）↔ 英文（直出）。键盘重建复位中文（PRD 5.2「弹出键盘（中文 · 小写）」；记忆属 FR-A13 P2 不做）。 */
+    private enum class LanguageMode { CHINESE, ENGLISH }
+
+    /** 当前语言模式（会话内状态）。 */
+    private var languageMode = LanguageMode.CHINESE
+
+    /** 中文组合态状态机（T10，纯模型）：候选查询接真实词库引擎（见 queryPinyinCandidates）。 */
+    private val composer = ChineseComposer(::queryPinyinCandidates)
+
+    /**
+     * 拼音引擎（懒加载，首次查询触发）：读取 assets 内置 SPD1 产物（1.5 MB 量级，一次性成本）。
+     * 加载失败置 null，中文模式退化为无候选（组合串仍可经空格上屏，不崩溃不阻塞宿主，可靠性口径）。
+     */
+    private val pinyinEngine: PinyinEngine? by lazy {
+        try {
+            assets.open(DICT_ASSET_PATH).use { PinyinEngine.load(it) }
+        } catch (t: Throwable) {
+            Log.w(TRACE_TAG, "拼音词库加载失败，中文模式退化为无候选", t)
+            null
+        }
+    }
+
+    /** 候选 chip 视图（与候选序一致）；候选行焦点路由与上屏用，不入 keyViews 键盘注册表。 */
+    private val candidateViews = mutableListOf<View>()
+
+    /** 焦点进入候选行前的键盘键 id（向下出行 / 选中上屏后的焦点回归落点）。 */
+    private var candidateReturnKey: String? = null
+
+    /** 候选词栏引用（onCreateInputView 绑定；chips 由 refreshCandidatesBar 装载）。 */
+    private var candidatesBar: LinearLayout? = null
+
+    /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
+    private var keyArea: FrameLayout? = null
+
     /** 跨行浮层键视图（空格/完成键，绝对定位挂键区）；布局切换时移除重建。 */
     private val overlayViews = mutableListOf<View>()
 
@@ -76,12 +125,18 @@ class SofatypeImeService : InputMethodService() {
     override fun onCreateInputView(): View {
         keyViews.clear()
         overlayViews.clear()
+        candidateViews.clear()
+        candidateReturnKey = null
         caseState = CaseState.LOWER
         keyboardMode = KeyboardMode.LETTERS
         symbolsWidth = SymbolsWidth.FULL_WIDTH
+        languageMode = LanguageMode.CHINESE
+        composer.reset()
         navigator = FocusNavigator()
         val root = LayoutInflater.from(this).inflate(R.layout.ime_keyboard, null) as ViewGroup
         keyboardView = root
+        candidatesBar = root.findViewById(R.id.candidates_bar)
+        keyArea = root.findViewById(R.id.key_area)
         rebuildKeys(root, requestInitialFocus = false)
         return root
     }
@@ -106,6 +161,8 @@ class SofatypeImeService : InputMethodService() {
         }
         bindRows(root, rows)
         bindOverlayKeys(root)
+        // 候选栏可见性随布局模式刷新（FR-A7：符号键盘无组合态，候选栏隐藏）
+        refreshCandidatesBar()
         if (requestInitialFocus) {
             keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus() }
         }
@@ -115,9 +172,13 @@ class SofatypeImeService : InputMethodService() {
      * 键盘显示：初始焦点落到键区左上角第一键（FR-A11 焦点导航起点）。
      * post 到 attach 完成后执行；focusableInTouchMode 保证触摸模式下焦点机制同样可用
      * （模拟器 `input tap` 唤起后紧跟 `input keyevent` 走查的场景）。
+     * 新输入框重置组合态（T10）：组合串属上一输入框，候选栏随之隐藏。
      */
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        composer.reset()
+        candidateReturnKey = null
+        refreshCandidatesBar()
         keyboardView?.post {
             keyViews[navigator.initialKey()]?.requestFocus()
         }
@@ -147,10 +208,13 @@ class SofatypeImeService : InputMethodService() {
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 val currentId = (keyboardView?.findFocus() as? View)?.tag as? String
                 if (currentId != null) {
-                    val nextId = navigator.next(currentId, direction)
-                    trace("focus $currentId $direction -> $nextId")
-                    val target = nextId?.let { keyViews[it] }
-                    if (target != null) target.requestFocus(View.FOCUS_DOWN)
+                    // 候选行与键盘格网分层路由（T10 · FR-A7）：焦点在 chip 上走候选行语义，
+                    // 其余（键盘键）走 FocusNavigator 格网语义，含从行 1 键向上进入候选行
+                    if (currentId.isCandidateId()) {
+                        handleCandidateRowDirection(currentId, direction)
+                    } else {
+                        handleKeyboardDirection(currentId, direction)
+                    }
                 }
             }
             return true
@@ -170,6 +234,52 @@ class SofatypeImeService : InputMethodService() {
     private fun Int.isConfirmKey(): Boolean = this == KeyEvent.KEYCODE_DPAD_CENTER ||
         this == KeyEvent.KEYCODE_ENTER ||
         this == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+    /** 候选 chip 视图 tag 判定（候选行焦点路由识别）。 */
+    private fun String.isCandidateId(): Boolean = startsWith(CANDIDATE_ID_PREFIX)
+
+    /** 候选 chip 视图 tag → 候选下标。 */
+    private fun String.candidateIndex(): Int? = removePrefix(CANDIDATE_ID_PREFIX).toIntOrNull()
+
+    /**
+     * 键盘键方向导航（T6 格网语义 + T10 候选行进入）：
+     * 行 1 键向上且候选栏可见时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选高亮 chip）；
+     * 其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
+     */
+    private fun handleKeyboardDirection(currentId: String, direction: FocusDirection) {
+        val onTopRow = navigator.positionsOf(currentId).any { it.first == 1 }
+        if (direction == FocusDirection.UP && onTopRow && candidateViews.isNotEmpty()) {
+            candidateReturnKey = currentId
+            trace("focus $currentId UP -> cand_0（进入候选行）")
+            candidateViews[0].requestFocus(View.FOCUS_DOWN)
+            return
+        }
+        val nextId = navigator.next(currentId, direction)
+        trace("focus $currentId $direction -> $nextId")
+        val target = nextId?.let { keyViews[it] }
+        if (target != null) target.requestFocus(View.FOCUS_DOWN)
+    }
+
+    /**
+     * 候选行方向导航（T10 · FR-A7）：左右在候选间移动、向上到顶不动、向下出候选行
+     * 回键盘（落点 = 进入前的键盘键，丢失时回初始键）。行内语义见 CandidateRow（纯模型，单测锁定）。
+     */
+    private fun handleCandidateRowDirection(currentId: String, direction: FocusDirection) {
+        val index = currentId.candidateIndex() ?: return
+        when (val move = CandidateRow.move(index, direction, candidateViews.size)) {
+            is CandidateRowMove.To -> {
+                trace("focus $currentId $direction -> cand_${move.index}")
+                candidateViews[move.index].requestFocus(View.FOCUS_DOWN)
+            }
+            CandidateRowMove.ExitDown -> {
+                val targetId = candidateReturnKey?.takeIf { keyViews.containsKey(it) }
+                    ?: navigator.initialKey()
+                trace("focus $currentId DOWN -> $targetId（出候选行）")
+                keyViews[targetId]?.requestFocus(View.FOCUS_DOWN)
+            }
+            CandidateRowMove.Stay -> Unit
+        }
+    }
 
     /** 行容器 id 与 KeyboardLayout.rows 一一对应（顺序即行序）。 */
     private val rowIds = intArrayOf(R.id.key_row_1, R.id.key_row_2, R.id.key_row_3, R.id.key_row_4)
@@ -312,31 +422,56 @@ class SofatypeImeService : InputMethodService() {
 
     /**
      * 执行按键动作。T6 接线：下屏收起（FR-A1）、完成键确认收起（FR-A10）；
-     * 文本/切换类动作留待 T7/T8/T10 接线。
+     * T7 接线：文本直出 / 空格 / 删除 / 光标；T8 接线：符号键盘；T10 接线：中文组合态与候选。
      * 无焦点连接时静默忽略，不崩溃（可靠性要求：输入法异常不得阻塞宿主应用）。
      */
     private fun execute(key: Key) {
         when (val action = key.action) {
             KeyAction.HideSelf -> hideSelfAfterKeyDispatch()
             KeyAction.Done -> {
-                // FR-A10「确认当前输入并收起」：先结束可能存在的组合态（无组合时为无操作；
-                // 组合态产生路径属 T9/T10，此处为语义插点），再收起
+                // FR-A10「确认当前输入并收起」：结束组合态（组合串原样上屏，无组合时为无操作），再收起
                 currentInputConnection?.finishComposingText()
+                composer.reset()
                 hideSelfAfterKeyDispatch()
             }
-            // FR-A9：字母/数字/.com/@ 直出；字母输出值随大小写状态（FR-A3），符号键盘直出符号（FR-A6）
+            // FR-A9 文本输出 × FR-A4 语言模式：中文模式字母键进入拼音组合（FR-A8，组合串恒小写，
+            // 大小写状态只作用于键面），数字/.com/@ 与英文模式全部直出（符号键盘直出符号，FR-A5/A6）
             is KeyAction.Text -> {
-                val text = if (keyboardMode == KeyboardMode.SYMBOLS) {
-                    action.value
+                if (keyboardMode == KeyboardMode.SYMBOLS) {
+                    commitText(action.value)
+                } else if (languageMode == LanguageMode.CHINESE &&
+                    key.id in KeyboardLayout.letterKeyIds
+                ) {
+                    composer.appendLetter(action.value.first())
+                    updateComposingText()
+                    refreshCandidatesBar()
                 } else {
-                    KeyboardLayout.outputValue(key, caseState)
+                    commitText(KeyboardLayout.outputValue(key, caseState))
                 }
-                commitText(text)
             }
-            // FR-A9：空格。中文组合态「有候选选首候选」语义属 T9/T10，此处直出空格（英文模式）
-            KeyAction.Space -> commitText(" ")
-            // FR-A9：删除（退格）；存在选区时删除选区（标准 IME 行为），否则删光标前一字符
-            KeyAction.Delete -> deleteBackward()
+            // 决策 8（R-2）组合态空格：有候选选首候选；无候选时组合串以字母形式上屏后再输入空格；
+            // 英文模式 / 无组合态直出空格（FR-A9）
+            KeyAction.Space -> {
+                if (languageMode == LanguageMode.CHINESE && composer.hasCandidates) {
+                    selectCandidate(requireNotNull(composer.firstCandidate()))
+                } else if (languageMode == LanguageMode.CHINESE && composer.composition.isNotEmpty()) {
+                    finishComposition()
+                    commitText(" ")
+                    refreshCandidatesBar()
+                } else {
+                    commitText(" ")
+                }
+            }
+            // FR-A9 删除：组合态内删组合串末位并刷新候选；组合态外删宿主文本（选区优先）
+            KeyAction.Delete -> {
+                if (composer.composition.isNotEmpty()) {
+                    composer.deleteLastLetter()
+                    updateComposingText()
+                    refreshCandidatesBar()
+                } else {
+                    deleteBackward()
+                }
+            }
             // FR-A9：光标在输入框内移动（插入点随移动生效，走查覆盖）
             KeyAction.CursorLeft -> moveCursor(-1)
             KeyAction.CursorRight -> moveCursor(1)
@@ -356,16 +491,201 @@ class SofatypeImeService : InputMethodService() {
                 trace("symbolsWidth -> $symbolsWidth")
                 rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
             }
-            // 中/英切换属 T10 接线前静默忽略（可靠性：不崩溃不阻塞宿主）
-            KeyAction.ToggleLanguage -> Unit
+            // FR-A4 中/英切换：先结束组合态（组合串以字母形式上屏，不丢已按键内容），再切换；
+            // 英文模式候选栏隐藏（FR-A7）
+            KeyAction.ToggleLanguage -> {
+                finishComposition()
+                languageMode =
+                    if (languageMode == LanguageMode.CHINESE) LanguageMode.ENGLISH else LanguageMode.CHINESE
+                trace("language -> $languageMode")
+                refreshCandidatesBar()
+            }
         }
     }
 
-    /** 字母键盘 ↔ 符号键盘切换（FR-A5）：重建键区视图与导航格网，焦点落新布局初始键。 */
+    /** 字母键盘 ↔ 符号键盘切换（FR-A5）：先结束组合态（组合串原样上屏），再重建键区视图与导航格网，焦点落新布局初始键。 */
     private fun switchKeyboardMode(mode: KeyboardMode) {
+        finishComposition()
         keyboardMode = mode
         trace("keyboardMode -> $mode")
         rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
+    }
+
+    /** 结束组合态（T10）：组合串以字母形式原样上屏（不丢已按键内容），状态机复位；无组合时为无操作。 */
+    private fun finishComposition() {
+        if (composer.composition.isEmpty()) return
+        currentInputConnection?.finishComposingText()
+        composer.reset()
+    }
+
+    /**
+     * 组合串写入宿主（FR-A8 组合态）：经 setComposingText 显示在输入框光标处（下划线组合态样式）。
+     * 选中候选时经 commitText 覆盖同区域（拼音串被候选词替换）。
+     */
+    private fun updateComposingText() {
+        val ic = currentInputConnection ?: return
+        ic.setComposingText(composer.composition, 1)
+    }
+
+    /** 选中候选上屏（FR-A8 选词上屏 / R-2 空格选首候选 / 候选行 OK 选中）：候选词替换组合串区域，组合态结束。 */
+    private fun selectCandidate(word: String) {
+        // 先记焦点：chips 将随组合态结束被清空，chip 上的焦点需回归键盘；键盘键上的焦点不动（继续输入）
+        val focusTag = (keyboardView?.findFocus() as? View)?.tag as? String
+        composer.reset()
+        commitText(word)
+        refreshCandidatesBar()
+        if (focusTag?.isCandidateId() == true) {
+            refocusKeyboardAfterBarHidden()
+        }
+    }
+
+    /** 拼音候选查询（ChineseComposer 注入点）：接 :pinyin 真实词库引擎；引擎未就绪时无候选（降级不崩溃）。 */
+    private fun queryPinyinCandidates(input: String): List<String> {
+        val engine = pinyinEngine ?: return emptyList()
+        return engine.query(input, CANDIDATE_QUERY_LIMIT).map { it.word }
+    }
+
+    // ---- 候选词栏（T10 · FR-A7） ----
+
+    /**
+     * 刷新候选栏可见性与内容（组合态变化、模式切换、键盘重建后调用）。
+     * 栏区显隐 = 字母键盘 × 中文模式（英文/数字/符号键盘整栏 GONE、键盘区上移占满主卡片，FR-A7 评审补充）；
+     * chips 仅组合态有候选时装载（决策 1：只显示候选词，无组合态时栏区留空）。
+     */
+    private fun refreshCandidatesBar() {
+        val bar = candidatesBar ?: return
+        val barVisible = keyboardMode == KeyboardMode.LETTERS &&
+            languageMode == LanguageMode.CHINESE
+        if (!barVisible) {
+            // 先记焦点再清空：chip 视图移除时框架会清焦点，事后查不到
+            val focusTag = (keyboardView?.findFocus() as? View)?.tag as? String
+            bar.visibility = View.GONE
+            setKeyAreaTopMargin(visible = false)
+            bar.removeAllViews()
+            candidateViews.clear()
+            // 焦点原在 chip 上：随栏移除，焦点回落键盘
+            if (focusTag?.isCandidateId() == true) {
+                refocusKeyboardAfterBarHidden()
+            }
+            return
+        }
+        bar.visibility = View.VISIBLE
+        setKeyAreaTopMargin(visible = true)
+        if (composer.hasCandidates) {
+            bindCandidates(bar)
+        } else {
+            bar.removeAllViews()
+            candidateViews.clear()
+        }
+    }
+
+    /** 依候选装载 chips：先测宽、依可用宽度截断（CandidateChips.fitCount），放不下的候选不展示（更多候选展开属 T11）。 */
+    private fun bindCandidates(bar: LinearLayout) {
+        bar.removeAllViews()
+        candidateViews.clear()
+        val candidates = composer.candidates
+        if (candidates.isEmpty()) return
+        val gap = resources.getDimensionPixelSize(R.dimen.ime_chip_gap)
+        val available = bar.takeIf { it.width > 0 }?.width
+            ?: resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
+                2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+        // 未挂载状态下先量宽再装载（TextView measure UNSPECIFIED = 文字自适应宽，结果已含 padding）。
+        // 未挂载 TextView 也必须有 LayoutParams：setText 触发 checkForRelayout 会解引用
+        // layoutParams，为 null 时 NPE（模拟器走查实测崩溃点，已修）
+        val measurer = TextView(this)
+        measurer.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+        measurer.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_chip_text))
+        measurer.setPadding(
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+            resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+            0,
+        )
+        val widths = candidates.map { word ->
+            measurer.text = word
+            measurer.measure(0, 0)
+            measurer.measuredWidth
+        }
+        val count = CandidateChips.fitCount(widths, gap, available)
+        for (index in 0 until count) {
+            val view = createChipView(candidates[index], index)
+            candidateViews.add(view)
+            bar.addView(
+                view,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ).apply {
+                    if (index != count - 1) marginEnd = gap
+                },
+            )
+        }
+    }
+
+    /** 候选 chip 视图：可聚焦（遥控器候选行导航）、OK 选中上屏；首候选高亮（PRD 6.3 高亮态）。 */
+    private fun createChipView(word: String, index: Int): TextView {
+        val view = TextView(this).apply {
+            text = word
+            gravity = Gravity.CENTER
+            maxLines = 1
+            // dimens 中以 sp 声明，getDimension 已换算为 px，按 px 设置避免二次缩放
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.ime_chip_text))
+            setPadding(
+                resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+                0,
+                resources.getDimensionPixelSize(R.dimen.ime_chip_padding_h),
+                0,
+            )
+            tag = CANDIDATE_ID_PREFIX + index
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { selectCandidate(word) }
+            onFocusChangeListener = View.OnFocusChangeListener { v, _ -> applyChipAppearance(v, index == 0) }
+        }
+        applyChipAppearance(view, index == 0)
+        return view
+    }
+
+    /**
+     * chip 底形与文字色（全部走 Token）：高亮（首候选）与焦点态同形 ——
+     * accent-wash 底 + border-accent 描边（PRD 6.3 高亮态 / PRD 6.4「聚焦态 = 主色描边」）+ accent-text 文字；
+     * 普通 chip 无底色 + 键帽字符正文色（画板① .bchip）。
+     */
+    private fun applyChipAppearance(view: View, highlighted: Boolean) {
+        val active = highlighted || view.isFocused
+        if (active) {
+            view.background = getDrawable(R.drawable.bg_chip_highlight)
+            (view as? TextView)?.setTextColor(getColor(R.color.accent_text))
+        } else {
+            view.background = null
+            (view as? TextView)?.setTextColor(getColor(R.color.text_body))
+        }
+    }
+
+    /** 候选栏隐藏后的键盘焦点回归（FR-A11 不丢焦点）：回进入候选行前的键盘键，丢失时回初始键。 */
+    private fun refocusKeyboardAfterBarHidden() {
+        val targetId = candidateReturnKey?.takeIf { keyViews.containsKey(it) }
+            ?: navigator.initialKey()
+        candidateReturnKey = null
+        keyboardView?.post { keyViews[targetId]?.requestFocus(View.FOCUS_DOWN) }
+    }
+
+    /** 键盘区顶部边距随候选栏显隐切换（FR-A7「英文/数字模式下候选栏隐藏、键盘区上移占满主卡片」）。 */
+    private fun setKeyAreaTopMargin(visible: Boolean) {
+        val area = keyArea ?: return
+        val params = area.layoutParams as? LinearLayout.LayoutParams ?: return
+        val target = if (visible) {
+            resources.getDimensionPixelSize(R.dimen.ime_key_area_margin_top)
+        } else {
+            0
+        }
+        if (params.topMargin != target) {
+            params.topMargin = target
+            area.layoutParams = params
+        }
     }
 
     /** 直出文本到输入框光标处（FR-A9）。 */

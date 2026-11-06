@@ -31,6 +31,9 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnit()
+    // 显式钉住测试工作目录 = 模块目录（Gradle 默认行为一致，但不依赖其隐式约定）：
+    // VerifyDictTest 以相对路径 dictsrc/… 访问入库源文件
+    workingDir = projectDir
     testLogging {
         events("failed", "skipped")
         showStandardStreams = false

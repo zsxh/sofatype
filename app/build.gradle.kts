@@ -47,7 +47,17 @@ android {
     }
 }
 
+// T10 接线补依赖边：app 依赖 :pinyin 后，:pinyin 任务与 app 任务进入同一构建图，
+// mergeDebugAssets 消费 pinyin/assets（convertDict 的输出目录）必须显式声明依赖，
+// 否则 Gradle 隐式依赖校验直接失败；先过 sha256 门禁与转换，再合并 assets。
+// 变体任务由 AGP 后注册，用惰性匹配挂依赖。
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach {
+    dependsOn(":pinyin:buildDict")
+}
+
 dependencies {
     // T3：占位键盘纯逻辑单元测试（仅 test 作用域，不进产品依赖，AGENTS.md 禁止事项 1）
     testImplementation("junit:junit:4.13.2")
+    // T10：拼音引擎接线（FR-A8）——:pinyin 为本仓库自有纯 Kotlin JVM 模块（决策 28，无第三方依赖）
+    implementation(project(":pinyin"))
 }
