@@ -138,6 +138,54 @@ class KeyboardLayoutTest {
         }
     }
 
+    // ---- 大小写切换与输出值（FR-A3 / FR-A9，T7） ----
+
+    @Test
+    fun letterKeyIdsCoverExactly26Letters() {
+        // 大小写切换只作用于 26 个字母键
+        assertEquals(
+            (('a'..'z').map { it.toString() }).toSet(),
+            KeyboardLayout.letterKeyIds,
+        )
+    }
+
+    @Test
+    fun displayLabelFollowsCaseState() {
+        val byId = KeyboardLayout.keyById
+        // 小写态：键面原样
+        assertEquals("a", KeyboardLayout.displayLabel(byId.getValue("a"), CaseState.LOWER))
+        // 大写态：字母键面大写（FR-A3「字母区全部显示大写」）
+        assertEquals("A", KeyboardLayout.displayLabel(byId.getValue("a"), CaseState.UPPER))
+        assertEquals("H", KeyboardLayout.displayLabel(byId.getValue("h"), CaseState.UPPER))
+        assertEquals("Z", KeyboardLayout.displayLabel(byId.getValue("z"), CaseState.UPPER))
+        // 非字母键不受大小写影响
+        assertEquals("5", KeyboardLayout.displayLabel(byId.getValue("digit_5"), CaseState.UPPER))
+        assertEquals(".com", KeyboardLayout.displayLabel(byId.getValue("dot_com"), CaseState.UPPER))
+        assertEquals("@", KeyboardLayout.displayLabel(byId.getValue("at"), CaseState.UPPER))
+        assertEquals("空格", KeyboardLayout.displayLabel(byId.getValue("space"), CaseState.UPPER))
+    }
+
+    @Test
+    fun outputValueFollowsCaseState() {
+        val byId = KeyboardLayout.keyById
+        assertEquals("a", KeyboardLayout.outputValue(byId.getValue("a"), CaseState.LOWER))
+        assertEquals("H", KeyboardLayout.outputValue(byId.getValue("h"), CaseState.UPPER))
+        // 数字/.com/@ 直出，不受大小写影响（FR-A9）
+        assertEquals("7", KeyboardLayout.outputValue(byId.getValue("digit_7"), CaseState.UPPER))
+        assertEquals(".com", KeyboardLayout.outputValue(byId.getValue("dot_com"), CaseState.UPPER))
+        assertEquals("@", KeyboardLayout.outputValue(byId.getValue("at"), CaseState.UPPER))
+        // 非文本键无输出值
+        assertEquals(null, KeyboardLayout.outputValue(byId.getValue("space"), CaseState.UPPER))
+        assertEquals(null, KeyboardLayout.outputValue(byId.getValue("backspace"), CaseState.UPPER))
+    }
+
+    @Test
+    fun shiftContentDescriptionMatchesPrdWording() {
+        // FR-A3 原文态提示文案（画板② aria-label 同文）
+        assertEquals("上档切换", KeyboardLayout.shiftContentDescription(CaseState.LOWER))
+        assertEquals("大写已开启，点按切回小写", KeyboardLayout.shiftContentDescription(CaseState.UPPER))
+    }
+
     // ---- 列节奏（画板① 口径，T28 锁定） ----
 
     /** 键区水平排布口径（1080p px，与画板① .krow 一致）：键 80 + 键距 12；spacer 42 + 右侧键距 12
@@ -151,6 +199,8 @@ class KeyboardLayoutTest {
             x += when (cell) {
                 is Cell.KeyCell -> 80 + 12
                 Cell.Spacer -> 42 + 12
+                // 空格位：占一个键格（T8 Cell.EmptyCell；画板① 无此 cell，口径与键一致）
+                Cell.EmptyCell -> 80 + 12
             }
         }
         return origins

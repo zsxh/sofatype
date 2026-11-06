@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 键帽背景（普通/功能键）：key 底，按压提亮 key-hover（PRD 6.1/6.4），圆角 14px（PRD 6.3）；
-     遥控器焦点态（主色描边，PRD 6.4）属 T6 接入 -->
+     遥控器焦点态（PRD 6.4「主色描边 + 键帽提亮」）= key-hover 微高亮底 + border-accent 主色描边（T6） -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/key_hover" />
+            <corners android:radius="@dimen/ime_key_corner" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/key_hover" />
+            <stroke android:width="@dimen/stroke_width" android:color="@color/border_accent" />
             <corners android:radius="@dimen/ime_key_corner" />
         </shape>
     </item>

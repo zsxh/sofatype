@@ -1,8 +1,12 @@
 // T5 · 字母键盘（小写）键位模型（画板①「字母键盘·小写」，FR-A2）。
+// T7 · 大小写状态语义（FR-A3）与文本输出值（FR-A9）。
 // 纯 Kotlin，不依赖 Android 类，可脱离模拟器独立单元测试（TASKS T5 施工口径）。
-// 范围边界：焦点导航与按键触发属 T6；大小写/完整输入属 T7；符号键盘属 T8；
-// 拼音与候选词属 T9/T10。本模型只描述画板①的静态键位结构与键面语义。
+// 范围边界：符号键盘属 T8；拼音与候选词属 T9/T10。本模型只描述画板①键位结构、键面语义
+// 与大小写相关的键面/输出变换；Android 侧视图生成与事件处理在 SofatypeImeService。
 package com.sofatype.ime
+
+/** 大小写状态（FR-A3，T7）。上档键在两态间切换；键盘记忆属 FR-A13（P2）不做，每次键盘创建复位小写。 */
+enum class CaseState { LOWER, UPPER }
 
 /** 键帽视觉变体（PRD 6.3 / 画板①）：普通字符键 / 功能键 / 强调键（完成键）。 */
 enum class KeyVariant {
@@ -49,6 +53,12 @@ sealed class KeyAction {
     /** 进入符号键盘（FR-A5，T8）。 */
     object OpenSymbols : KeyAction()
 
+    /** 全/半角切换（FR-A6，T8，仅符号键盘）。 */
+    object ToggleWidth : KeyAction()
+
+    /** 返回字母键盘（FR-A5，T8，仅符号键盘）。 */
+    object BackToLetters : KeyAction()
+
     /** 删除（FR-A9，T7）。 */
     object Delete : KeyAction()
 
@@ -93,6 +103,9 @@ sealed interface Cell {
 
     /** 列间隔占位：数字列｜字母区｜功能键区之间的空隙。 */
     object Spacer : Cell
+
+    /** 空格位：占一个键格但无键（布局缺键位，x 步进与键一致；T8 符号键盘半角行 4）。 */
+    object EmptyCell : Cell
 }
 
 /** 一行键位：cells 依序水平排布。 */
@@ -161,11 +174,67 @@ object KeyboardLayout {
         label = "完成",
     )
 
+    /**
+     * 完成键格位（FR-A10 跨行 3/4）：列 = 行 1 图标键（下屏）所在列
+     * （T28「完成键与图标列左缘对齐」口径），供焦点导航格网使用。
+     */
+    val doneKeyCells: List<Pair<Int, Int>> = run {
+        var index = 0
+        var hideCol = -1
+        for (cell in rows[0].cells) {
+            if (cell is Cell.KeyCell) {
+                index += 1
+                if (cell.key.id == "hide") hideCol = index
+            }
+        }
+        check(hideCol > 0) { "行 1 未找到下屏键，无法推导完成键列" }
+        listOf(3 to hideCol, 4 to hideCol)
+    }
+
     /** 全部键位（含完成键）；单测与遍历辅助。 */
     fun allKeys(): List<Key> =
         rows.flatMap { row -> row.cells.filterIsInstance<Cell.KeyCell>().map { it.key } } + doneKey
 
+    /** 键 id → 键位；视图刷新与输出值计算用。 */
+    val keyById: Map<String, Key> = allKeys().associateBy { it.id }
+
+    /** 字母键 id 集合（单字母 Text 动作键）；大小写切换只作用于这批键（FR-A3）。 */
+    val letterKeyIds: Set<String> =
+        allKeys().filter { key -> isSingleLetter(key.action) }.map { it.id }.toSet()
+
+    /**
+     * 大写态键面（FR-A3）：字母键显示大写，其余键面不变。
+     * 画板②「字母键盘·大写」口径。
+     */
+    fun displayLabel(key: Key, case: CaseState): String? = when {
+        case == CaseState.UPPER && key.id in letterKeyIds -> key.label?.uppercase()
+        else -> key.label
+    }
+
+    /**
+     * 大写态输出值（FR-A9 直出文本 × FR-A3）：字母键 Text 动作输出大写字符，
+     * 数字、`.com`、`@` 不受大小写影响。非文本键返回 null。
+     */
+    fun outputValue(key: Key, case: CaseState): String? {
+        val value = (key.action as? KeyAction.Text)?.value ?: return null
+        return if (case == CaseState.UPPER && key.id in letterKeyIds) value.uppercase() else value
+    }
+
+    /**
+     * 上档键态提示（FR-A3 原文文案；画板② aria-label「大写已开启，点按切回小写」）。
+     */
+    fun shiftContentDescription(case: CaseState): String = when (case) {
+        CaseState.LOWER -> "上档切换"
+        CaseState.UPPER -> "大写已开启，点按切回小写"
+    }
+
     // ---- 键位构建辅助（保持键位表紧凑；均返回 Cell） ----
+
+    /** 单字母直出文本动作（字母键判定，FR-A3 变换范围）。 */
+    private fun isSingleLetter(action: KeyAction): Boolean {
+        val value = (action as? KeyAction.Text)?.value ?: return false
+        return value.length == 1 && value[0] in 'a'..'z'
+    }
 
     /** 字符键（普通变体）。 */
     private fun charCell(id: String, label: String): Cell =

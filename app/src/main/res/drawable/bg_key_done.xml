@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 完成键背景（FR-A10 / PRD 6.3）：accent-wash 底 + 主色描边，圆角 14px；
-     按压提亮至 accent-wash 区间上界（PRD 6.4）；焦点态属 T6 接入 -->
+     按压提亮至 accent-wash 区间上界（PRD 6.4）；焦点态（PRD 6.4「主色描边 + 微高亮底」）
+     = 主色描边（本键常态已有）+ accent-wash 上界微高亮底（T6） -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/accent_wash_strong" />
+            <stroke android:width="@dimen/stroke_width" android:color="@color/border_accent" />
+            <corners android:radius="@dimen/ime_key_corner" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/accent_wash_strong" />
             <stroke android:width="@dimen/stroke_width" android:color="@color/border_accent" />

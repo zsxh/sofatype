@@ -64,6 +64,8 @@
     <dimen name="ime_done_key_text">13sp</dimen>
     <dimen name="ime_done_key_start">560dp</dimen>
     <dimen name="ime_done_key_top">104dp</dimen>
+    <!-- 符号键盘空格键（T8，决策 3）：84×196 跨两行高键与完成键对称（画板③ col11 原点 1028px） -->
+    <dimen name="ime_space_key_start">514dp</dimen>
     <!-- 键帽图标尺寸：上档 24px / 下屏 28px / 删除 32px / 光标 28px（画板① SVG 尺寸） -->
     <dimen name="ime_icon_shift">12dp</dimen>
     <dimen name="ime_icon_hide">14dp</dimen>

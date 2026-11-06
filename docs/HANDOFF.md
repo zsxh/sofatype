@@ -29,6 +29,7 @@
 - 2026-11-05：T3 评审第 1 轮通过（code-reviewer 盲审，含独立复跑构建与单测），按 TASKS 6.2-7 口径自动归档：issue 挪 `docs/issues/closed/T3.md`，任务状态「已实现」；细节见版本记录 T3 节。
 - 2026-11-05：T5 完成（双 agent 盲审 3 轮通过，自动归档：issue 挪 `docs/issues/closed/T5.md`，任务状态「已实现」）。同期拍板：T4 暂缓先派 T5（PRD 决策 25）、双 agent 盲审评审执行方式（TASKS 6.2-9）。细节见版本记录 T5 节。
 - 2026-11-05：T28 完成（户主发现 T5 完成键与图标列错位 24px，回归修复；双 agent 盲审第 1 轮通过，自动归档：issue 挪 `docs/issues/closed/T28.md`，任务状态「已实现」）。根因与修复细节见版本记录 T28 节。
+- 2026-11-06：T29 完成（户主发现 T8 符号键盘最后两列错位 54px，回归修复；review-qa 盲审第 1 轮 PASS 0 blocker，自动归档：issue 挪 `docs/issues/closed/T29.md`，任务状态「已实现」）。根因与修复细节见版本记录 T29 节。
 - 2026-11-05：T4 完成（无线 adb 真机通道打通，键盘真机弹出；双 agent 真机验证 + 评审审计通过，户主拍板「真机已验证」归档；拍板后应用已卸载还原现场）。同批完成 T5/T28 真机补充验证（真机几何与模拟器/设计零偏移、色值全中、API 23 无渲染差异）。细节见版本记录 T4 节。
 - 2026-11-05：户主拍板状态词口径修订（PRD 决策 26）：已完成任务经真机验证可回溯标「真机已验证」；同批回溯标注 T2/T3/T5/T28，TASKS 状态行与各 issue 真机记录已同步。
 - 2026-11-05：户主拍板文档改名（批次后缀）：`docs/PRD.md` → `docs/PRD_20261104.md`、`docs/TASKS.md` → `docs/TASKS_20261104.md`，对应 2026-11-04 需求批次；新 issue / 新任务批次未必记录于此，另行建档。全仓库引用已同步（AGENTS / HANDOFF / CHANGELOG / issues 等），AGENTS.md 目录树已更新。
@@ -205,3 +206,90 @@
 - 遥控器焦点可见性属 T6：当前基线无焦点态描边，真机按遥控「看起来没反应」不是故障（焦点实测在移动）。
 - T8 前必须先查明行 4 +2px 机制（T28 坑 3）。
 - 真机走查前置检查：唤醒防屏保、核对默认 IME、BACK 时序。
+
+### T6 · 遥控器焦点导航基座（2026-11-06，随未发布 0.1.0）
+
+**干了啥**
+
+- 新增 `FocusNavigator.kt`（纯 Kotlin 焦点导航：画板① 12 列 × 4 行格网，左右同行/上下同列/表缘不动/完成键顶行锚）+ `FocusNavigatorTest.kt` 11 项（网格全覆盖、行列性质、表缘不动、完成键路径、47 键全可达）；`SofatypeImeService` 接线：初始焦点、DPAD 导航、OK 触发、BACK 收起、完成键收起；`bg_key`/`bg_key_done` 补焦点态（key_hover + border_accent / accent_wash_strong，零新增色值）。
+- 单测 24/24 绿（FocusNavigatorTest 11 + KeyboardLayoutTest 13）；模拟器（AVD sofatype-tv / API 34）遥控器键走查通过：初始焦点、行列移动、OK 触发（下屏/完成收起、mInputShown=false 佐证）、收起不丢内容（示例文本两路径收起后保留）。证据见 `docs/issues/open/T6.md` 验收节与 `screenshots/T6/`。
+
+**踩过的坑**
+
+1. 转发键事件（DPAD/OK）不经过 IME view 树，键帽/根视图 OnKeyListener 均收不到，必须在 `IMS.onKeyDown` 处理；BACK 早期实测有效是 policy 层路径，不能当「事件到 view」的证据（issue T6 坑 2/3）。
+2. CENTER 键广播双触发：IME 同步收起被宿主 EditText 的 showSoftInput 覆盖，「下屏/完成」收起延迟 120ms（`hideSelfAfterKeyDispatch`），时序常量真机需复核（issue T6 坑 1）。
+3. BACK 在宿主文本选择手柄激活时第一下被宿主消费（退出选择），第二下才收起——平台标准行为。
+
+**没干成 / 待办**
+
+- 真机走查（API 23 小米电视）属 T12 里程碑，未验证；`HIDE_DELAY_MS` 时序常量真机复核待 T12。
+- 文本输入（字母键动作）、符号键盘、拼音候选分别属 T7/T8/T9/T10；OK 已能把焦点键的 click 派发到位，T7 接 `execute` 的 Text 动作即可。
+
+**给下一个 agent**
+
+- 键位事件处理全部在 `SofatypeImeService.onKeyDown`：方向键 → FocusNavigator；OK/ENTER → performClick；新增键面行为改 `execute(action)` 分支。
+- 模拟器走查注意：`input tap` 唤起后键盘内的方向键走查不受 touch mode 影响（事件经 service 层）；焦点态肉眼核对走截图（uiautomator dump 不含 IME 窗口，既有坑）。
+
+### T7 · 英文模式完整输入（2026-11-06，随未发布 0.1.0）
+
+**干了啥**
+
+- 模型层：`CaseState`、`displayLabel`/`outputValue`（大写态键面与输出变换）、`shiftContentDescription`（FR-A3 原文态提示）、`letterKeyIds`；service 层：`execute(key)` 接线 FR-A9 全部动作（字母/数字/`.com`/`@` 直出、空格、删除、光标移动）+ 大小写切换与键面/态提示刷新（上档激活视觉复用强调键 drawable 与既有 Token）；`ImeKeyTrace` 诊断日志（T6 评审遗留跟进，只记键码/焦点 key id）。单测 28/28 绿（KeyboardLayoutTest 17 + FocusNavigatorTest 11）。
+- 模拟器走查：大小写两态切换（截图）、大写态输出 H、空格/删除互证、光标定位插入、`.com`/`@` 直出、完成键收起文本保留；完整样例 "Hello.com@" 出现在输入框文本中（`docs/issues/open/T7.md` 验收节）。
+
+**踩过的坑**
+
+1. `focusableInTouchMode` 键帽首击聚焦不点击（View `focusTaken` 语义）：tap 走查大面积「丢键」（3 tap→2 字符）；走查用 `input keyevent`（导航+OK 23）替代 tap（issue T7 坑 1）。
+2. 模拟器注入通道偶发丢事件（keyevent/tap 均有）：logcat 证明事件未到达 IME 即丢失，重启模拟器实例恢复——T6「偶发焦点卡死」同源现象，`ImeKeyTrace` 焦点轨迹日志是定位手段（issue T7 坑 2）。
+3. CENTER 宿主竞态（T6 坑 1）本轮复现一次：OK 的 commitText 疑似被宿主同拍处理吞掉（issue T7 坑 3）。
+
+**没干成 / 待办**
+
+- 真机走查属 T12 里程碑，未验证。
+- 符号键盘（T8）、拼音/候选（T9/T10）未动；中/英切换键、123_! 键仍静默（T8/T10 接线）。
+
+**给下一个 agent**
+
+- 大小写变换入口全部在模型（`displayLabel`/`outputValue`/`shiftContentDescription`），T8 符号键盘复用键面生成时字母区已随 `applyCaseState()` 刷新。
+- 模拟器走查优先 `input keyevent` 通道；tap 需双击（首击聚焦）；事件丢失先查 logcat `ImeKeyTrace`（无记录 = 注入层丢），必要时重启模拟器实例。
+
+### T8 · 符号键盘（2026-11-06，随未发布 0.1.0）
+
+**干了啥**
+
+- 新增 `SymbolsLayout.kt`（4 行 12 列格网与字母键盘同构；全角 30/半角 28 符号集逐字符对齐 PRD FR-A6；空格/完成键跨行 3/4 col11/12、返回键行 2 col11，决策 3/27）；`FocusNavigator` 泛化（overlayCells/initialCell 参数化，字母键盘默认行为不变）；`KeyboardLayout` 增 `ToggleWidth`/`BackToLetters` 动作与 `EmptyCell`；service 布局状态机（字母 ↔ 符号、全/半，`rebuildKeys` 重绑行/浮层/导航器）+ `ImeKeyTrace` debug 门控（T7 评审遗留跟进项）。单测 45/45 绿（新增 SymbolsLayoutTest 17 项：符号集逐字符比对、决策 3/27 断言、格网满覆盖、导航性质、全键可达）。
+- 模拟器走查：进入符号键盘（123_! → 全角态布局截图）、全角样例 ＃？直出、全/半切换（半角布局截图，logcat 佐证）、半角直出、返回字母键盘（logcat 佐证）、BACK 收起文本保留。证据见 `docs/issues/open/T8.md` 验收节与 `screenshots/T8/`。
+- 开工前拍板：PRD FR-A6 全角 30 符号 vs 画板 28 格真冲突，户主拍板方案 D（决策 27，PRD 第 12 章已记）：键位微调排入 30 符号、符号键盘不含 .com/@、designs/ 不改。
+
+**踩过的坑**
+
+1. 画板③行 3 col11 的 .com 键与空格 ABS 键（col11 跨行 3/4）重叠——设计稿自身缺陷；实现行 3 col11 为空格 ABS 格位（issue T8 坑 1）。
+2. PRD 全角 30 符号 vs 画板 28 格真冲突——户主拍板决策 27 解决（issue T8「原因」节）。
+3. 模拟器注入通道丢事件（T7 坑 2 延续）本轮复现：tap 双击全/半的事件未达键帽而落宿主致键盘收起；ImeKeyTrace 无到达记录 = 注入层丢失，重启实例恢复（issue T8 坑 3）。
+
+**没干成 / 待办**
+
+- 真机走查属 T12 里程碑，未验证。
+- 拼音/候选（T9/T10）未动；符号键盘内中/英切换不存在（FR-A5 决策：无中/英键）。
+
+**给下一个 agent**
+
+- 布局切换入口：`SofatypeImeService.switchKeyboardMode`/`rebuildKeys`；新增布局须提供 rows + overlayCells（跨行键格位）+ initialCell，格网 12 列 × 4 行与既有布局同构（数字列 col1-3、功能区 col11/12）。
+- `Cell.EmptyCell`（占格无键）用于布局缺键位；`input tap` 走查需双击（focusableInTouchMode 首击聚焦，T7 坑 1）。
+
+### T29 · 符号键盘最后两列对齐修复（2026-11-06，随未发布 0.1.0）
+
+**干了啥**
+
+- 户主走查发现 T8 回归：符号键盘行 1/2 最后两列较浮层键左移 54px。根因 = `SymbolsLayout.rows()` 漏抄画板③行 1/2 符号区后的 `kspacer`（T28 坑 1 防的正是这类漏抄，但 T8 无列节奏单测兜底故未拦住）。修复：行 1/2/3 各补一道 `Cell.Spacer`（行 3 与画板结构对齐，几何无影响），全/半、返回回位功能列 1028、下屏、删除回位图标列 1120，与浮层空格/完成及字母键盘逐位对齐（模拟器像素核查偏差 0，修复前实测 1082/1174 → 修复后 1136/1228）。
+- 补测试锁定：SymbolsLayoutTest 新增 `functionColumnOriginsMatchLettersKeyboardAndOverlays`（功能列/图标列 x 原点 + 与字母键盘行 1/2 列原点逐位一致断言），17→18 项；全量 46/46 绿。review-qa 盲审第 1 轮 PASS（0 blocker / 0 major / 0 minor，独立复跑构建单测 + 独立像素核查），按 TASKS 6.2-7 非里程碑口径自动归档。细节见 `docs/issues/closed/T29.md`。
+
+**踩过的坑**
+
+1. 新键盘布局缺「列节奏单测」时，格网列号断言（positionsOf col==11）拦不住视觉错位——错误 x 原点会被 FocusNavigator 首次顺序编号成正确列号。凡新增布局，必须同 `columnRhythmMatchesArtboard` 口径加 x 原点断言。
+2. `adb force-stop` IME 包会把系统输入法打回 Gboard（本轮实测）：走查中断后恢复键盘用 `ime set` 重设 + BACK 收起 + 重 tap 输入框，不要 force-stop。
+
+**没干成 / 待办**
+
+- 真机走查属 T12 里程碑，未验证。
+- git status 存在一处非本任务 staged 改动（`.agents/skills/dev/SKILL.md`），户主提交前自行决定取舍。
