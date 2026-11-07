@@ -48,10 +48,11 @@ android {
 }
 
 // T10 接线补依赖边：app 依赖 :pinyin 后，:pinyin 任务与 app 任务进入同一构建图，
-// mergeDebugAssets 消费 pinyin/assets（convertDict 的输出目录）必须显式声明依赖，
-// 否则 Gradle 隐式依赖校验直接失败；先过 sha256 门禁与转换，再合并 assets。
-// 变体任务由 AGP 后注册，用惰性匹配挂依赖。
-tasks.matching { it.name == "mergeDebugAssets" }.configureEach {
+// merge{Debug,Release}Assets 消费 pinyin/assets（convertDict 的输出目录）必须显式声明依赖，
+// 否则 Gradle 隐式依赖校验直接失败（T32：release 变体此前漏配，assembleRelease 报错）；
+// 先过 sha256 门禁与转换，再合并 assets。
+// 变体任务由 AGP 后注册，用惰性匹配挂依赖；debug / release 两变体共用 assets 源目录，边都要挂。
+tasks.matching { it.name == "mergeDebugAssets" || it.name == "mergeReleaseAssets" }.configureEach {
     dependsOn(":pinyin:buildDict")
 }
 

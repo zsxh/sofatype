@@ -25,7 +25,7 @@
 - 工具链拍板（2026-11-03）：纯 Kotlin、无第三方 SDK；拼音引擎自研词组级 + 内置词库；跨屏 HTTP/WS 自研、二维码 ZXing core；一切工具由 `flake.nix` 声明，不手工装 SDK，新工具先进 flake 再用。
 - 词库现行口径：AOSP 谷歌拼音词库（65 105 条，词 + 逐字拼音 + 内建频次，Apache-2.0）；源文件入库 + sha256 门禁 + 构建零网络。演变：决策 15（CC-CEDICT，作废）→ 28（换源）→ 29（源文件入库），全文见 PRD 第 12 章。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落 handoff 文件（6.2-10）。
-- 待办焦点：T12 M1 真机验收（里程碑：完整遥控走查 S1、候选刷新 ≤200ms / 键帽反馈 ≤100ms 初测、杀 IME 进程后系统拉起且不阻塞宿主；须户主配合接线与验收拍板，前置检查见设备档案）。T11 更多候选展开已归档（2026-11-06 评审第 1 轮 PASS，2 条非阻塞建议当轮落实、增量复核 PASS 维持，细节见 `docs/issues/closed/T11.md`；真机验证随 T12）。T31 候选栏高亮口径变更已归档（2026-11-06 决策 30 落地，评审第 1 轮 PASS 自动归档：无常亮高亮、高亮仅焦点态；细节见 `docs/issues/closed/T31.md`；真机验证随 T12）。T13 局域网服务骨架已归档（2026-11-07 评审第 1 轮 PASS 自动归档：HTTP + RFC 6455 WS 纯 Kotlin 自研、随机端口、仅绑默认路由 IPv4、退出无端口残留、debug 门控广播启停；细节见 `docs/issues/closed/T13.md`；真机验证随 T19；M2 下一任务 T14）。
+- 待办焦点：T12 M1 真机验收（里程碑：完整遥控走查 S1、候选刷新 ≤200ms / 键帽反馈 ≤100ms 初测、杀 IME 进程后系统拉起且不阻塞宿主；须户主配合接线与验收拍板，前置检查见设备档案）。T11 更多候选展开已归档（2026-11-06 评审第 1 轮 PASS，2 条非阻塞建议当轮落实、增量复核 PASS 维持，细节见 `docs/issues/closed/T11.md`；真机验证随 T12）。T31 候选栏高亮口径变更已归档（2026-11-06 决策 30 落地，评审第 1 轮 PASS 自动归档：无常亮高亮、高亮仅焦点态；细节见 `docs/issues/closed/T31.md`；真机验证随 T12）。T13 局域网服务骨架已归档（2026-11-07 评审第 1 轮 PASS 自动归档：HTTP + RFC 6455 WS 纯 Kotlin 自研、随机端口、仅绑默认路由 IPv4、退出无端口残留、debug 门控广播启停；细节见 `docs/issues/closed/T13.md`；真机验证随 T19；M2 下一任务 T14）。T32 release 词库资产依赖边修复已归档（2026-11-07，dev 实现 + review-qa 盲审 Round 1 PASS，按 TASKS 6.2-9 自动归档：assembleRelease 转绿并纳入 DEV-GUIDE 1.5 标准构建模板，:app 161 / :pinyin 44 单测回归全绿；细节见 docs/issues/closed/T32.md）。
 
 ## 关键决策速查（本文涉及项，全文以 PRD 第 12 章为准）
 
@@ -51,8 +51,10 @@
 6. 同轮构建中 `processResources` 与 `convertDict` 无依赖边则执行顺序不定，测试可能复制旧产物；JavaExec 任务 classpath 用 `compileClasspath + classesDirs`，用 `runtimeClasspath` 会经 processResources 成环（T9）。
 7. JUnit 4 `Assert.fail` 返回 void 非 Kotlin `Nothing`，`?: fail(...)` 的 elvis 推断失效；同包双 top-level `main` 裸调引用歧义——校验逻辑抽命名函数（T30）。
 8. 词库转换必须确定性 + sha256 门禁：`verifyDict` 无输出声明每次必跑，防 up-to-date 跳过校验（T30）。
-9. app 依赖 `:pinyin` 后两模块同图构建：`mergeDebugAssets` 需显式 `dependsOn(":pinyin:buildDict")`，否则隐式依赖校验失败（T10）；`pinyin/assets` 同时是 JVM resources 与 app assets 源目录，词库产物会双份入包（`assets/dict/` + 根级 `dict/`，各 1.5 MB），待后续任务 resources 排除（T10 评审非阻塞建议）。release 变体同病：`mergeReleaseAssets` 未挂该依赖边，`assembleRelease` 当前失败（T13 评审复现；T27 发版前必须修，建议改通配 `merge*Assets`）。
+9. app 依赖 `:pinyin` 后两模块同图构建：`mergeDebugAssets` 需显式 `dependsOn(":pinyin:buildDict")`，否则隐式依赖校验失败（T10）；`pinyin/assets` 同时是 JVM resources 与 app assets 源目录，词库产物会双份入包（`assets/dict/` + 根级 `dict/`，各 1.5 MB），待后续任务 resources 排除（T10 评审非阻塞建议）。release 变体同病已修（T32）：`mergeReleaseAssets` 与 debug 同挂该依赖边，`assembleRelease` 已纳入 DEV-GUIDE 1.5 标准构建模板。
 10. 分页模型区间是相对坐标系：`CandidateMoreRow.paginate` 返回区间与入参 widths（溢出段）同坐标系，服务层绑页直用作候选全局下标会重复展示首行候选；词条取「首行可见数 + 相对下标」（T11）。
+11. 单测取证防旧结果：改构建脚本后 `testDebugUnitTest` 可能 UP-TO-DATE，test-results 还是旧文件；引用计数前核对 `app/build/test-results/` 时间戳，必要时 `--rerun` 强制实跑——`--rerun` 只对紧邻其前的一个任务生效，多任务须逐个各带（T32）。
+12. merge/package 类任务输入快照未变则 UP-TO-DATE：重转换产物字节一致时 `mergeReleaseAssets` 不实跑，「merge 实跑通过校验」须删 `app/build/intermediates/assets/<variant>/` 后复跑取证；release 产物名为 `app-release-unsigned.apk`（T32）。
 
 ### 模拟器走查
 
@@ -86,7 +88,7 @@
 
 - 阶段 0（2026-10-28~11-03）：PRD v1.1 定稿、设计稿四组定稿、AGENTS.md 定稿、git init。
 - Nix flake（2026-11-03，无 issue 档案，坑见上文清单）：JDK 17（Zulu）+ Android SDK + TV 镜像 API 34 + `nix run .#tv-avd/.#tv-emulator`；真实求值验证通过（环境内 JDK/adb/gradle/build-tools/镜像逐项核实）；`flake.lock` 锁 nixos-26.05、必须随批提交；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake。
-- T1 工程骨架（2026-11-04，真机已验证）/ T2 设置页壳（debug 测试输入区 + 全集 Token 化，真机已验证）/ T3 最小 IME（service 注册 + `onEvaluateFullscreenMode` 恒 false + 收起不丢内容，真机已验证）/ T5 星夜青键盘布局（盲审 3 轮闭环，真机已验证）/ T4 真机无线 adb 通道（真机已验证）/ T28 列间隔 66px 口径修复（真机已验证）/ T6 焦点导航基座 / T7 英文完整输入 / T8 符号键盘（决策 27）/ T29 符号键盘列对齐回归修复 / T9 拼音引擎（决策 28）/ T30 词库入库零网络（决策 29）/ T10 中文模式接入 + 候选词栏 / T11 更多候选展开 / T31 候选栏高亮口径变更（决策 30）/ T13 局域网服务骨架（HTTP + RFC 6455 WS 自研基座，真机验证随 T19）：全部归档于 `docs/issues/closed/`，状态标注以 TASKS 为准。
+- T1 工程骨架（2026-11-04，真机已验证）/ T2 设置页壳（debug 测试输入区 + 全集 Token 化，真机已验证）/ T3 最小 IME（service 注册 + `onEvaluateFullscreenMode` 恒 false + 收起不丢内容，真机已验证）/ T5 星夜青键盘布局（盲审 3 轮闭环，真机已验证）/ T4 真机无线 adb 通道（真机已验证）/ T28 列间隔 66px 口径修复（真机已验证）/ T6 焦点导航基座 / T7 英文完整输入 / T8 符号键盘（决策 27）/ T29 符号键盘列对齐回归修复 / T9 拼音引擎（决策 28）/ T30 词库入库零网络（决策 29）/ T10 中文模式接入 + 候选词栏 / T11 更多候选展开 / T31 候选栏高亮口径变更（决策 30）/ T13 局域网服务骨架（HTTP + RFC 6455 WS 自研基座，真机验证随 T19）/ T32 release 词库资产依赖边修复（assembleRelease 转绿，发版前必修项清零）：全部归档于 `docs/issues/closed/`，状态标注以 TASKS 为准。
 
 ## 给下一个 agent（T10 接入相关）
 
