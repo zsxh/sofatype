@@ -16,12 +16,12 @@
 2. **本文（HANDOFF）**：只留关键决策、踩过的坑、当前状态与待办，细节指向 issue。**不记录工作过程**——干了什么事的过程叙事不进本文（归 issue 与 git 历史）；与 TASKS / issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
 3. **`CHANGELOG.md`**：发版时更新，一版一节，按该版本 issue 汇总。
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
-5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。
+5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。**开发环境工具链拍板不入 PRD**（2026-11-07 拍板口径），记录于本文决策速查与对应 issue。
 
 ## 当前快照（截至 2026-11-07）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
-- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研；一切工具由 `flake.nix` 声明，新工具先进 flake 再用。`flake.lock` 锁 nixos-26.05、必须随批提交；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake（flake 相关坑见坑清单构建与环境 3/4）。
+- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研；一切工具由 `flake.nix` 声明，新工具先进 flake 再用。`flake.lock` 锁 `github:NixOS/nixpkgs/nixpkgs-unstable`（unstable 快照分支，单 channel 口径；update 时碰 GitHub API，限流期更新失败属预期）、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试通道：`obscura serve`，见 T34）；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake（flake 相关坑见坑清单构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑评审通过即自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落交接文件（6.2-10）。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T5、T28；已实现（真机验证随 T12）T6~T11、T29~T32；（真机验证随 T19）T13~T15、T33。

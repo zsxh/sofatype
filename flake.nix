@@ -5,13 +5,21 @@
 # 开发中需要新工具时，先加入本文件再使用。不在系统上手工安装 SDK。
 #
 # 用法：
-#   nix develop            进入开发 shell（JDK / Android SDK / adb / git / gradle 全部就绪）
+#   nix develop            进入开发 shell（JDK / Android SDK / adb / git / gradle / obscura 全部就绪）
 #   nix run .#tv-avd       创建 Android TV 模拟器（首次执行一次）
 #   nix run .#tv-emulator  启动 TV 模拟器
+# H5 页调试：`obscura serve` 起 CDP 端点，Puppeteer / Playwright 经 WebSocket 接入（详见 obscura 处注释）
 {
-  description = "sofatype 输入法开发环境：JDK 17 + Android SDK（compileSdk 34 / minSdk 23）+ Android TV 模拟器（API 34）";
+  description = "sofatype 输入法开发环境：JDK 17 + Android SDK（compileSdk 34 / minSdk 23）+ Android TV 模拟器（API 34）+ Obscura 无头浏览器（H5 CDP 调试）";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  # 唯一 nixpkgs 输入，所有工具统一单 channel（2026-11-07 拍板：unstable 系，
+  # 原 nixos-26.05 口径作废；Obscura 仅收录于 unstable 系，nixos-26.05 分支无此包）。
+  # 形式（2026-11-07 复拍板）：github:NixOS/nixpkgs/nixpkgs-unstable —— nixpkgs-unstable
+  # channel 的快照分支，纯包集门禁（不含 NixOS 测试），对 devShell 用途与 nixos-unstable 等价。
+  # 注意：github: 输入仅在 `nix flake update` 时调 GitHub API 解析分支头，本机代理出口 IP
+  # 共享限流，403 期间无法更新（日常构建/他人 clone 用已锁 flake.lock，不碰 API，不受影响）；
+  # 持续 403 时可临时改回 channel tarball 形式锁定：channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz。
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
   outputs =
     { self, nixpkgs }:
@@ -88,6 +96,15 @@
               a.sdk
               a.pkgs.git # 版本管理必须工具，不依赖宿主机已有的 git
               a.pkgs.gradle # 仅用于首次 `gradle wrapper` 生成包装器；日常构建用 ./gradlew
+              # Obscura 无头浏览器（Rust 引擎，内嵌 V8，Apache-2.0）：手机 H5 页（远程输入页）
+              # 的 CDP 调试通道。`obscura serve --port 9222` 起服务后：
+              #   Puppeteer：puppeteer.connect({ browserWSEndpoint: 'ws://127.0.0.1:9222' })
+              #   Playwright：chromium.connectOverCDP('ws://127.0.0.1:9222')
+              # 访问本机 / 局域网 H5 页（127.0.0.1 / 192.168.x）必须加 --allow-private-network：
+              # 默认拦截回环与 RFC1918 目标（防抓取场景 SSRF）。默认仅监听 127.0.0.1 回环；
+              # 非回环绑定需 OBSCURA_CDP_TOKEN（≥32 字节）。
+              # 调试结束退出 serve，不残留监听端口（AGENTS.md 禁止事项 3）。
+              a.pkgs.obscura
             ];
 
             shellHook = ''
@@ -101,6 +118,7 @@
               echo "  构建：            ./gradlew assembleDebug（首次可先 gradle wrapper 生成包装器）"
               echo "  创建 TV 模拟器：  nix run .#tv-avd"
               echo "  启动 TV 模拟器：  nix run .#tv-emulator"
+              echo "  H5 CDP 调试：      obscura serve --port 9222，Puppeteer/Playwright 接 ws://127.0.0.1:9222"
             '';
           };
         }
