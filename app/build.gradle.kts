@@ -61,4 +61,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // T10：拼音引擎接线（FR-A8）——:pinyin 为本仓库自有纯 Kotlin JVM 模块（决策 28，无第三方依赖）
     implementation(project(":pinyin"))
+    // T14（FR-B4）：二维码生成用 ZXing core（工具链拍板 2026-11-03「二维码 ZXing core」；
+    // 仅 core 纯 Java 库，无 ZXing Android 嵌入件等第三方 SDK）
+    implementation("com.google.zxing:core:3.5.3")
 }

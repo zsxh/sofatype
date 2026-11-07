@@ -30,6 +30,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.pinyin.PinyinEngine
 
 class SofatypeImeService : InputMethodService() {
@@ -170,6 +171,9 @@ class SofatypeImeService : InputMethodService() {
     /** 主卡柔影垫层（展开态高度随卡同步）。 */
     private var mainCardShadow: View? = null
 
+    /** 副卡容器（T14：服务运行中时装配对卡 FR-B4；引导内容与状态机属 T17）。 */
+    private var sideCard: FrameLayout? = null
+
     /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
     private var keyArea: FrameLayout? = null
 
@@ -208,8 +212,33 @@ class SofatypeImeService : InputMethodService() {
         mainCard = root.findViewById(R.id.main_card)
         mainCardShadow = root.findViewById(R.id.main_card_shadow)
         moreBar = root.findViewById(R.id.more_bar)
+        sideCard = root.findViewById(R.id.side_card)
         rebuildKeys(root, requestInitialFocus = false)
+        // T14 配对卡：服务已在运行时先补渲染（键盘晚于服务启动的场景），
+        // 再注册状态回调（启动/停止刷新副卡；回调在广播线程=主线程执行）
+        refreshPairingCard()
+        RemoteInputServerManager.onPairingStateChanged = { refreshPairingCard() }
         return root
+    }
+
+    /** 服务销毁：解除配对状态回调（Manager 为进程级单例，防悬挂引用）。 */
+    override fun onDestroy() {
+        RemoteInputServerManager.onPairingStateChanged = null
+        super.onDestroy()
+    }
+
+    /**
+     * 刷新副卡配对态（T14 · FR-B4）：服务运行中且配对地址有效 → 装配对卡（二维码 + 地址一行）；
+     * 否则清空回占位。token 已消费（已配对）后卡面保持不变（远程模式完整状态机随 T17）。
+     */
+    private fun refreshPairingCard() {
+        val container = sideCard ?: return
+        val url = RemoteInputServerManager.pairingUrl()
+        if (url != null) {
+            PairingCard.show(this, container, url)
+        } else {
+            PairingCard.clear(container)
+        }
     }
 
     /**

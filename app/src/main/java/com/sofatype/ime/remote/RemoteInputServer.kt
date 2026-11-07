@@ -7,6 +7,8 @@
 // - 任何单连接异常只影响该连接；stop() 关闭监听与全部连接，退出无端口残留；
 // - 全部线程为 daemon，服务异常不阻塞、不拖垮宿主（IME 进程）；
 // - 不持久化任何数据（隐私红线）；日志只记事件，不记内容。
+// T14 增量：/ws 会话可装配委托（WsSessionDelegate，配对 hello/state 握手）；
+// 无委托 = T13 回环口径（骨架缺省，既有回环单测回归基线不变）。
 package com.sofatype.ime.remote
 
 import java.io.BufferedInputStream
@@ -20,10 +22,37 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CopyOnWriteArrayList
 
+/** 发起 WS 关闭后等待对端 CLOSE 帧的最长等待（ms，RFC 6455 §7.1.1 服务器关闭握手）。 */
+private const val PEER_CLOSE_WAIT_MS = 1_000L
+
+/**
+ * /ws 会话委托（T14）：接管文本消息的应答决策。
+ * 服务缺省无委托 = T13 骨架回环口径（文本/二进制聚合后原样回显，既有单测回归基线）；
+ * 生产由 Manager 装配 [PairingSession]（hello/state 握手）。
+ */
+interface WsSessionDelegate {
+    /** 收到一条完整文本消息（已校验合法 UTF-8）；返回应答动作。 */
+    fun onTextMessage(text: String): WsReply
+}
+
+/** 文本消息的应答动作（T14）。 */
+sealed class WsReply {
+    /** 不回发消息，连接保持。 */
+    object None : WsReply()
+
+    /** 回发一条文本消息，连接保持（配对成功：state connected=true）。 */
+    class Text(val text: String) : WsReply()
+
+    /** 回发一条文本消息后按给定状态码关闭连接（配对被拒：state connected=false + 4001）。 */
+    class TextThenClose(val text: String, val closeCode: Int) : WsReply()
+}
+
 class RemoteInputServer(
     private val bindAddress: InetAddress,
     /** 0 = 端口随机取系统可用端口（决策 16）。 */
     private val requestedPort: Int = 0,
+    /** WS 会话委托；null = T13 回环口径（骨架缺省）。 */
+    private val wsDelegate: WsSessionDelegate? = null,
 ) {
     sealed class StartResult {
         /** 启动成功；port 为实际监听端口。 */
@@ -153,17 +182,18 @@ class RemoteInputServer(
             RouteResult.UpgradeWebSocket -> {
                 output.write(WsHandshake.upgradeResponse(request.headers["sec-websocket-key"].orEmpty()))
                 output.flush()
-                wsLoop(input, output)
+                wsLoop(input, output, wsDelegate)
             }
         }
     }
 
     /**
-     * WebSocket 会话循环（回环口径）：文本/二进制消息按分片聚合后原样回显；
-     * PING 回 PONG；CLOSE 回显状态码后断开；协议错误回对应关闭码后断开。
-     * T14 起 /ws 会话改为 hello/state 握手；T15 起接入业务处理。
+     * WebSocket 会话循环：[delegate] 为空 = T13 回环口径（文本/二进制分片聚合后原样回显，
+     * 骨架缺省与既有单测回归基线）；非空 = 生产会话（T14 [PairingSession] 握手）：
+     * 文本消息交委托应答，二进制消息忽略（协议第 7 章全部为 JSON 文本）。
+     * PING 回 PONG；CLOSE 回显状态码；协议错误回对应关闭码后断开。
      */
-    private fun wsLoop(input: BufferedInputStream, output: java.io.OutputStream) {
+    private fun wsLoop(input: BufferedInputStream, output: java.io.OutputStream, delegate: WsSessionDelegate?) {
         val assembler = WsMessageAssembler()
         try {
             while (true) {
@@ -177,7 +207,28 @@ class RemoteInputServer(
                         return
                     }
                     else -> assembler.feed(frame)?.let { message ->
-                        output.write(WsFrameCodec.encode(message.opcode, validatedPayload(message)))
+                        when {
+                            delegate == null ->
+                                output.write(WsFrameCodec.encode(message.opcode, validatedPayload(message)))
+                            message.opcode == WsOpcode.TEXT -> {
+                                val reply = delegate.onTextMessage(validatedText(message))
+                                if (reply is WsReply.Text || reply is WsReply.TextThenClose) {
+                                    output.write(
+                                        WsFrameCodec.encode(WsOpcode.TEXT, replyText(reply).toByteArray(StandardCharsets.UTF_8)),
+                                    )
+                                }
+                                if (reply is WsReply.TextThenClose) {
+                                    output.write(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(reply.closeCode)))
+                                    output.flush()
+                                    // RFC 6455 §7.1.1：发起关闭方应等待对端 CLOSE 帧再断 TCP；
+                                    // 立即断开会让浏览器端关闭握手被中断（页面 loading 不结束）。
+                                    awaitPeerClose(input)
+                                    return
+                                }
+                            }
+                            // 配对会话忽略二进制消息（协议第 7 章无二进制形态）
+                            else -> Unit
+                        }
                     }
                 }
                 output.flush()
@@ -189,6 +240,44 @@ class RemoteInputServer(
                 output.flush()
             }
         }
+    }
+
+    /** 取应答动作携带的文本（Text / TextThenClose）。 */
+    private fun replyText(reply: WsReply): String = when (reply) {
+        is WsReply.Text -> reply.text
+        is WsReply.TextThenClose -> reply.text
+        WsReply.None -> ""
+    }
+
+    /**
+     * 发起关闭后短暂等待对端 CLOSE（RFC 6455 §7.1.1 服务器关闭握手）。
+     * 非阻塞轮询（accepted 套接字保持默认阻塞读，不能设全局 soTimeout，否则会话空闲读会超时断连）；
+     * 超时 [PEER_CLOSE_WAIT_MS] 或对端断开即返回，线程随后正常关闭套接字。
+     */
+    private fun awaitPeerClose(input: BufferedInputStream) {
+        val deadline = System.currentTimeMillis() + PEER_CLOSE_WAIT_MS
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                if (input.available() > 0) {
+                    // 有对端数据可读：读到 CLOSE 帧（正常关闭握手回执）或对端 EOF 即结束
+                    val frame = WsFrameCodec.readFrom(input) ?: return
+                    if (frame.opcode == WsOpcode.CLOSE) return
+                    // 关闭等待期收到其他帧：忽略继续等（对端未按序处理的兜底）
+                    continue
+                }
+                Thread.sleep(10)
+            }
+        } catch (_: Exception) {
+            // 读异常（对端已断开 / 中断）：直接结束等待
+        }
+    }
+
+    /** 文本消息必须是合法 UTF-8（RFC 6455），否则关闭 1007；返回解码文本。 */
+    private fun validatedText(message: WsMessage): String {
+        if (!isValidUtf8(message.payload)) {
+            throw WsProtocolException(1007, "文本消息不是合法 UTF-8")
+        }
+        return String(message.payload, StandardCharsets.UTF_8)
     }
 
     /** 文本消息必须是合法 UTF-8（RFC 6455），否则关闭 1007；二进制原样。 */

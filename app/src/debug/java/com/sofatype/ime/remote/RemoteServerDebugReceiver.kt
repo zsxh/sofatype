@@ -22,7 +22,17 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
             }
             ACTION_STATUS -> {
                 val url = RemoteInputServerManager.addressUrl()
-                Log.i(TAG, if (url != null) "当前状态：运行中 $url" else "当前状态：未运行")
+                val pairingUrl = RemoteInputServerManager.pairingUrl()
+                Log.i(
+                    TAG,
+                    when {
+                        url == null -> "当前状态：未运行"
+                        // 配对地址含一次性 token，仅 debug 走查日志输出（FR-B4 地址与二维码内容一致）
+                        pairingUrl != null && RemoteInputServerManager.isPairingTokenActive() ->
+                            "当前状态：运行中 $url；配对地址：$pairingUrl"
+                        else -> "当前状态：运行中 $url；配对 token 已失效（已配对）"
+                    },
+                )
             }
             else -> Unit
         }

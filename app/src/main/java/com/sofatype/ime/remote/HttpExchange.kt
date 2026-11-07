@@ -102,7 +102,12 @@ object HttpResponses {
     }
 }
 
-/** T13 占位页：验收用 curl 打开；正式手机端 H5 页随 T15 下发（决策 20：H5 打包进 APK assets）。 */
+/**
+ * T14 配对占位页（验收标准：浏览器带 token 打开显示「已连接 · TV名」；无 token / 过期 token 显示配对失败）。
+ * 页面从 URL query 取 token → WS 连接 /ws → 发 hello { token, deviceName } → 收 state 后展示。
+ * 决策 20：纯原生 HTML/CSS/JS，无第三方框架与 CDN；正式手机端 H5 随 T15 下发（H5 打包进 APK assets）。
+ * deviceName 发固定占位值（T14 不涉及设备名展示）；深色样式取星夜青 Token 值。
+ */
 object PlaceholderPage {
     val HTML: String = """
         <!doctype html>
@@ -111,11 +116,52 @@ object PlaceholderPage {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>sofatype 跨屏输入</title>
+          <style>
+            body { margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; background: #06080C;
+                   color: #F2F6FB; font-family: system-ui, sans-serif; }
+            h1 { font-size: 20px; margin: 0 0 16px; }
+            #status { font-size: 16px; color: #7DD3FC; margin: 0 0 8px; }
+            #meta { font-size: 13px; color: #7F848D; margin: 0; }
+          </style>
         </head>
         <body>
           <h1>sofatype 跨屏输入</h1>
-          <p>T13 服务骨架占位页；正式页面随 T15 下发。</p>
-          <p>WebSocket 端点：ws://&lt;本机地址&gt;/ws</p>
+          <p id="status">正在连接…</p>
+          <p id="meta">T14 配对占位页；正式页面随 T15 下发。</p>
+          <script>
+            (function () {
+              var statusEl = document.getElementById('status');
+              var metaEl = document.getElementById('meta');
+              var gotState = false; // 收到 state 后 onclose 不再覆盖配对结论文案
+              var token = new URLSearchParams(location.search).get('token') || '';
+              var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+              ws.onopen = function () {
+                ws.send(JSON.stringify({ type: 'hello', token: token, deviceName: 'browser' }));
+              };
+              ws.onmessage = function (ev) {
+                var msg;
+                try { msg = JSON.parse(ev.data); } catch (e) { return; }
+                if (!msg || msg.type !== 'state') return;
+                gotState = true;
+                if (msg.connected) {
+                  statusEl.textContent = '已连接 · ' + msg.tvName;
+                  metaEl.textContent = '字数上限 ' + msg.charLimit + ' 字（T14 配对占位页）';
+                } else {
+                  statusEl.textContent = '配对失败：token 无效或已使用，请重新扫码';
+                  ws.close();
+                }
+              };
+              ws.onclose = function (ev) {
+                if (!gotState) {
+                  statusEl.textContent = '连接已关闭（' + ev.code + '）';
+                }
+              };
+              ws.onerror = function () {
+                statusEl.textContent = '连接失败，请检查与电视在同一 Wi-Fi 后重新扫码';
+              };
+            })();
+          </script>
         </body>
         </html>
     """.trimIndent()

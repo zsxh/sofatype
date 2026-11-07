@@ -117,7 +117,8 @@
         </LinearLayout>
         </FrameLayout>
 
-        <!-- 副卡占位（含柔影垫层）：跨屏输入引导内容与状态机属 T17（FR-B1）；
+        <!-- 副卡（含柔影垫层）：默认空占位；远程服务运行中时由服务层装配对卡
+             （二维码 + 地址一行，T14 · FR-B4）；引导内容与状态机属 T17（FR-B1）；
              底对齐：主卡展开态加高时主/副卡保持底缘对齐（T11） -->
         <FrameLayout
             android:layout_width="@dimen/ime_side_card_width"

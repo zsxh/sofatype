@@ -1,11 +1,14 @@
 // T13 · 远程输入服务启停生命周期（TASKS T13：「随远程模式启停、退出端口无残留」）。
 // 远程模式 UI 属 T15/T17：届时远程模式进入（FR-B2）调 start、退出（FR-B7）调 stop。
 // T13 阶段走查入口为 debug 广播接收器（app/src/debug，决策 21 同口径：release 不暴露）。
-// 本层是唯一的 android.* 依赖面：地址收集（ConnectivityManager / NetworkInterface）与日志。
+// T14 增量（FR-B4/B10）：启动时签发一次性配对 token，/ws 装配 hello/state 配对会话；
+// 配对地址（含 token）随启动日志输出供走查，仅 debug 构建可达；token 与服务同生命周期，停止即清空。
+// 本层是唯一的 android.* 依赖面：地址收集（ConnectivityManager / NetworkInterface）、TV 名与日志。
 package com.sofatype.ime.remote
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.os.Build
 import android.util.Log
 import com.sofatype.ime.BuildConfig
 import java.net.Inet4Address
@@ -22,6 +25,20 @@ object RemoteInputServerManager {
     @Volatile
     private var addressText: String? = null
 
+    /** 一次性配对 token（FR-B10）：每次启动签发新值，停止即清空。 */
+    private val tokens = PairingTokenStore()
+
+    /** 本轮服务的配对地址（含 token，FR-B4「地址与二维码内容一致」）；仅服务运行期间非空。 */
+    @Volatile
+    private var pairingUrlText: String? = null
+
+    /**
+     * 配对状态变化回调（T14 走查接线）：启动成功 / 停止后通知，UI 据此装载或清空配对卡。
+     * 回调在调用线程（广播接收 = 主线程）执行；远程模式完整状态机随 T17 重构。
+     */
+    @Volatile
+    var onPairingStateChanged: (() -> Unit)? = null
+
     /** 当前服务是否在监听。 */
     fun isRunning(): Boolean = server?.isRunning == true
 
@@ -32,8 +49,14 @@ object RemoteInputServerManager {
         return if (addr != null && port != null) "http://$addr:$port/" else null
     }
 
+    /** 当前配对地址（含一次性 token，二维码内容与副卡地址行同源）；未运行返回 null。 */
+    fun pairingUrl(): String? = pairingUrlText
+
+    /** 当前配对 token 是否有效（配对成功消费后为 false）。 */
+    fun isPairingTokenActive(): Boolean = tokens.isActive
+
     /**
-     * 启动服务：解析默认路由 IPv4 → 随机端口绑定 → 进入监听。
+     * 启动服务：解析默认路由 IPv4 → 随机端口绑定 → 签发一次性 token → 进入监听。
      * 仅 debug 构建可用（决策 21 口径）；release 返回 Failed，不做任何动作。
      * 失败只返回结果，不抛异常（第 8 章可靠性：不得影响 IME 进程）。
      */
@@ -51,14 +74,25 @@ object RemoteInputServerManager {
                 Log.w(TAG, "启动失败：$reason")
                 return RemoteInputServer.StartResult.Failed(reason)
             }
-            val instance = RemoteInputServer(address) // 端口随机：requestedPort 默认 0（决策 16）
+            tokens.issue() // FR-B10：一次性 token，每轮服务会话新签发
+            val instance = RemoteInputServer(
+                address,
+                0, // 端口随机：requestedPort 默认 0（决策 16）
+                PairingSession(
+                    tokens = tokens,
+                    tvName = resolveTvName(),
+                    logEvent = { Log.i(TAG, it) },
+                ),
+            )
             val result = instance.start()
             when (result) {
                 is RemoteInputServer.StartResult.Started -> {
                     server = instance
                     addressText = address.hostAddress
-                    // 验收通道：端口经此条日志获知（adb logcat -s RemoteInputServer）
-                    Log.i(TAG, "远程输入服务已启动：${addressUrl()}（WS 端点同端口 /ws）")
+                    pairingUrlText = "http://${address.hostAddress}:${result.port}/?token=${tokens.peek()}"
+                    // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
+                    Log.i(TAG, "远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
+                    onPairingStateChanged?.invoke()
                 }
                 is RemoteInputServer.StartResult.Failed ->
                     Log.w(TAG, "启动失败：${result.reason}")
@@ -67,17 +101,24 @@ object RemoteInputServerManager {
         }
     }
 
-    /** 停止服务并确认无端口残留；返回停止前是否在运行。幂等。 */
+    /** 停止服务并确认无端口残留；token 与配对地址一并清空。返回停止前是否在运行。幂等。 */
     fun stop(): Boolean {
         synchronized(this) {
             val instance = server ?: return false
             server = null
             addressText = null
+            pairingUrlText = null
+            tokens.clear()
             instance.stop()
-            Log.i(TAG, "远程输入服务已停止，监听已关闭")
+            Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
+            onPairingStateChanged?.invoke()
             return true
         }
     }
+
+    /** TV 设备名（PRD 第 7 章 state.tvName）：取系统型号；空值兜底，避免下发空串。 */
+    private fun resolveTvName(): String =
+        Build.MODEL?.trim()?.takeIf { it.isNotEmpty() } ?: "Android TV"
 
     /**
      * 收集候选接口 → 交给纯逻辑层 [BindAddressSelector] 按决策 16 选取：

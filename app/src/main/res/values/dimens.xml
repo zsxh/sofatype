@@ -90,4 +90,13 @@
     <dimen name="ime_side_card_shadow_width">248dp</dimen>
     <dimen name="ime_card_shadow_height">286dp</dimen>
     <dimen name="ime_card_shadow_corner">24dp</dimen>
+
+    <!-- ═══ 配对卡（T14 · FR-B4，画板⑤「远程模式」副卡；1080p px ÷ 2 = dp/sp） ═══
+         二维码 376×376、圆角 38（圆角 Token 复用 ime_card_corner）；容器 padding 40px、
+         二维码与地址行间距 10px（画板⑤ flex 容器 padding/gap）；地址一行字 22px（色 accent_text，
+         PRD 6.1 URL 色，画板⑤ 原文）。二维码下方不显示其他文案（决策 4）。 -->
+    <dimen name="ime_qr_size">188dp</dimen>
+    <dimen name="ime_pairing_padding">20dp</dimen>
+    <dimen name="ime_pairing_gap">5dp</dimen>
+    <dimen name="ime_pairing_url_text">11sp</dimen>
 </resources>

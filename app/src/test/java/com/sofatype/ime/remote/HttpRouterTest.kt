@@ -27,8 +27,11 @@ class HttpRouterTest {
         val text = String(bytes, StandardCharsets.UTF_8)
         assertTrue(text.startsWith("HTTP/1.1 200 OK\r\n"))
         assertTrue(text.contains("Content-Type: text/html; charset=utf-8"))
+        // T14 配对占位页：从 URL query 取 token、发 hello、展示「已连接 · TV名」
         assertTrue(text.contains("sofatype 跨屏输入"))
-        assertTrue(text.contains("T13 服务骨架占位页"))
+        assertTrue(text.contains("'hello'"))
+        assertTrue(text.contains("token"))
+        assertTrue(text.contains("已连接 · "))
     }
 
     @Test
