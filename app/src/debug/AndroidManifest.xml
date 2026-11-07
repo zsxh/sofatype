@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T13 · debug 构建专有清单叠加（仅合入 debug 变体）：
+  远程输入服务启停走查入口（PRD 决策 21 同口径——release 构建不合并本文件，
+  该接收器在 release 中不存在，无暴露面）。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name=".remote.RemoteServerDebugReceiver"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="com.sofatype.ime.debug.action.START_REMOTE_SERVER" />
+                <action android:name="com.sofatype.ime.debug.action.STOP_REMOTE_SERVER" />
+                <action android:name="com.sofatype.ime.debug.action.STATUS_REMOTE_SERVER" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

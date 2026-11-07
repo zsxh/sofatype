@@ -5,6 +5,11 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- T13：跨屏局域网服务（HTTP + WS）需要创建网络套接字；
+         ACCESS_NETWORK_STATE 用于解析默认路由接口（决策 16）。均为 normal 级权限。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="false"
         android:label="sofatype"
