@@ -21,7 +21,9 @@ class PairingSessionTest {
         onClear: () -> Unit = {},
         onCommit: (text: String, ack: (Boolean) -> Unit) -> Unit = { _, _ -> },
         onPaired: (deviceName: String?) -> Unit = {},
-    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear, onCommit, onPaired)
+        onPairedSessionClosed: () -> Unit = {},
+        onConnectionAttached: (WsMessageSender, (Int) -> Unit) -> Unit = { _, _ -> },
+    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear, onCommit, onPaired, onPairedSessionClosed, onConnectionAttached)
 
     private fun helloJson(token: String?): String =
         if (token == null) """{"type":"hello","deviceName":"browser"}"""
@@ -311,7 +313,7 @@ class PairingSessionTest {
             store,
             onCommit = { _, ack -> ack(true) },
         )
-        session.attachSender(sender)
+        session.attachConnection(sender) { _ -> }
         session.onTextMessage(helloJson(token))
         session.onTextMessage("""{"type":"commit","text":"客厅"}""")
         assertEquals(1, sender.sent.size)
@@ -329,7 +331,7 @@ class PairingSessionTest {
             store,
             onCommit = { _, ack -> ack(false) },
         )
-        session.attachSender(sender)
+        session.attachConnection(sender) { _ -> }
         session.onTextMessage(helloJson(token))
         session.onTextMessage("""{"type":"commit","text":"客厅"}""")
         assertEquals(1, sender.sent.size)
@@ -360,7 +362,7 @@ class PairingSessionTest {
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store, onCommit = { _, ack -> ack(true) })
-        session.attachSender { _ -> false }
+        session.attachConnection({ _ -> false }) { _ -> }
         session.onTextMessage(helloJson(token))
         val reply = session.onTextMessage("""{"type":"commit","text":"客厅"}""")
         assertEquals(WsReply.None, reply)
@@ -400,5 +402,38 @@ class PairingSessionTest {
         val session = newSession(store, onPaired = { names.add(it) })
         session.onTextMessage("""{"type":"hello","token":"$token"}""")
         assertEquals(listOf<String?>(null), names)
+    }
+
+    // ---- T35 · 连接控制与断连回调（决策 35：滚动 token / 自动顶替 / 断连回退） ----
+
+    @Test
+    fun connectionAttachedCallbackReceivesSenderAndCloseHandle() {
+        // WS 升级完成后 attachConnection 触发控制句柄上抛（Manager 登记供顶替编排）
+        val store = PairingTokenStore()
+        var attachedSender: WsMessageSender? = null
+        var closeCode = 0
+        val session = newSession(
+            store,
+            onConnectionAttached = { sender, close -> attachedSender = sender; close(PairingSession.CLOSE_REPLACED) },
+        )
+        session.attachConnection({ _ -> true }) { code -> closeCode = code }
+        assertTrue(attachedSender != null)
+        assertEquals(PairingSession.CLOSE_REPLACED, closeCode)
+    }
+
+    @Test
+    fun sessionClosedCallbackFiresOnlyAfterPaired() {
+        // 未配对连接的会话结束不触发（不回退等待态）；配对成功后的断开才触发（T35 决策 35）。
+        // 服务契约：onSessionClosed 由服务在会话结束时调用一次（finally），无重复通知路径。
+        val store = PairingTokenStore()
+        val token = store.issue()
+        var closedCount = 0
+        val session = newSession(store, onPairedSessionClosed = { closedCount++ })
+        session.onTextMessage(helloJson("wrong-guess")) // 未配对即被拒
+        session.onSessionClosed()
+        assertEquals("被拒连接断开不触发已配对关闭回调", 0, closedCount)
+        session.onTextMessage(helloJson(token))
+        session.onSessionClosed()
+        assertEquals("已配对连接断开触发一次", 1, closedCount)
     }
 }

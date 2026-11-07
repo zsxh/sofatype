@@ -10,10 +10,13 @@
 // T16 增量（FR-B6/C6 · 决策 9/10）：commit { text } 上屏指令——配对后经 [onCommit] 交付
 //（文本按 charLimit 码点兜底截断，与显示缓冲同口径），写入结果经 [ack] 异步回报；
 // ack 触发本连接 committed { ok } 回执（TV → 手机，PRD「上屏成功后手机端草稿清空并提示
-// 『已上屏』」的确认信号）；回发经 attachSender 注入的连接级 [WsMessageSender]。
+// 『已上屏』」的确认信号）；回发经 attachConnection 注入的连接级 [WsMessageSender]。
 // T17 增量（FR-B9 / 决策 34）：hello 成功经 [onPaired] 通知 UI 层（状态机切「已连接」，
 // 副卡切已连接卡面 / 主卡状态行切绿点）；deviceName 随回调上送供状态行展示
 //（决策 34：会话内存驻留，不持久化、不入日志；hello 未携带时回调 null）。
+// T35 增量（决策 35 滚动 token / 自动顶替 / 断连回退）：token 消费成功后由 Manager 立即
+// 滚动签发新 token（本类不持有签发时序）；[attachConnection] 同步缓存关闭句柄；
+// [onSessionClosed] 仅在本连接已配对时上抛（未配对连接的断开不入会话登记）。
 // 本实例持有每连接的配对态：由 RemoteInputServerManager 以会话工厂按连接创建（一连接一实例）。
 package com.sofatype.ime.remote
 
@@ -39,6 +42,18 @@ class PairingSession(
      * 回调在 WS 读线程执行，处理方自行保证线程安全。
      */
     private val onPaired: (deviceName: String?) -> Unit = {},
+    /**
+     * 已配对会话关闭回调（T35 · 决策 35 断连回退）：本连接**已配对**且 WS 会话结束时触发
+     *（对端关闭 / 协议错误 / 被顶替关闭）；未配对连接的会话结束不触发（不入会话登记）。
+     * 被顶替的旧连接也会触发本回调，处理方按「仅当前登记会话生效」口径幂等处理。
+     * 回调在连接处理线程执行，处理方自行保证线程安全。
+     */
+    private val onPairedSessionClosed: () -> Unit = {},
+    /**
+     * 连接控制句柄上抛回调（T35 · 决策 35）：WS 升级完成后服务注入回发器与关闭句柄时触发，
+     * 处理方（Manager）据此登记该连接的控制通道供顶替使用。回调在连接处理线程执行。
+     */
+    private val onConnectionAttached: (sender: WsMessageSender, close: (Int) -> Unit) -> Unit = { _, _ -> },
 ) : WsSessionDelegate {
 
     /** 本连接配对态：hello 成功后置位；业务消息仅在此态分发（未配对连接不得注入内容）。 */
@@ -48,8 +63,15 @@ class PairingSession(
     @Volatile
     private var sender: WsMessageSender? = null
 
-    override fun attachSender(sender: WsMessageSender) {
+    override fun attachConnection(sender: WsMessageSender, close: (Int) -> Unit) {
         this.sender = sender
+        // T35：控制句柄上抛（Manager 登记供顶替 / 断连编排）
+        onConnectionAttached(sender, close)
+    }
+
+    override fun onSessionClosed() {
+        // T35：仅已配对连接的断开上抛（未配对连接结束 = 无会话登记，无需回退）
+        if (paired) onPairedSessionClosed()
     }
 
     override fun onTextMessage(text: String): WsReply {
@@ -138,7 +160,13 @@ class PairingSession(
         /** TV → 手机上屏回执消息类型（T16）。 */
         const val MSG_COMMITTED = "committed"
 
+        /** TV → 手机「连接已被替换」通知消息类型（T35 · FR-B11 / 决策 35）。 */
+        const val MSG_REPLACED = "replaced"
+
         /** 配对被拒关闭码（RFC 6455 §7.4.2：4000–4999 为应用自定义段）。 */
         const val CLOSE_POLICY_REJECTED = 4001
+
+        /** 连接被新设备顶替的关闭码（T35 · 决策 35，应用段 4xxx）。 */
+        const val CLOSE_REPLACED = 4002
     }
 }

@@ -27,10 +27,11 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
                     TAG,
                     when {
                         url == null -> "当前状态：未运行"
-                        // 配对地址含一次性 token，仅 debug 走查日志输出（FR-B4 地址与二维码内容一致）
-                        pairingUrl != null && RemoteInputServerManager.isPairingTokenActive() ->
-                            "当前状态：运行中 $url；配对地址：$pairingUrl"
-                        else -> "当前状态：运行中 $url；配对 token 已失效（已配对）"
+                        // 配对地址含一次性 token，仅 debug 走查日志输出（FR-B4 地址与二维码内容一致；
+                        // 决策 35 滚动签发：已配对后 token 为滚动新签发值，二维码内容同步更新）
+                        RemoteInputServerManager.hasPairedSession() ->
+                            "当前状态：运行中 $url；已配对会话在线；配对地址（滚动新码）：$pairingUrl"
+                        else -> "当前状态：运行中 $url；配对地址：$pairingUrl（等待扫码）"
                     },
                 )
             }

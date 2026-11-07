@@ -99,6 +99,9 @@
     <dimen name="ime_pairing_padding">20dp</dimen>
     <dimen name="ime_pairing_gap">5dp</dimen>
     <dimen name="ime_pairing_url_text">11sp</dimen>
+    <!-- T35 · 决策 35：已连接态二维码与下方状态行间距（比地址行更松，户主 2026-11-07 反馈
+         「已连接行太贴近二维码」后调整；1080p px ÷ 2 = dp） -->
+    <dimen name="ime_pairing_status_gap">16dp</dimen>
 
     <!-- ═══ 远程模式主卡实时文本（T15 · FR-B3 显示部分，画板⑤；1080p px ÷ 2 = dp/sp） ═══
          大字 40px → 20sp（text_primary，letter-spacing 1px@40px ≈ 0.025em 走布局属性）；

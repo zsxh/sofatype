@@ -304,17 +304,17 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 渲染跨屏 UI（T17 · FR-B1/B2/B9 · 决策 32/33）：状态由 Manager 可观测值
-     *（服务运行 / 配对 token 有效 / 配对设备名）经 [RemoteUiState.of] 推导——
-     * ① 副卡按卡面装配（引导卡 / 配对卡 / 已连接卡面，整卡切换）；
+     * 渲染跨屏 UI（T17/T35 · FR-B1/B2/B9 · 决策 32/33/35）：状态由 Manager 可观测值
+     *（服务运行 / 已配对会话存在 / 配对设备名）经 [RemoteUiState.of] 推导——
+     * ① 副卡按卡面装配（引导卡 / 配对卡 / 二维码卡 + 已连接状态行）；
      * ② 主卡按模式显隐远程模式框架（FR-B3：状态行三态 + 大字区 + 底部提示 + 「退出远程」），
      *    模式切换沿迁移焦点（进远程 → 退出远程按钮；回键盘 → 初始键，FR-A11 不丢焦点）。
-     * 触发点 = 服务启停 / 配对成功回调、主按钮与退出按钮点击、键盘重建补渲染；幂等可重复调用。
+     * 触发点 = 服务启停 / 配对成功 / 已配对连接断开回调、主按钮与退出按钮点击、键盘重建补渲染；幂等可重复调用。
      */
     private fun renderRemoteUi() {
         val state = RemoteUiState.of(
             serviceRunning = RemoteInputServerManager.isRunning(),
-            pairingTokenActive = RemoteInputServerManager.isPairingTokenActive(),
+            pairedSessionActive = RemoteInputServerManager.hasPairedSession(),
             deviceName = RemoteInputServerManager.pairedDeviceName(),
         )
         renderSideCard(state)
@@ -322,9 +322,10 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 副卡三卡面装配（T17 · 决策 32 整卡切换）：
+     * 副卡三卡面装配（T17/T35 · 决策 32/35）：
      * 未连接 → 引导卡（FR-B1）；等待扫码 → 配对卡整卡（FR-B4 / 决策 4，该卡面即等待态）；
-     * 已连接 → 已连接卡面（绿点 + 设备名，不显示已失效二维码）。
+     * 已连接 → 二维码卡保留：二维码为配对成功后滚动签发的新 token 有效码，
+     * 网址行原位换成绿点状态行「已连接 · 设备名」（决策 32 独立已连接卡面废止）。
      */
     private fun renderSideCard(state: RemoteUiState) {
         val container = sideCard ?: return
@@ -340,7 +341,20 @@ class SofatypeImeService : InputMethodService() {
                     showGuideFace(container)
                 }
             }
-            RemoteSideCardFace.CONNECTED -> ConnectedCard.show(this, container, state.deviceName)
+            RemoteSideCardFace.CONNECTED -> {
+                val url = RemoteInputServerManager.pairingUrl()
+                if (url != null) {
+                    PairingCard.show(
+                        this,
+                        container,
+                        url,
+                        statusLineText = RemoteUiText.connectedFaceText(state.deviceName),
+                    )
+                } else {
+                    // 防御：运行中无配对地址（理论不可达，配对成功即滚动签发）回引导卡
+                    showGuideFace(container)
+                }
+            }
         }
         if (state.sideCardFace != RemoteSideCardFace.GUIDE) guideReturnKey = null
     }

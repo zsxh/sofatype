@@ -11,8 +11,12 @@
 //（onCommitRequested → InputConnection 光标处插入），写入结果经 ack 回发 committed 给手机端；
 // 写入成功即 stop()：关服务、清缓冲、自动收起远程模式回键盘态（FR-B6 / R-4）。
 // T17 增量（FR-B9 / 决策 32/34）：配对成功经 onPaired 驻留 hello.deviceName（会话内存，
-// 停止即清、不持久化、不入日志）并通知 UI 刷新状态机——服务运行 / token 消费 / 设备名
-// 三项可观测值是连接状态（未连接 / 等待扫码 / 已连接）的单一事实源。
+// 停止即清、不持久化、不入日志）并通知 UI 刷新状态机。
+// T35 增量（决策 35 · FR-B11 提前 / FR-B8 修订）：token 滚动签发——配对成功即签发新 token
+// 并刷新配对地址（副卡二维码重渲染出新码，逐 token 一次性语义不变）；新设备配对成功自动
+// 顶替旧连接（旧连接回发 replaced 后按 CLOSE_REPLACED 关闭），已配对连接断开经
+// PairedSessionRegistry 登记 / 清除驱动 UI 回等待扫码卡（新码仍有效）。「已连接」可观测值
+// 由「token 已消费」改为「存在已配对会话」。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -39,8 +43,23 @@ object RemoteInputServerManager {
     @Volatile
     private var addressText: String? = null
 
-    /** 一次性配对 token（FR-B10）：每次启动签发新值，停止即清空。 */
+    /** 一次性配对 token（FR-B10 · 决策 35 滚动签发）：每轮启动签发，配对成功后再签发新值，停止即清空。 */
     private val tokens = PairingTokenStore()
+
+    /**
+     * 已配对会话登记（T35 · 决策 35）：当前唯一已配对连接的身份与控制句柄（回发 / 关闭），
+     * 供新设备配对成功时顶替旧连接；读写仅在 Manager synchronized 区（WS 读线程进入）。
+     */
+    private val pairedSessions = PairedSessionRegistry()
+
+    /**
+     * 各连接控制句柄缓存（T35）：会话实例 → 回发 / 关闭通道（WS 升级完成即登记，
+     * 会话结束 / 服务停止即清），读写仅在 Manager synchronized 区。
+     */
+    private val sessionControls = HashMap<PairingSession, PairedConnection>()
+
+    /** replaced 顶替通知载荷（T35 · 决策 35，TV → 旧手机）。 */
+    private const val REPLACED_MESSAGE = "{\"type\":\"${PairingSession.MSG_REPLACED}\"}"
 
     /**
      * 配对设备名（T17 · FR-B9 / 决策 34）：hello.deviceName 会话内存驻留供状态行展示——
@@ -99,8 +118,11 @@ object RemoteInputServerManager {
     /** 当前配对地址（含一次性 token，二维码内容与副卡地址行同源）；未运行返回 null。 */
     fun pairingUrl(): String? = pairingUrlText
 
-    /** 当前配对 token 是否有效（配对成功消费后为 false）。 */
+    /** 当前配对 token 是否有效（决策 35 滚动签发：启动与每次配对成功后均为 true；供诊断用）。 */
     fun isPairingTokenActive(): Boolean = tokens.isActive
+
+    /** 当前是否存在已配对会话（T35 · 决策 35：UI 状态机「已连接」判定源，volatile 读安全）。 */
+    fun hasPairedSession(): Boolean = pairedSessions.hasPairedSession
 
     /** 已配对设备名（T17 · 决策 34）：hello 携带的 deviceName，会话内存驻留；未配对 / 已停止为 null。 */
     fun pairedDeviceName(): String? = pairedDeviceName
@@ -138,16 +160,24 @@ object RemoteInputServerManager {
                     // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发；
                     // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）；
                     // T17（FR-B9 / 决策 34）：配对成功驻留 deviceName 并通知 UI 刷新状态机。
-                    // 回调在 WS 读线程：volatile 写安全，UI 通知经主线程 Handler 派发。
-                    PairingSession(
+                    // T35（决策 35）：配对成功滚动签发新 token + 顶替旧连接；已配对连接断开
+                    // 清登记并回等待扫码卡。回调在连接线程：volatile 写安全，
+                    // UI 通知经主线程 Handler 派发。会话实例先创建再闭包捕获（作登记身份键）。
+                    lateinit var session: PairingSession
+                    session = PairingSession(
                         tokens = tokens,
                         tvName = tvName,
                         logEvent = { Log.i(TAG, it) },
                         onInput = ::onRemoteInput,
                         onClear = ::onRemoteClear,
                         onCommit = ::onRemoteCommit,
-                        onPaired = ::onPaired,
+                        onPaired = { deviceName -> onPaired(session, deviceName) },
+                        onPairedSessionClosed = { onPairedSessionClosed(session) },
+                        onConnectionAttached = { sender, close ->
+                            onPairedConnectionAttached(session, sender, close)
+                        },
                     )
+                    session
                 },
                 mainPageProvider = { loadMainPage(context) },
             )
@@ -176,6 +206,8 @@ object RemoteInputServerManager {
             addressText = null
             pairingUrlText = null
             tokens.clear()
+            pairedSessions.clear() // T35：已配对会话登记随服务会话结束（各连接由 stop 关闭后迟到的清除回调幂等）
+            sessionControls.clear()
             pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
@@ -190,13 +222,64 @@ object RemoteInputServerManager {
     // ---- T15 · 业务回调与页面下发 ----
 
     /**
-     * 配对成功（T17 · FR-B9 / 决策 34，WS 读线程）：deviceName 会话内存驻留（volatile 写），
-     * UI 通知经主线程 Handler 派发到 [onPairingStateChanged]（副卡切已连接卡面 / 主卡状态行切绿点）。
-     * 名字仅驻内存展示，不入日志（隐私红线）。
+     * 配对成功（T35 · 决策 35 重写，连接线程）：
+     * ① 新连接登记进已配对会话表，交出被顶替的旧连接——旧连接先回发 replaced 通知再按
+     *    CLOSE_REPLACED 关闭（FR-B11 自动顶替；旧手机端显示「连接已被替换」进未连接态）；
+     * ② 滚动签发新 token 并刷新配对地址（副卡二维码随 UI 刷新重渲染出新码，
+     *    逐 token 一次性语义不变，FR-B10）；已连接态展示的码 = 新签发的有效码；
+     * ③ deviceName 驻留（决策 34：会话内存，不持久化、不入日志）。
+     * UI 刷新经主线程 Handler 派发到 [onPairingStateChanged]（副卡二维码卡 + 状态行 /
+     * 主卡状态行绿点切新设备名）。服务已停止的迟到回调按防御忽略。
      */
-    private fun onPaired(deviceName: String?) {
-        pairedDeviceName = deviceName
+    private fun onPaired(session: PairingSession, deviceName: String?) {
+        synchronized(this) {
+            if (!isRunning()) return
+            val connection = sessionControls[session] ?: return
+            val replaced = pairedSessions.attach(session, connection)
+            replaced?.let { old ->
+                Log.i(TAG, "新设备配对成功，顶替旧连接")
+                runCatching { old.sender.send(REPLACED_MESSAGE) }
+                runCatching { old.close(PairingSession.CLOSE_REPLACED) }
+            }
+            val addr = addressText
+            val port = server?.port
+            if (addr != null && port != null) {
+                val token = tokens.issue() // 决策 35：滚动签发，旧 token 已消费，新码供下一台设备
+                pairingUrlText = "http://$addr:$port/?token=$token"
+                Log.i(TAG, "配对 token 已滚动签发，二维码内容更新")
+            }
+            pairedDeviceName = deviceName
+        }
         mainHandler.post { onPairingStateChanged?.invoke() }
+    }
+
+    /** 连接控制句柄登记（T35）：WS 升级完成即缓存该连接的回发 / 关闭通道，配对成功时取用。 */
+    private fun onPairedConnectionAttached(
+        session: PairingSession,
+        sender: WsMessageSender,
+        close: (Int) -> Unit,
+    ) {
+        synchronized(this) {
+            sessionControls[session] = PairedConnection(sender, close)
+        }
+    }
+
+    /**
+     * 已配对会话关闭（T35 · 决策 35 断连回退，连接线程）：仅当断开者仍是登记中的当前会话
+     * 时清除（被顶替旧连接的迟到关闭事件不清新登记），设备名一并清除；UI 通知经主线程
+     * Handler 派发——新 token 仍有效，副卡回等待扫码卡（FR-B8 口径按决策 35 修订，
+     * 完整断连提示与刷新重连归 T18）。
+     */
+    private fun onPairedSessionClosed(session: PairingSession) {
+        val cleared = synchronized(this) {
+            sessionControls.remove(session)
+            pairedSessions.detachIfCurrent(session)
+        }
+        if (cleared) {
+            pairedDeviceName = null
+            Log.i(TAG, "已配对连接断开，回等待扫码态（配对码仍有效）")
+            mainHandler.post { onPairingStateChanged?.invoke() }
+        }
     }
 
     /** input 消息（WS 读线程）：缓冲兜底限长后经主线程通知 UI；内容不入日志（隐私红线）。 */

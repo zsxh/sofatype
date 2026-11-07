@@ -14,7 +14,9 @@
 // awaitPeerClose 等待期加临时 soTimeout（T14 评审建议：半帧停滞不得越过 1s 截止）。
 // T16 增量（FR-B6 commit 回执）：每连接单线程写通道 ConnectionWriter——全部帧写（读线程应答 +
 // 任意线程回执）投递到 writer 线程串行执行：帧不交错，且网络 IO 恒离主线程（StrictMode 主线程
-// 网络 IO 会使 IME 进程崩溃，见 issue T16 坑 1）；attachSender 提供连接级主动回发通道。
+// 网络 IO 会使 IME 进程崩溃，见 issue T16 坑 1）；attachConnection 提供连接级回发与关闭通道。
+// T35 增量（决策 35 自动顶替 / 断连回退）：attachConnection 注入关闭句柄（CLOSE 帧 + 断开），
+// 会话结束回调 onSessionClosed 通知上层已配对连接断开（回等待扫码态）。
 package com.sofatype.ime.remote
 
 import java.io.BufferedInputStream
@@ -55,11 +57,19 @@ interface WsSessionDelegate {
     fun onTextMessage(text: String): WsReply
 
     /**
-     * 会话主动回发通道注入（T16 · FR-B6 commit 回执）：WS 升级完成后服务把本连接的
-     * 回发器交给委托；委托保存后可在任意线程回发消息（如 commit 处理完成后的
-     * committed 回执）。默认空实现：T13/T14 既有委托与测试基线不受影响。
+     * 连接控制通道注入（T16 注入回发；T35 增关闭句柄 · 决策 35 自动顶替）：
+     * WS 升级完成后服务把本连接的回发器与关闭句柄交给委托——
+     * [sender] 供任意线程回发消息（如 commit 回执、replaced 顶替通知）；
+     * [close] 按给定应用关闭码关闭本连接（写 CLOSE 帧后断开，供 Manager 顶替旧连接用）。
+     * 默认空实现：T13/T14 既有委托与测试基线不受影响。
      */
-    fun attachSender(sender: WsMessageSender) {}
+    fun attachConnection(sender: WsMessageSender, close: (Int) -> Unit) {}
+
+    /**
+     * 会话结束通知（T35 · 决策 35 断连回退）：WS 循环退出（对端关闭 / 协议错误 / 连接被关闭）
+     * 后调用，委托可据此通知上层「该连接已断开」。默认空实现。
+     */
+    fun onSessionClosed() {}
 }
 
 /**
@@ -232,13 +242,25 @@ class RemoteInputServer(
                 output.write(WsHandshake.upgradeResponse(request.headers["sec-websocket-key"].orEmpty()))
                 output.flush()
                 // T16：每连接写通道（单线程 writer，帧写串行化 + 网络 IO 不落主线程），
-                // 并把主动回发器交给委托（commit 回执经 writer 线程回发）
+                // 并把主动回发器交给委托（commit 回执经 writer 线程回发）；
+                // T35：同时注入关闭句柄（写 CLOSE 帧 + 关闭套接字，供已配对连接被新连接顶替时使用）
                 val writer = ConnectionWriter(output)
                 try {
-                    delegate?.attachSender { text -> writer.writeTextMessage(text) }
+                    delegate?.attachConnection(
+                        { text -> writer.writeTextMessage(text) },
+                        { closeCode ->
+                            runCatching {
+                                writer.writeRaw(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(closeCode)))
+                            }
+                            // 顶替路径不等对端 CLOSE 回执（页面即将让位，直接断开释放读循环）
+                            runCatching { socket.close() }
+                        },
+                    )
                     wsLoop(input, output, delegate, socket, writer)
                 } finally {
                     writer.shutdown()
+                    // T35：会话结束通知（对端关闭 / 协议错误 / 被顶替关闭统一到达此处）
+                    delegate?.onSessionClosed()
                 }
             }
         }

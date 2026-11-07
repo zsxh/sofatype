@@ -297,6 +297,7 @@
     var charLimit = LIMIT_DEFAULT;
     var text = ''; // 当前编辑内容（全量，码点安全）
     var gotState = false;
+    var replaced = false; // T35：本连接已被新设备顶替（决定关闭后的状态行文案）
     var ws = null;
     var hintTimer = null;
 
@@ -421,6 +422,14 @@
       statusEl.textContent = '配对失败：token 无效或已使用，请重新扫码';
       extraEl.style.display = 'none';
     }
+    /* T35 · FR-B11 / 决策 35：连接被新设备顶替——旧手机端提示并进入未连接态（重连随 T18） */
+    function setReplaced() {
+      replaced = true;
+      dotEl.classList.remove('connected');
+      statusEl.textContent = '连接已被替换';
+      extraEl.style.display = 'none';
+      showHint('连接已被另一台设备替换');
+    }
 
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
     ws.onopen = function () {
@@ -443,6 +452,12 @@
         }
         return;
       }
+      if (msg.type === 'replaced') {
+        /* T35 · FR-B11 / 决策 35：连接被新设备顶替（TV 随后按 4002 关闭本连接） */
+        gotState = true;
+        setReplaced();
+        return;
+      }
       if (msg.type !== 'state') { return; }
       gotState = true;
       if (msg.connected) {
@@ -457,7 +472,10 @@
       }
     };
     ws.onclose = function (ev) {
-      /* 断连提示与重连随 T18；此处仅处理未完成配对即断开的展示 */
+      /* 断连提示与重连随 T18；此处处理未完成配对即断开的展示，与被顶替关闭（4002）的文案 */
+      if (replaced) {
+        return; // setReplaced 已更新状态行，保持「连接已被替换」
+      }
       if (!gotState) {
         dotEl.classList.remove('connected');
         statusEl.textContent = '连接已关闭（' + ev.code + '）';
