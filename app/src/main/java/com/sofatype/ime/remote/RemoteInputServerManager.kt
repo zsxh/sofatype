@@ -3,12 +3,17 @@
 // T13 阶段走查入口为 debug 广播接收器（app/src/debug，决策 21 同口径：release 不暴露）。
 // T14 增量（FR-B4/B10）：启动时签发一次性配对 token，/ws 装配 hello/state 配对会话；
 // 配对地址（含 token）随启动日志输出供走查，仅 debug 构建可达；token 与服务同生命周期，停止即清空。
+// T15 增量（FR-C4/B3/B5）：GET / 下发 APK assets 内 H5 页（决策 20）；/ws 以会话工厂按连接
+// 创建配对会话，input/clear 业务回调经主线程 Handler 通知 UI（onRemoteTextChanged）；
+// 远程文本缓冲仅驻内存（RemoteTextBuffer，200 字码点上限兜底），停止即清空、日志不涉内容。
 // 本层是唯一的 android.* 依赖面：地址收集（ConnectivityManager / NetworkInterface）、TV 名与日志。
 package com.sofatype.ime.remote
 
 import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.sofatype.ime.BuildConfig
 import java.net.Inet4Address
@@ -18,6 +23,9 @@ import java.net.SocketException
 
 object RemoteInputServerManager {
     private const val TAG = "RemoteInputServer"
+
+    /** H5 页 assets 路径（决策 20：打进 APK assets 由本服务下发）。 */
+    private const val MAIN_PAGE_ASSET = "remote/index.html"
 
     @Volatile
     private var server: RemoteInputServer? = null
@@ -32,12 +40,29 @@ object RemoteInputServerManager {
     @Volatile
     private var pairingUrlText: String? = null
 
+    /** 远程输入缓冲（T15 · FR-C4）：仅驻内存，服务停止即清空（第 8 章隐私）。 */
+    private val remoteBuffer = RemoteTextBuffer(PairingSession.DEFAULT_CHAR_LIMIT)
+
+    /** UI 回调主线程派发（WS 读线程回调不可直接碰视图）。 */
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** H5 页字节缓存（静态资源，非用户内容；首次请求后驻内存，避免每次请求读 assets）。 */
+    @Volatile
+    private var mainPageCache: ByteArray? = null
+
     /**
      * 配对状态变化回调（T14 走查接线）：启动成功 / 停止后通知，UI 据此装载或清空配对卡。
-     * 回调在调用线程（广播接收 = 主线程）执行；远程模式完整状态机随 T17 重构。
+     * 回调在主线程执行（mainHandler 派发）；远程模式完整状态机随 T17 重构。
      */
     @Volatile
     var onPairingStateChanged: (() -> Unit)? = null
+
+    /**
+     * 远程文本变化回调（T15 · FR-B3/B5）：input 后 = 全量文本，clear / 服务停止后 = null。
+     * 回调保证在主线程执行；内容仅经内存传递，任何日志不记录。
+     */
+    @Volatile
+    var onRemoteTextChanged: ((String?) -> Unit)? = null
 
     /** 当前服务是否在监听。 */
     fun isRunning(): Boolean = server?.isRunning == true
@@ -54,6 +79,9 @@ object RemoteInputServerManager {
 
     /** 当前配对 token 是否有效（配对成功消费后为 false）。 */
     fun isPairingTokenActive(): Boolean = tokens.isActive
+
+    /** 当前远程文本快照（键盘重建时补渲染用）；无内容返回 null。 */
+    fun remoteTextSnapshot(): String? = remoteBuffer.text.takeIf { it.isNotEmpty() }
 
     /**
      * 启动服务：解析默认路由 IPv4 → 随机端口绑定 → 签发一次性 token → 进入监听。
@@ -75,14 +103,22 @@ object RemoteInputServerManager {
                 return RemoteInputServer.StartResult.Failed(reason)
             }
             tokens.issue() // FR-B10：一次性 token，每轮服务会话新签发
+            mainPageCache = null // 页面缓存随服务会话失效：资产更新后本次启动即生效
+            val tvName = resolveTvName()
             val instance = RemoteInputServer(
                 address,
                 0, // 端口随机：requestedPort 默认 0（决策 16）
-                PairingSession(
-                    tokens = tokens,
-                    tvName = resolveTvName(),
-                    logEvent = { Log.i(TAG, it) },
-                ),
+                wsDelegateFactory = {
+                    // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发
+                    PairingSession(
+                        tokens = tokens,
+                        tvName = tvName,
+                        logEvent = { Log.i(TAG, it) },
+                        onInput = ::onRemoteInput,
+                        onClear = ::onRemoteClear,
+                    )
+                },
+                mainPageProvider = { loadMainPage(context) },
             )
             val result = instance.start()
             when (result) {
@@ -101,7 +137,7 @@ object RemoteInputServerManager {
         }
     }
 
-    /** 停止服务并确认无端口残留；token 与配对地址一并清空。返回停止前是否在运行。幂等。 */
+    /** 停止服务并确认无端口残留；token、配对地址与远程输入缓冲一并清空。返回停止前是否在运行。幂等。 */
     fun stop(): Boolean {
         synchronized(this) {
             val instance = server ?: return false
@@ -111,8 +147,41 @@ object RemoteInputServerManager {
             tokens.clear()
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
+            // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态（完整退出流程随 T17）
+            remoteBuffer.clear()
+            mainHandler.post { onRemoteTextChanged?.invoke(null) }
             onPairingStateChanged?.invoke()
             return true
+        }
+    }
+
+    // ---- T15 · 业务回调与页面下发 ----
+
+    /** input 消息（WS 读线程）：缓冲兜底限长后经主线程通知 UI；内容不入日志（隐私红线）。 */
+    private fun onRemoteInput(text: String) {
+        val stored = remoteBuffer.set(text)
+        mainHandler.post { onRemoteTextChanged?.invoke(stored) }
+    }
+
+    /** clear 消息（WS 读线程）：清缓冲并通知 UI 回空态。 */
+    private fun onRemoteClear() {
+        remoteBuffer.clear()
+        mainHandler.post { onRemoteTextChanged?.invoke(null) }
+    }
+
+    /**
+     * H5 页字节（决策 20）：读 APK assets `remote/index.html`，服务运行期内驻内存缓存；
+     * 每次服务启动先失效缓存（页面资产更新后随启停生效）；assets 缺失 / 读取失败回退
+     * T14 占位页并记事件（页面内容与用户输入无关，可缓存）。
+     */
+    private fun loadMainPage(context: Context): ByteArray {
+        mainPageCache?.let { return it }
+        return try {
+            context.assets.open(MAIN_PAGE_ASSET).use { input -> input.readBytes() }
+                .also { mainPageCache = it }
+        } catch (e: Exception) {
+            Log.w(TAG, "H5 页读取失败（${e.javaClass.simpleName}），回退占位页")
+            PlaceholderPage.HTML.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         }
     }
 

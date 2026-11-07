@@ -121,4 +121,84 @@ class MinimalJsonTest {
         assertEquals("200", parse("""{"charLimit":200}""")["charLimit"])
         assertNull(parse("""{"charLimit":200}""")["missing"])
     }
+
+    // ---- T15 · 数字文法收紧（T14 评审建议：RFC 8259） ----
+
+    @Test
+    fun numberGrammarAcceptsRfc8259Forms() {
+        val accepted = mapOf(
+            """{"n":0}""" to "0",
+            """{"n":-0}""" to "-0",
+            """{"n":200}""" to "200",
+            """{"n":-1.5}""" to "-1.5",
+            """{"n":1.25e2}""" to "1.25e2",
+            """{"n":1.25E-2}""" to "1.25E-2",
+            """{"n":1e+3}""" to "1e+3",
+        )
+        for ((json, expected) in accepted) {
+            assertEquals(expected, parse(json)["n"])
+        }
+    }
+
+    @Test
+    fun numberGrammarRejectsLenientForms() {
+        val rejected = listOf(
+            """{"n":1.2.3}""",   // 多小数点（T14 评审点：原宽松文法被当数字接受）
+            """{"n":01}""",      // 前导零
+            """{"n":-}""",       // 只有负号
+            """{"n":+1}""",      // 正号开头
+            """{"n":1.}""",      // 小数点后无数字
+            """{"n":.5}""",      // 整数部分缺失
+            """{"n":1e}""",      // 指数缺数字
+            """{"n":1e+}""",     // 指数只有符号
+            """{"n":--1}""",     // 双负号
+        )
+        for (text in rejected) {
+            try {
+                parse(text)
+                throw AssertionError("应按非法数字拒绝：$text")
+            } catch (_: MinimalJson.JsonParseException) {
+                // 预期
+            }
+        }
+    }
+
+    // ---- T15 · 类型化解析：字符串 vs 标量字面量（业务消息字段类型校验用） ----
+
+    @Test
+    fun typedParseDistinguishesStringFromRawScalar() {
+        val typed = MinimalJson.parseTopLevelObjectTyped(
+            """{"type":"input","text":"你好","limit":200,"flag":true,"none":null}""",
+        )
+        assertTrue(typed["text"] is MinimalJson.Value.Str)
+        assertEquals("你好", (typed["text"] as MinimalJson.Value.Str).value)
+        assertTrue(typed["type"] is MinimalJson.Value.Str)
+        assertTrue(typed["limit"] is MinimalJson.Value.Raw)
+        assertEquals("200", (typed["limit"] as MinimalJson.Value.Raw).literal)
+        assertTrue(typed["flag"] is MinimalJson.Value.Raw)
+        assertTrue(typed["none"] is MinimalJson.Value.Raw)
+    }
+
+    @Test
+    fun typedParseRejectsMalformedLikePlainParse() {
+        for (text in listOf("not json", """{"a":1.2.3}""", """{"a":"open""")) {
+            try {
+                MinimalJson.parseTopLevelObjectTyped(text)
+                throw AssertionError("应解析失败：$text")
+            } catch (_: MinimalJson.JsonParseException) {
+                // 预期
+            }
+        }
+    }
+
+    @Test
+    fun plainParseAndTypedParseAgreeOnStringValues() {
+        val json = """{"tv":"电视","n":-2.5e1}"""
+        val plain = parse(json)
+        val typed = MinimalJson.parseTopLevelObjectTyped(json)
+        assertEquals("电视", plain["tv"])
+        assertEquals("电视", (typed["tv"] as MinimalJson.Value.Str).value)
+        assertEquals("-2.5e1", plain["n"])
+        assertEquals("-2.5e1", (typed["n"] as MinimalJson.Value.Raw).literal)
+    }
 }

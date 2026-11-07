@@ -16,7 +16,9 @@ class PairingSessionTest {
         tvName: String = "测试电视",
         charLimit: Int = 200,
         log: (String) -> Unit = {},
-    ) = PairingSession(store, tvName, charLimit, log)
+        onInput: (String) -> Unit = {},
+        onClear: () -> Unit = {},
+    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear)
 
     private fun helloJson(token: String?): String =
         if (token == null) """{"type":"hello","deviceName":"browser"}"""
@@ -140,5 +142,106 @@ class PairingSessionTest {
         assertTrue(events.isNotEmpty())
         assertTrue(events.none { it.contains(token) })
         assertTrue(events.none { it.contains("browser") })
+    }
+
+    // ---- T15 · 配对后业务消息分发（input / clear，PRD 第 7 章） ----
+
+    @Test
+    fun pairedConnectionDispatchesInputToCallback() {
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val received = mutableListOf<String>()
+        val session = newSession(store, onInput = { received.add(it) })
+        session.onTextMessage(helloJson(token))
+        val reply = session.onTextMessage("""{"type":"input","text":"客厅"}""")
+        assertEquals(WsReply.None, reply)
+        assertEquals(listOf("客厅"), received)
+    }
+
+    @Test
+    fun pairedConnectionDispatchesClearToCallback() {
+        val store = PairingTokenStore()
+        val token = store.issue()
+        var cleared = 0
+        val session = newSession(store, onClear = { cleared++ })
+        session.onTextMessage(helloJson(token))
+        assertEquals(WsReply.None, session.onTextMessage("""{"type":"clear"}"""))
+        assertEquals(1, cleared)
+    }
+
+    @Test
+    fun unpairedConnectionInputIsNotDispatched() {
+        // 防未配对连接注入内容：input/clear 在 hello 成功前一律忽略且不回调
+        val store = PairingTokenStore()
+        store.issue()
+        var callbackCount = 0
+        val session = newSession(store, onInput = { callbackCount++ }, onClear = { callbackCount++ })
+        assertEquals(WsReply.None, session.onTextMessage("""{"type":"input","text":"早到"}"""))
+        assertEquals(WsReply.None, session.onTextMessage("""{"type":"clear"}"""))
+        assertEquals(0, callbackCount)
+        // 连接保持：随后仍可完成配对
+        val token = store.peek()
+        assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
+    }
+
+    @Test
+    fun pairedConnectionIgnoresMalformedBusinessMessagesWithoutClosing() {
+        val store = PairingTokenStore()
+        val token = store.issue()
+        var callbackCount = 0
+        val events = mutableListOf<String>()
+        val session = newSession(
+            store,
+            log = { events.add(it) },
+            onInput = { callbackCount++ },
+            onClear = { callbackCount++ },
+        )
+        session.onTextMessage(helloJson(token))
+        // 非法 JSON / 未知类型 / 字段缺失：忽略、连接保持、不回调
+        for (bad in listOf("not json", """{"type":"commit"}""", """{"type":"input"}""")) {
+            assertEquals(WsReply.None, session.onTextMessage(bad))
+        }
+        assertEquals(0, callbackCount)
+        // 连接仍可承载业务消息
+        session.onTextMessage("""{"type":"input","text":"仍在线"}""")
+        assertEquals(1, callbackCount)
+    }
+
+    @Test
+    fun pairedConnectionReplayedHelloIsRejectedWithClose4001() {
+        // T14 基线口径：token 一次性，配对后同连接重放 hello → state connected:false + 4001
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store)
+        session.onTextMessage(helloJson(token))
+        val replay = session.onTextMessage(helloJson(token))
+        assertTrue(replay is WsReply.TextThenClose)
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, (replay as WsReply.TextThenClose).closeCode)
+        assertTrue(replay.text.contains(""""connected":false"""))
+    }
+
+    @Test
+    fun helloTokenMustBeJsonString() {
+        // token 为数字 / null 字面量：类型不符，按缺失拒绝（4001），不消费正确 token
+        val store = PairingTokenStore()
+        store.issue()
+        val session = newSession(store)
+        val reply = session.onTextMessage("""{"type":"hello","token":123,"deviceName":"browser"}""")
+        assertTrue(reply is WsReply.TextThenClose)
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, (reply as WsReply.TextThenClose).closeCode)
+        assertTrue("正确 token 未被误消费", store.isActive)
+    }
+
+    @Test
+    fun businessMessagesNeverAppearInEventLog() {
+        // 隐私红线：input 文本属用户输入内容，事件日志不得包含
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val events = mutableListOf<String>()
+        val session = newSession(store, log = { events.add(it) })
+        session.onTextMessage(helloJson(token))
+        session.onTextMessage("""{"type":"input","text":"绝密内容XYZ"}""")
+        session.onTextMessage("""{"type":"clear"}""")
+        assertTrue(events.none { it.contains("绝密内容XYZ") })
     }
 }

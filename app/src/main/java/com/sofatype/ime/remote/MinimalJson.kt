@@ -2,6 +2,8 @@
 // 纯 Kotlin/JVM，不引第三方 JSON 库（工具链拍板：跨屏通道自研）。
 // 只覆盖协议所需子集：顶层对象的标量字段（字符串 / 数字 / true / false / null），
 // 不支持嵌套对象与数组（协议消息无此形态；出现即解析失败，调用方按拒绝处理）。
+// T15 增量：类型化解析（字符串 vs 标量字面量，供 input { text } 字段类型校验）；
+// 数字文法按 RFC 8259 收紧（T14 评审建议：`1.2.3` 等宽松形态不再接受）。
 package com.sofatype.ime.remote
 
 object MinimalJson {
@@ -9,11 +11,33 @@ object MinimalJson {
     /** 解析失败（格式非法或含不支持的结构）。 */
     class JsonParseException(message: String) : Exception(message)
 
+    /** 顶层字段的值（T15）：区分字符串与标量字面量，供业务消息按类型校验字段。 */
+    sealed class Value {
+        /** JSON 字符串值；[value] 已解转义。 */
+        class Str(val value: String) : Value()
+
+        /** 数字 / true / false / null 字面量，[literal] 为原文。 */
+        class Raw(val literal: String) : Value()
+    }
+
     /**
      * 解析顶层 JSON 对象的标量字段：键 → 值。
      * 字符串值已解转义；数字 / true / false / null 以字面量原文返回；重复键后者覆盖。
      */
     fun parseTopLevelObject(text: String): Map<String, String> {
+        val typed = parseTopLevelObjectTyped(text)
+        val result = LinkedHashMap<String, String>(typed.size)
+        for ((key, value) in typed) {
+            result[key] = when (value) {
+                is Value.Str -> value.value
+                is Value.Raw -> value.literal
+            }
+        }
+        return result
+    }
+
+    /** 同 [parseTopLevelObject]，但保留值类型（字符串 vs 标量字面量），供业务消息字段校验。 */
+    fun parseTopLevelObjectTyped(text: String): Map<String, Value> {
         val parser = Parser(text)
         val result = parser.parseObject()
         parser.skipWhitespace()
@@ -49,10 +73,10 @@ object MinimalJson {
             while (pos < text.length && text[pos] in " \t\r\n") pos++
         }
 
-        fun parseObject(): Map<String, String> {
+        fun parseObject(): Map<String, Value> {
             skipWhitespace()
             expect('{')
-            val result = LinkedHashMap<String, String>()
+            val result = LinkedHashMap<String, Value>()
             skipWhitespace()
             if (peek() == '}') {
                 pos++
@@ -77,14 +101,14 @@ object MinimalJson {
             }
         }
 
-        private fun parseValue(): String {
+        private fun parseValue(): Value {
             val c = peek()
             return when {
-                c == '"' -> parseString()
-                c == 't' -> parseLiteral("true")
-                c == 'f' -> parseLiteral("false")
-                c == 'n' -> parseLiteral("null")
-                c == '-' || c in '0'..'9' -> parseNumber()
+                c == '"' -> Value.Str(parseString())
+                c == 't' -> Value.Raw(parseLiteral("true"))
+                c == 'f' -> Value.Raw(parseLiteral("false"))
+                c == 'n' -> Value.Raw(parseLiteral("null"))
+                c == '-' || c in '0'..'9' -> Value.Raw(parseNumber())
                 else -> throw JsonParseException("位置 $pos：非法值起始字符 '$c'")
             }
         }
@@ -137,10 +161,34 @@ object MinimalJson {
             return expected
         }
 
-        /** 数字按字面量原文返回（协议只取字符串字段；此处仅做结构校验）。 */
+        /**
+         * 数字按字面量原文返回（协议只取字符串字段；此处仅做结构校验）。
+         * 文法按 RFC 8259 收紧（T14 评审建议）：`-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?`——
+         * 不接受 `1.2.3`、`01`、`+1`、`1.`、`.5`、`1e` 等宽松形态。
+         */
         private fun parseNumber(): String {
             val start = pos
-            while (pos < text.length && text[pos] in "0123456789+-.eE") pos++
+            if (peek() == '-') pos++
+            when (peek()) {
+                '0' -> pos++
+                in '1'..'9' -> while (pos < text.length && text[pos] in '0'..'9') pos++
+                else -> throw JsonParseException("位置 $pos：非法数字")
+            }
+            if (pos < text.length && text[pos] == '.') {
+                pos++
+                if (pos >= text.length || text[pos] !in '0'..'9') {
+                    throw JsonParseException("位置 $pos：小数点后缺数字")
+                }
+                while (pos < text.length && text[pos] in '0'..'9') pos++
+            }
+            if (pos < text.length && (text[pos] == 'e' || text[pos] == 'E')) {
+                pos++
+                if (pos < text.length && (text[pos] == '+' || text[pos] == '-')) pos++
+                if (pos >= text.length || text[pos] !in '0'..'9') {
+                    throw JsonParseException("位置 $pos：指数缺数字")
+                }
+                while (pos < text.length && text[pos] in '0'..'9') pos++
+            }
             if (pos == start) throw JsonParseException("位置 $start：非法数字")
             return text.substring(start, pos)
         }

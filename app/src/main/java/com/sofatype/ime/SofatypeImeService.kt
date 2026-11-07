@@ -14,6 +14,8 @@
 // 分页展示、页缘左右翻页，CandidateMoreRow 模型）；再次点按收起；展开行焦点导航
 //（候选行 DOWN 进展开行、展开行 UP 回候选行、DOWN 出候选区回键盘）；展开态主卡加高
 //（ime_card_height_expanded，键位结构与列节奏不变）。
+// T15 接线：远程输入实时显示（FR-B3 显示部分 / FR-B5）——Manager 回调驱动主卡大字区显隐
+//（40px 文本 + 超宽滚动末尾 + 青色光标；候选栏/键区随显隐切换）；完整远程模式状态机随 T17。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -27,6 +29,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -174,6 +177,15 @@ class SofatypeImeService : InputMethodService() {
     /** 副卡容器（T14：服务运行中时装配对卡 FR-B4；引导内容与状态机属 T17）。 */
     private var sideCard: FrameLayout? = null
 
+    /** 远程输入实时文本区（T15 · FR-B3 显示部分）：显示时隐藏候选栏与键区，清空/停止后隐藏回键盘。 */
+    private var remoteArea: LinearLayout? = null
+
+    /** 远程文本滚动容器（超宽滚动展示末尾：每次装载后滚动到末尾，FR-B5）。 */
+    private var remoteTextScroll: HorizontalScrollView? = null
+
+    /** 远程文本视图（40px 大字，内容 = 手机 input 全量文本）。 */
+    private var remoteTextView: TextView? = null
+
     /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
     private var keyArea: FrameLayout? = null
 
@@ -213,17 +225,25 @@ class SofatypeImeService : InputMethodService() {
         mainCardShadow = root.findViewById(R.id.main_card_shadow)
         moreBar = root.findViewById(R.id.more_bar)
         sideCard = root.findViewById(R.id.side_card)
+        remoteArea = root.findViewById(R.id.remote_area)
+        remoteTextScroll = root.findViewById(R.id.remote_text_scroll)
+        remoteTextView = root.findViewById(R.id.remote_text)
         rebuildKeys(root, requestInitialFocus = false)
         // T14 配对卡：服务已在运行时先补渲染（键盘晚于服务启动的场景），
         // 再注册状态回调（启动/停止刷新副卡；回调在广播线程=主线程执行）
         refreshPairingCard()
         RemoteInputServerManager.onPairingStateChanged = { refreshPairingCard() }
+        // T15 远程文本：先补渲染当前缓冲（键盘重建不丢正在显示的内容），再注册回调
+        //（Manager 保证回调在主线程；键盘重建后旧视图引用随回调闭包失效，此处重新绑定）
+        renderRemoteText(RemoteInputServerManager.remoteTextSnapshot())
+        RemoteInputServerManager.onRemoteTextChanged = { renderRemoteText(it) }
         return root
     }
 
     /** 服务销毁：解除配对状态回调（Manager 为进程级单例，防悬挂引用）。 */
     override fun onDestroy() {
         RemoteInputServerManager.onPairingStateChanged = null
+        RemoteInputServerManager.onRemoteTextChanged = null
         super.onDestroy()
     }
 
@@ -239,6 +259,35 @@ class SofatypeImeService : InputMethodService() {
         } else {
             PairingCard.clear(container)
         }
+    }
+
+    /**
+     * 远程输入实时显示（T15 · FR-B3 显示部分 / FR-B5）：text 非空 → 显示 40px 大字区
+     * （候选栏 / 展开行 / 键盘区隐藏），滚动展示末尾 + 末尾青色光标；null / 空 → 隐藏大字区
+     * 回键盘态（候选栏可见性按当前模式重算，焦点回初始键）。
+     * 显示触发 = 收到手机 input / clear / 服务停止（数据驱动显隐）；完整远程模式状态机
+     *（状态行 / 退出远程 / 模式切换）随 T17。回调由 Manager 保证在主线程；内容不入日志。
+     */
+    private fun renderRemoteText(text: String?) {
+        val area = remoteArea ?: return
+        val textView = remoteTextView ?: return
+        if (text.isNullOrEmpty()) {
+            if (area.visibility == View.GONE) return
+            area.visibility = View.GONE
+            keyArea?.visibility = View.VISIBLE
+            // 候选栏可见性按当前模式与组合态重算（含键区顶距 / 展开行回收 / 焦点回落）
+            refreshCandidatesBar()
+            keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus(View.FOCUS_DOWN) }
+            return
+        }
+        area.visibility = View.VISIBLE
+        candidatesBar?.visibility = View.GONE
+        moreBar?.visibility = View.GONE
+        keyArea?.visibility = View.GONE
+        textView.text = text
+        // 超宽滚动展示末尾（FR-B5）：装载后滚动到最右（真实字体度量，光标恒可见）
+        val scroll = remoteTextScroll
+        scroll?.post { scroll.fullScroll(View.FOCUS_RIGHT) }
     }
 
     /**

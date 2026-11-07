@@ -57,6 +57,19 @@ class HttpRouterTest {
     }
 
     @Test
+    fun rootGetServesBytesFromInjectedProvider() {
+        // T15 · 决策 20：主页字节由装配方注入（生产 = APK assets 内 H5 页）
+        val custom = "<html>T15 assets page</html>".toByteArray(StandardCharsets.UTF_8)
+        val route = HttpRouter.route(request("GET", "/", "host" to "x")) { custom }
+        assertTrue(route is RouteResult.Respond)
+        val text = String((route as RouteResult.Respond).bytes, StandardCharsets.UTF_8)
+        assertTrue(text.startsWith("HTTP/1.1 200 OK\r\n"))
+        assertTrue(text.contains("Content-Type: text/html; charset=utf-8"))
+        assertTrue(text.contains("Content-Length: ${custom.size}"))
+        assertTrue(text.contains("T15 assets page"))
+    }
+
+    @Test
     fun rootNonGetIsMethodNotAllowed() {
         for (method in listOf("POST", "PUT", "DELETE", "HEAD")) {
             val route = HttpRouter.route(request(method, "/", "host" to "x"))

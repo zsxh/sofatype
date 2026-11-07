@@ -99,4 +99,14 @@
     <dimen name="ime_pairing_padding">20dp</dimen>
     <dimen name="ime_pairing_gap">5dp</dimen>
     <dimen name="ime_pairing_url_text">11sp</dimen>
+
+    <!-- ═══ 远程模式主卡实时文本（T15 · FR-B3 显示部分，画板⑤；1080p px ÷ 2 = dp/sp） ═══
+         大字 40px → 20sp（text_primary，letter-spacing 1px@40px ≈ 0.025em 走布局属性）；
+         文本区顶距 88px（画板⑤ 状态行下方 margin-top）→ 44dp；光标 3×44px 圆角 2 → 1.5×22dp/1dp，
+         与文字间隙 2px → 1dp。完整远程主卡（状态行 / 退出远程 / 底部提示）随 T17。 -->
+    <dimen name="ime_remote_text_size">20sp</dimen>
+    <dimen name="ime_remote_area_margin_top">44dp</dimen>
+    <dimen name="ime_remote_cursor_width">1.5dp</dimen>
+    <dimen name="ime_remote_cursor_height">22dp</dimen>
+    <dimen name="ime_remote_cursor_gap">1dp</dimen>
 </resources>

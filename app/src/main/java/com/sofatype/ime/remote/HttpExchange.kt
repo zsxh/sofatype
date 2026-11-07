@@ -1,6 +1,8 @@
 // T13 · HTTP 请求解析与路由。纯 Kotlin/JVM，可被单元测试覆盖。
-// 本期骨架口径：GET / 下发占位页（正式 H5 页随 T15）；GET /ws 升级 WebSocket
+// T13 骨架口径：GET / 下发占位页（T14 改配对验证页）；GET /ws 升级 WebSocket
 //（token/hello/state 握手随 T14）；其余 404/405/400。
+// T15 增量：GET / 页面字节改由注入的 mainPageProvider 提供（决策 20：正式 H5 打进 APK
+// assets 下发；默认仍 = 配对占位页，JVM 测试与缺省回退口径）。
 package com.sofatype.ime.remote
 
 import java.io.InputStream
@@ -69,13 +71,21 @@ sealed class RouteResult {
 object HttpRouter {
     const val WS_PATH = "/ws"
 
-    fun route(request: HttpRequest): RouteResult = when {
+    /**
+     * 路由（T15）：GET / 下发的页面字节由 [mainPageProvider] 提供——
+     * 生产为 APK assets 内 H5 页（决策 20，由服务装配方注入），默认 = T14 配对占位页
+     * （JVM 测试与缺省回退口径，既有路由测试基线不变）。
+     */
+    fun route(
+        request: HttpRequest,
+        mainPageProvider: () -> ByteArray = { PlaceholderPage.HTML.toByteArray(StandardCharsets.UTF_8) },
+    ): RouteResult = when {
         request.path == "/" && request.method == "GET" ->
             RouteResult.Respond(
                 HttpResponses.build(
                     "200 OK",
                     "text/html; charset=utf-8",
-                    PlaceholderPage.HTML.toByteArray(StandardCharsets.UTF_8),
+                    mainPageProvider(),
                 ),
             )
         request.path == "/" ->

@@ -9,6 +9,9 @@
 // - 不持久化任何数据（隐私红线）；日志只记事件，不记内容。
 // T14 增量：/ws 会话可装配委托（WsSessionDelegate，配对 hello/state 握手）；
 // 无委托 = T13 回环口径（骨架缺省，既有回环单测回归基线不变）。
+// T15 增量：会话工厂（每连接独立委托实例，业务消息只分发给已配对连接）；
+// GET / 主页字节由注入的 mainPageProvider 提供（决策 20：APK assets 内 H5 页，默认占位页）；
+// awaitPeerClose 等待期加临时 soTimeout（T14 评审建议：半帧停滞不得越过 1s 截止）。
 package com.sofatype.ime.remote
 
 import java.io.BufferedInputStream
@@ -24,6 +27,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /** 发起 WS 关闭后等待对端 CLOSE 帧的最长等待（ms，RFC 6455 §7.1.1 服务器关闭握手）。 */
 private const val PEER_CLOSE_WAIT_MS = 1_000L
+
+/**
+ * 关闭等待期单次阻塞读的套接字读超时（ms，T14 评审建议落实）：
+ * 对端发半帧后停滞时，阻塞读不再无限等待——单次读超时即结束整个等待期，截止时间不被越过。
+ */
+private const val PEER_CLOSE_READ_TIMEOUT_MS = 100
 
 /**
  * /ws 会话委托（T14）：接管文本消息的应答决策。
@@ -51,8 +60,18 @@ class RemoteInputServer(
     private val bindAddress: InetAddress,
     /** 0 = 端口随机取系统可用端口（决策 16）。 */
     private val requestedPort: Int = 0,
-    /** WS 会话委托；null = T13 回环口径（骨架缺省）。 */
+    /** WS 会话委托；null = T13 回环口径（骨架缺省）。与 [wsDelegateFactory] 二选一。 */
     private val wsDelegate: WsSessionDelegate? = null,
+    /**
+     * 会话工厂（T15）：每个 WS 连接创建独立委托实例（持每连接配对态，业务消息只分发给
+     * 已配对连接）。非空时优先生效；null = 用共享 [wsDelegate]（T13/T14 既有口径与测试基线）。
+     */
+    private val wsDelegateFactory: (() -> WsSessionDelegate)? = null,
+    /**
+     * 主页字节提供者（T15 · 决策 20）：GET / 下发页面由此取得（生产 = APK assets 内 H5 页，
+     * 由 Manager 注入 assets 读取）。默认 = T14 配对占位页（JVM 测试与缺省回退口径）。
+     */
+    private val mainPageProvider: () -> ByteArray = { PlaceholderPage.HTML.toByteArray(StandardCharsets.UTF_8) },
 ) {
     sealed class StartResult {
         /** 启动成功；port 为实际监听端口。 */
@@ -174,7 +193,10 @@ class RemoteInputServer(
             output.flush()
             return
         }
-        when (val route = HttpRouter.route(request)) {
+        // 会话委托按连接解析（T15）：工厂非空 = 每连接独立实例（配对态互不串扰）；
+        // 否则回退共享委托（T13/T14 口径）。
+        val delegate = wsDelegateFactory?.invoke() ?: wsDelegate
+        when (val route = HttpRouter.route(request, mainPageProvider)) {
             is RouteResult.Respond -> {
                 output.write(route.bytes)
                 output.flush()
@@ -182,7 +204,7 @@ class RemoteInputServer(
             RouteResult.UpgradeWebSocket -> {
                 output.write(WsHandshake.upgradeResponse(request.headers["sec-websocket-key"].orEmpty()))
                 output.flush()
-                wsLoop(input, output, wsDelegate)
+                wsLoop(input, output, delegate, socket)
             }
         }
     }
@@ -193,7 +215,12 @@ class RemoteInputServer(
      * 文本消息交委托应答，二进制消息忽略（协议第 7 章全部为 JSON 文本）。
      * PING 回 PONG；CLOSE 回显状态码；协议错误回对应关闭码后断开。
      */
-    private fun wsLoop(input: BufferedInputStream, output: java.io.OutputStream, delegate: WsSessionDelegate?) {
+    private fun wsLoop(
+        input: BufferedInputStream,
+        output: java.io.OutputStream,
+        delegate: WsSessionDelegate?,
+        socket: Socket,
+    ) {
         val assembler = WsMessageAssembler()
         try {
             while (true) {
@@ -222,7 +249,7 @@ class RemoteInputServer(
                                     output.flush()
                                     // RFC 6455 §7.1.1：发起关闭方应等待对端 CLOSE 帧再断 TCP；
                                     // 立即断开会让浏览器端关闭握手被中断（页面 loading 不结束）。
-                                    awaitPeerClose(input)
+                                    awaitPeerClose(input, socket)
                                     return
                                 }
                             }
@@ -251,24 +278,34 @@ class RemoteInputServer(
 
     /**
      * 发起关闭后短暂等待对端 CLOSE（RFC 6455 §7.1.1 服务器关闭握手）。
-     * 非阻塞轮询（accepted 套接字保持默认阻塞读，不能设全局 soTimeout，否则会话空闲读会超时断连）；
-     * 超时 [PEER_CLOSE_WAIT_MS] 或对端断开即返回，线程随后正常关闭套接字。
+     * 非阻塞轮询 + 等待期临时 soTimeout（T14 评审建议落实）：会话常规读不设超时（空闲会话
+     * 不误断），仅此等待期把单次阻塞读限制在 [PEER_CLOSE_READ_TIMEOUT_MS] 内——对端发半帧后
+     * 停滞时读抛 SocketTimeoutException，等待立即结束，截止 [PEER_CLOSE_WAIT_MS] 不被越过。
      */
-    private fun awaitPeerClose(input: BufferedInputStream) {
+    private fun awaitPeerClose(input: BufferedInputStream, socket: Socket) {
         val deadline = System.currentTimeMillis() + PEER_CLOSE_WAIT_MS
+        val previousTimeout = runCatching { socket.soTimeout }.getOrDefault(0)
+        runCatching { socket.soTimeout = PEER_CLOSE_READ_TIMEOUT_MS }
         try {
             while (System.currentTimeMillis() < deadline) {
                 if (input.available() > 0) {
-                    // 有对端数据可读：读到 CLOSE 帧（正常关闭握手回执）或对端 EOF 即结束
-                    val frame = WsFrameCodec.readFrom(input) ?: return
+                    // 有对端数据可读：读到 CLOSE 帧（正常关闭握手回执）或对端 EOF 即结束；
+                    // 读异常（半帧停滞读超时 / 对端已断开 / 中断）同样直接结束等待
+                    val frame = try {
+                        WsFrameCodec.readFrom(input)
+                    } catch (_: java.io.IOException) {
+                        return
+                    } ?: return
                     if (frame.opcode == WsOpcode.CLOSE) return
                     // 关闭等待期收到其他帧：忽略继续等（对端未按序处理的兜底）
                     continue
                 }
                 Thread.sleep(10)
             }
-        } catch (_: Exception) {
-            // 读异常（对端已断开 / 中断）：直接结束等待
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            runCatching { socket.soTimeout = previousTimeout }
         }
     }
 
