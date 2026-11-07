@@ -20,6 +20,11 @@
 // commit 在电视输入框光标处插入（不覆盖其余文字，有选中区间替换该区间，InputConnection
 // commitText 框架语义）；写入成功 Manager 停服（清缓冲 + token 作废），
 // 大字区随 onRemoteTextChanged(null) 隐藏回键盘态、副卡配对卡随之清空（R-4 自动收起远程）。
+// T17 接线：引导副卡与跨屏状态机（FR-B1/B2/B9 · 决策 32/33/34）——副卡三卡面整卡切换
+//（引导卡 GUIDE / 配对卡 PAIRING / 已连接卡面 CONNECTED，RemoteUiState 由 Manager 可观测值推导）；
+// 引导卡「远程输入」主按钮启动服务进入远程模式（FR-B2），主卡切远程模式框架（FR-B3：
+// 状态行三态 灰/青/绿 + 来自·设备名 + 大字折行区 + 底部提示 + 「退出远程」按钮接既有 stop 链路，
+// FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达（行 3/4 表缘 RIGHT 进入，LEFT 返回，FR-A10/A11）。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -39,6 +44,7 @@ import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.pinyin.PinyinEngine
 
@@ -183,11 +189,31 @@ class SofatypeImeService : InputMethodService() {
     /** 主卡柔影垫层（展开态高度随卡同步）。 */
     private var mainCardShadow: View? = null
 
-    /** 副卡容器（T14：服务运行中时装配对卡 FR-B4；引导内容与状态机属 T17）。 */
+    /** 副卡容器（T17：跨屏三卡面容器，决策 32；卡面内容由 renderRemoteUi 依状态机装配）。 */
     private var sideCard: FrameLayout? = null
 
-    /** 远程输入实时文本区（T15 · FR-B3 显示部分）：显示时隐藏候选栏与键区，清空/停止后隐藏回键盘。 */
-    private var remoteArea: LinearLayout? = null
+    /** 远程模式主卡框架容器（T17 · FR-B3 / 决策 33）：状态行 + 大字折行区，随远程模式显隐。 */
+    private var remoteModeArea: LinearLayout? = null
+
+    /** 远程模式状态行三件套（T17 · FR-B9）：状态点（灰/青/绿）+ 状态文字 + 「来自 · 设备名」。 */
+    private var remoteStatusDot: View? = null
+    private var remoteStatusText: TextView? = null
+    private var remoteStatusFrom: TextView? = null
+
+    /** 「退出远程」按钮（T17 · FR-B3 / 决策 33）：远程模式内唯一可聚焦元素，接既有 stop 链路。 */
+    private var remoteExitButton: TextView? = null
+
+    /** 远程模式主卡底部提示（T17 · FR-B3 原文），随远程模式显隐。 */
+    private var remoteBottomHint: TextView? = null
+
+    /** 引导卡「远程输入」主按钮（T17 · FR-B1）：引导卡面呈现时非 null（焦点导航进出用）。 */
+    private var guideButtonView: View? = null
+
+    /** 焦点进入引导主按钮前的键盘键 id（LEFT 返回落点；FR-A11 不丢焦点）。 */
+    private var guideReturnKey: String? = null
+
+    /** 最近一次渲染的主卡模式（T17）：模式切换沿的焦点迁移只在此沿触发。 */
+    private var lastRenderedMode: RemoteMode? = null
 
     /** 远程文本滚动容器（决策 31：折行内容超出显示区高度时纵向滚动保持末尾）。 */
     private var remoteTextScroll: ScrollView? = null
@@ -234,15 +260,32 @@ class SofatypeImeService : InputMethodService() {
         mainCardShadow = root.findViewById(R.id.main_card_shadow)
         moreBar = root.findViewById(R.id.more_bar)
         sideCard = root.findViewById(R.id.side_card)
-        remoteArea = root.findViewById(R.id.remote_area)
+        remoteModeArea = root.findViewById(R.id.remote_mode_area)
+        remoteStatusDot = root.findViewById(R.id.remote_status_dot)
+        remoteStatusText = root.findViewById(R.id.remote_status_text)
+        remoteStatusFrom = root.findViewById(R.id.remote_status_from)
+        remoteExitButton = root.findViewById(R.id.remote_exit_button)
+        remoteBottomHint = root.findViewById(R.id.remote_bottom_hint)
         remoteTextScroll = root.findViewById(R.id.remote_text_scroll)
         remoteTextView = root.findViewById(R.id.remote_text)
+        // T17 「退出远程」按钮（FR-B3 / 决策 33）：文案与无障碍标注、可聚焦（远程模式内唯一焦点件）、
+        // OK 触发（onKeyDown 确认键统一 performClick）接既有 stop 链路（FR-B7 完整清理语义仍归 T18）
+        remoteExitButton?.apply {
+            text = RemoteUiText.EXIT_BUTTON_LABEL
+            contentDescription = RemoteUiText.EXIT_BUTTON_DESCRIPTION
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { exitRemoteMode() }
+        }
+        // T17 主卡底部提示（FR-B3 原文）
+        remoteBottomHint?.text = RemoteUiText.REMOTE_BOTTOM_HINT
         rebuildKeys(root, requestInitialFocus = false)
-        // T14 配对卡：服务已在运行时先补渲染（键盘晚于服务启动的场景），
-        // 再注册状态回调（启动/停止刷新副卡；回调在广播线程=主线程执行）
-        refreshPairingCard()
-        RemoteInputServerManager.onPairingStateChanged = { refreshPairingCard() }
-        // T15 远程文本：先补渲染当前缓冲（键盘重建不丢正在显示的内容），再注册回调
+        // T17 跨屏状态机渲染（副卡卡面 + 主卡模式 + 状态行）：从 Manager 可观测值推导，
+        // 键盘重建（onCreateInputView）时补渲染当前会话状态（服务运行中则直接回到远程模式）
+        renderRemoteUi()
+        // 启动 / 停止 / 配对成功均经 onPairingStateChanged 通知（Manager 保证主线程）
+        RemoteInputServerManager.onPairingStateChanged = { renderRemoteUi() }
+        // T15 远程文本内容：先补渲染当前缓冲（键盘重建不丢正在显示的内容），再注册回调
         //（Manager 保证回调在主线程；键盘重建后旧视图引用随回调闭包失效，此处重新绑定）
         renderRemoteText(RemoteInputServerManager.remoteTextSnapshot())
         RemoteInputServerManager.onRemoteTextChanged = { renderRemoteText(it) }
@@ -261,43 +304,143 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 刷新副卡配对态（T14 · FR-B4）：服务运行中且配对地址有效 → 装配对卡（二维码 + 地址一行）；
-     * 否则清空回占位。token 已消费（已配对）后卡面保持不变（远程模式完整状态机随 T17）。
+     * 渲染跨屏 UI（T17 · FR-B1/B2/B9 · 决策 32/33）：状态由 Manager 可观测值
+     *（服务运行 / 配对 token 有效 / 配对设备名）经 [RemoteUiState.of] 推导——
+     * ① 副卡按卡面装配（引导卡 / 配对卡 / 已连接卡面，整卡切换）；
+     * ② 主卡按模式显隐远程模式框架（FR-B3：状态行三态 + 大字区 + 底部提示 + 「退出远程」），
+     *    模式切换沿迁移焦点（进远程 → 退出远程按钮；回键盘 → 初始键，FR-A11 不丢焦点）。
+     * 触发点 = 服务启停 / 配对成功回调、主按钮与退出按钮点击、键盘重建补渲染；幂等可重复调用。
      */
-    private fun refreshPairingCard() {
+    private fun renderRemoteUi() {
+        val state = RemoteUiState.of(
+            serviceRunning = RemoteInputServerManager.isRunning(),
+            pairingTokenActive = RemoteInputServerManager.isPairingTokenActive(),
+            deviceName = RemoteInputServerManager.pairedDeviceName(),
+        )
+        renderSideCard(state)
+        renderMainCardMode(state)
+    }
+
+    /**
+     * 副卡三卡面装配（T17 · 决策 32 整卡切换）：
+     * 未连接 → 引导卡（FR-B1）；等待扫码 → 配对卡整卡（FR-B4 / 决策 4，该卡面即等待态）；
+     * 已连接 → 已连接卡面（绿点 + 设备名，不显示已失效二维码）。
+     */
+    private fun renderSideCard(state: RemoteUiState) {
         val container = sideCard ?: return
-        val url = RemoteInputServerManager.pairingUrl()
-        if (url != null) {
-            PairingCard.show(this, container, url)
+        guideButtonView = null
+        when (state.sideCardFace) {
+            RemoteSideCardFace.GUIDE -> showGuideFace(container)
+            RemoteSideCardFace.PAIRING -> {
+                val url = RemoteInputServerManager.pairingUrl()
+                if (url != null) {
+                    PairingCard.show(this, container, url)
+                } else {
+                    // 防御：运行中无配对地址（理论不可达）回引导卡，不留空卡
+                    showGuideFace(container)
+                }
+            }
+            RemoteSideCardFace.CONNECTED -> ConnectedCard.show(this, container, state.deviceName)
+        }
+        if (state.sideCardFace != RemoteSideCardFace.GUIDE) guideReturnKey = null
+    }
+
+    /** 装配引导卡面（FR-B1）并捕获主按钮视图（焦点导航进出用）。 */
+    private fun showGuideFace(container: FrameLayout) {
+        GuideCard.show(this, container) { enterRemoteMode() }
+        guideButtonView = container.findViewWithTag<View>(GuideCard.BUTTON_TAG)
+    }
+
+    /**
+     * 主卡模式与状态行渲染（T17 · FR-B3 / 决策 32/33）：远程模式显示框架区（候选栏 / 展开行 /
+     * 键区隐藏），键盘态隐藏回键盘；状态行三态 = 未连接灰点 / 等待扫码青点 / 已连接绿点 +
+     * 「来自 · 设备名」（FR-B9）。焦点迁移只在模式切换沿触发：进远程 → 「退出远程」按钮；
+     * 回键盘 → 初始键（远程上屏自动收起与手动退出共用此沿，R-4）。
+     */
+    private fun renderMainCardMode(state: RemoteUiState) {
+        val area = remoteModeArea ?: return
+        val prevMode = lastRenderedMode
+        // 状态行三态（FR-B9 / PRD 6.4 连接状态色）：点随状态换色，连接态加「来自 · 设备名」
+        when (state.status) {
+            RemoteStatus.NOT_CONNECTED -> {
+                remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_idle)
+                remoteStatusText?.text = RemoteUiText.STATUS_NOT_CONNECTED
+                remoteStatusFrom?.visibility = View.GONE
+            }
+            RemoteStatus.WAITING_SCAN -> {
+                remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_waiting)
+                remoteStatusText?.text = RemoteUiText.STATUS_WAITING_SCAN
+                remoteStatusFrom?.visibility = View.GONE
+            }
+            RemoteStatus.CONNECTED -> {
+                remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_connected)
+                remoteStatusText?.text = RemoteUiText.STATUS_CONNECTED
+                remoteStatusFrom?.text = RemoteUiText.connectedFromText(state.deviceName)
+                remoteStatusFrom?.visibility = View.VISIBLE
+            }
+        }
+        if (state.mode == RemoteMode.REMOTE) {
+            area.visibility = View.VISIBLE
+            remoteBottomHint?.visibility = View.VISIBLE
+            keyArea?.visibility = View.GONE
+            candidatesBar?.visibility = View.GONE
+            collapseMoreRow()
+            if (prevMode != RemoteMode.REMOTE) {
+                trace("remote mode -> REMOTE（status=${state.status}）")
+                keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
+            }
         } else {
-            PairingCard.clear(container)
+            area.visibility = View.GONE
+            remoteBottomHint?.visibility = View.GONE
+            if (prevMode == RemoteMode.REMOTE) {
+                trace("remote mode -> KEYBOARD")
+                keyArea?.visibility = View.VISIBLE
+                // 候选栏可见性按当前模式与组合态重算（含键区顶距 / 展开行回收）
+                refreshCandidatesBar()
+                keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus(View.FOCUS_DOWN) }
+            }
+        }
+        lastRenderedMode = state.mode
+    }
+
+    /**
+     * 进入远程模式（FR-B2 · 决策 32/33）：引导卡主按钮触发——启动服务（随机端口 + 签发 token）；
+     * 成功后 Manager 经 onPairingStateChanged 通知本层切远程模式（副卡切配对卡 / 主卡切远程框架）。
+     * 失败（如端口分配失败）保持键盘态引导卡，不崩溃不阻塞宿主（可靠性口径）。
+     */
+    private fun enterRemoteMode() {
+        trace("remote enter requested")
+        val result = RemoteInputServerManager.start(this)
+        if (result is RemoteInputServer.StartResult.Failed) {
+            // 只记失败事件，不记任何输入内容（隐私红线）；成功路径 start() 内已同步触发
+            // onPairingStateChanged → renderRemoteUi（切远程模式 / 副卡切配对卡）
+            trace("remote enter failed: ${result.reason}")
         }
     }
 
     /**
-     * 远程输入实时显示（T33 · 决策 31 折行口径 / FR-B3）：text 非空 → 显示 40px 大字区
-     * （候选栏 / 展开行 / 键盘区隐藏），自动折行显示；折行内容超出显示区高度时纵向滚动保持
-     * 末尾与青色光标可见（光标为文本尾 Span，随最后一行行尾）；null / 空 → 隐藏大字区
-     * 回键盘态（候选栏可见性按当前模式重算，焦点回初始键）。
-     * 显示触发 = 收到手机 input / clear / 服务停止（数据驱动显隐）；完整远程模式状态机
-     *（状态行 / 退出远程 / 模式切换）随 T17。回调由 Manager 保证在主线程；内容不入日志。
+     * 退出远程模式（T17 · FR-B3 / 决策 33）：「退出远程」按钮触发，接既有服务停止链路
+     *（关闭 HTTP/WS 监听、清 token / 缓冲 / 设备名）——停止回调把状态机切回键盘态
+     *（副卡回引导卡、焦点回初始键）。FR-B7 完整清理语义（通知手机、已收未上屏内容丢弃提示）仍归 T18。
+     */
+    private fun exitRemoteMode() {
+        trace("remote exit requested")
+        RemoteInputServerManager.stop()
+    }
+
+    /**
+     * 远程输入实时显示内容装载（T15/T33 · 决策 31 折行口径 / FR-B3）：装载 40px 大字 +
+     * 末尾青色光标 Span，折行显示；折行内容超出显示区高度时纵向滚动保持末尾与光标可见。
+     * T17 起显隐归属主卡模式渲染（renderMainCardMode）：本函数只负责内容，
+     * null / 空 = 清空内容（远程模式框架保持；模式切换由状态机驱动）。
+     * 回调由 Manager 保证在主线程；内容不入日志（隐私红线）。
      */
     private fun renderRemoteText(text: String?) {
-        val area = remoteArea ?: return
         val textView = remoteTextView ?: return
         if (text.isNullOrEmpty()) {
-            if (area.visibility == View.GONE) return
-            area.visibility = View.GONE
-            keyArea?.visibility = View.VISIBLE
-            // 候选栏可见性按当前模式与组合态重算（含键区顶距 / 展开行回收 / 焦点回落）
-            refreshCandidatesBar()
-            keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus(View.FOCUS_DOWN) }
+            textView.text = null
             return
         }
-        area.visibility = View.VISIBLE
-        candidatesBar?.visibility = View.GONE
-        moreBar?.visibility = View.GONE
-        keyArea?.visibility = View.GONE
         // 决策 31：折行显示 + 末尾青色光标（Span 锚定占位字符，随最后一行行尾；T15 横向滚动口径废止）
         val spannable = SpannableStringBuilder.valueOf(text)
         spannable.append(CURSOR_ANCHOR)
@@ -380,11 +523,18 @@ class SofatypeImeService : InputMethodService() {
      * post 到 attach 完成后执行；focusableInTouchMode 保证触摸模式下焦点机制同样可用
      * （模拟器 `input tap` 唤起后紧跟 `input keyevent` 走查的场景）。
      * 新输入框重置组合态（T10）：组合串属上一输入框，候选栏随之隐藏。
+     * T17：远程模式运行中（键盘重建补渲染 / 切换输入框重连）——候选栏保持隐藏
+     *（远程模式显隐由 renderRemoteUi 驱动，此处不重算，防空候选栏顶低状态行），
+     * 焦点落「退出远程」按钮（远程模式唯一可聚焦元素，FR-B3）；服务未运行走键盘态常规路径。
      */
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         composer.reset()
         candidateReturnKey = null
+        if (RemoteInputServerManager.isRunning()) {
+            keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
+            return
+        }
         refreshCandidatesBar()
         keyboardView?.post {
             keyViews[navigator.initialKey()]?.requestFocus()
@@ -415,10 +565,11 @@ class SofatypeImeService : InputMethodService() {
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 val currentId = (keyboardView?.findFocus() as? View)?.tag as? String
                 if (currentId != null) {
-                    // 候选区与键盘格网分层路由（T10 · FR-A7 / T11 · FR-A15）：焦点在候选区
-                    //（首行 chip、「更多⌄」入口、展开行 chip）走候选区语义，其余（键盘键）
-                    // 走 FocusNavigator 格网语义，含从行 1 键向上进入候选行
+                    // 候选区与键盘格网分层路由（T10 · FR-A7 / T11 · FR-A15 / T17 · FR-B1）：焦点在候选区
+                    //（首行 chip、「更多⌄」入口、展开行 chip）走候选区语义，引导卡主按钮走引导语义，
+                    // 其余（键盘键）走 FocusNavigator 格网语义，含从行 1 键向上进入候选行
                     when {
+                        currentId == GuideCard.BUTTON_TAG -> handleGuideButtonDirection(direction)
                         currentId == MORE_TOGGLE_ID -> handleMoreToggleDirection(direction)
                         currentId.isMoreChipId() -> handleMoreRowDirection(currentId, direction)
                         currentId.isCandidateId() -> handleCandidateRowDirection(currentId, direction)
@@ -461,9 +612,11 @@ class SofatypeImeService : InputMethodService() {
         isCandidateId() || this == MORE_TOGGLE_ID || isMoreChipId()
 
     /**
-     * 键盘键方向导航（T6 格网语义 + T10 候选行进入）：
+     * 键盘键方向导航（T6 格网语义 + T10 候选行进入 + T17 引导卡主按钮进入）：
      * 行 1 键向上且候选栏可见时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选 chip）；
-     * 其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
+     * 行 3/4 表缘向右且引导卡主按钮可达时进入主按钮（FR-B1「远程输入」主按钮遥控器可达——
+     * 主按钮位于副卡下部，与完成键同处行 3/4 纵向带，视觉行列关系对齐，FR-A11 不跳变；
+     * 行 1/2 表缘向右保持表缘不动口径）；其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
      */
     private fun handleKeyboardDirection(currentId: String, direction: FocusDirection) {
         val onTopRow = navigator.positionsOf(currentId).any { it.first == 1 }
@@ -474,9 +627,28 @@ class SofatypeImeService : InputMethodService() {
             return
         }
         val nextId = navigator.next(currentId, direction)
+        if (nextId == null && direction == FocusDirection.RIGHT && canEnterGuideButton(currentId)) {
+            guideReturnKey = currentId
+            trace("focus $currentId RIGHT -> ${GuideCard.BUTTON_TAG}（进入引导卡主按钮）")
+            guideButtonView?.requestFocus(View.FOCUS_DOWN)
+            return
+        }
         trace("focus $currentId $direction -> $nextId")
         val target = nextId?.let { keyViews[it] }
         if (target != null) target.requestFocus(View.FOCUS_DOWN)
+    }
+
+    /** 引导卡主按钮当前是否可进入（引导卡面呈现 + 焦点键占据行 3/4 格位，与按钮纵向带对齐）。 */
+    private fun canEnterGuideButton(currentId: String): Boolean =
+        guideButtonView != null &&
+            navigator.positionsOf(currentId).any { it.first == 3 || it.first == 4 }
+
+    /** 引导卡主按钮方向导航（T17 · FR-A11）：LEFT 回进入前的键盘键（丢失回初始键）；其余表缘不动。 */
+    private fun handleGuideButtonDirection(direction: FocusDirection) {
+        if (direction != FocusDirection.LEFT) return
+        val targetId = guideReturnKey?.takeIf { keyViews.containsKey(it) } ?: navigator.initialKey()
+        trace("focus ${GuideCard.BUTTON_TAG} LEFT -> $targetId（回键盘）")
+        keyViews[targetId]?.requestFocus(View.FOCUS_DOWN)
     }
 
     /**

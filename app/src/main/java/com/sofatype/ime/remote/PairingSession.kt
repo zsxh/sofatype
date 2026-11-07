@@ -11,6 +11,9 @@
 //（文本按 charLimit 码点兜底截断，与显示缓冲同口径），写入结果经 [ack] 异步回报；
 // ack 触发本连接 committed { ok } 回执（TV → 手机，PRD「上屏成功后手机端草稿清空并提示
 // 『已上屏』」的确认信号）；回发经 attachSender 注入的连接级 [WsMessageSender]。
+// T17 增量（FR-B9 / 决策 34）：hello 成功经 [onPaired] 通知 UI 层（状态机切「已连接」，
+// 副卡切已连接卡面 / 主卡状态行切绿点）；deviceName 随回调上送供状态行展示
+//（决策 34：会话内存驻留，不持久化、不入日志；hello 未携带时回调 null）。
 // 本实例持有每连接的配对态：由 RemoteInputServerManager 以会话工厂按连接创建（一连接一实例）。
 package com.sofatype.ime.remote
 
@@ -30,6 +33,12 @@ class PairingSession(
      * 会话据此回发 committed { ok } 给手机端。
      */
     private val onCommit: (text: String, ack: (Boolean) -> Unit) -> Unit = { _, _ -> },
+    /**
+     * 配对成功回调（T17 · FR-B9 / 决策 34）：hello 首次校验通过即触发，参数 = hello.deviceName
+     *（消息未携带时 null）。仅配对成功触发一次；被拒（无效 / 重放 / 缺失 token）不触发。
+     * 回调在 WS 读线程执行，处理方自行保证线程安全。
+     */
+    private val onPaired: (deviceName: String?) -> Unit = {},
 ) : WsSessionDelegate {
 
     /** 本连接配对态：hello 成功后置位；业务消息仅在此态分发（未配对连接不得注入内容）。 */
@@ -61,6 +70,8 @@ class PairingSession(
             return if (tokens.consume((fields[KEY_TOKEN] as? MinimalJson.Value.Str)?.value)) {
                 paired = true
                 logEvent("配对成功：token 已消费失效")
+                // T17（FR-B9 / 决策 34）：配对成功通知 UI 状态机；deviceName 随回调上送（未携带 = null）
+                onPaired((fields[KEY_DEVICE_NAME] as? MinimalJson.Value.Str)?.value)
                 WsReply.Text(buildState(connected = true))
             } else {
                 logEvent("配对被拒：token 缺失、无效或已使用")
@@ -118,6 +129,9 @@ class PairingSession(
 
         const val KEY_TYPE = "type"
         const val KEY_TOKEN = "token"
+
+        /** hello 携带的配对设备名字段（PRD 第 7 章；T17 决策 34：会话内存驻留用于展示）。 */
+        const val KEY_DEVICE_NAME = "deviceName"
         const val MSG_HELLO = "hello"
         const val MSG_STATE = "state"
 

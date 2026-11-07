@@ -10,6 +10,9 @@
 // T16 增量（FR-B6/C6 · 决策 9/10）：commit 上屏闭环——commit 经主线程交给 IME 写入
 //（onCommitRequested → InputConnection 光标处插入），写入结果经 ack 回发 committed 给手机端；
 // 写入成功即 stop()：关服务、清缓冲、自动收起远程模式回键盘态（FR-B6 / R-4）。
+// T17 增量（FR-B9 / 决策 32/34）：配对成功经 onPaired 驻留 hello.deviceName（会话内存，
+// 停止即清、不持久化、不入日志）并通知 UI 刷新状态机——服务运行 / token 消费 / 设备名
+// 三项可观测值是连接状态（未连接 / 等待扫码 / 已连接）的单一事实源。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -38,6 +41,13 @@ object RemoteInputServerManager {
 
     /** 一次性配对 token（FR-B10）：每次启动签发新值，停止即清空。 */
     private val tokens = PairingTokenStore()
+
+    /**
+     * 配对设备名（T17 · FR-B9 / 决策 34）：hello.deviceName 会话内存驻留供状态行展示——
+     * 仅驻内存、服务停止即清、不持久化、不入日志（隐私红线不破）；写入发生在 WS 读线程（volatile）。
+     */
+    @Volatile
+    private var pairedDeviceName: String? = null
 
     /** 本轮服务的配对地址（含 token，FR-B4「地址与二维码内容一致」）；仅服务运行期间非空。 */
     @Volatile
@@ -92,6 +102,9 @@ object RemoteInputServerManager {
     /** 当前配对 token 是否有效（配对成功消费后为 false）。 */
     fun isPairingTokenActive(): Boolean = tokens.isActive
 
+    /** 已配对设备名（T17 · 决策 34）：hello 携带的 deviceName，会话内存驻留；未配对 / 已停止为 null。 */
+    fun pairedDeviceName(): String? = pairedDeviceName
+
     /** 当前远程文本快照（键盘重建时补渲染用）；无内容返回 null。 */
     fun remoteTextSnapshot(): String? = remoteBuffer.text.takeIf { it.isNotEmpty() }
 
@@ -115,6 +128,7 @@ object RemoteInputServerManager {
                 return RemoteInputServer.StartResult.Failed(reason)
             }
             tokens.issue() // FR-B10：一次性 token，每轮服务会话新签发
+            pairedDeviceName = null // 决策 34：设备名随会话，新一轮启动不残留上一轮值
             mainPageCache = null // 页面缓存随服务会话失效：资产更新后本次启动即生效
             val tvName = resolveTvName()
             val instance = RemoteInputServer(
@@ -122,7 +136,9 @@ object RemoteInputServerManager {
                 0, // 端口随机：requestedPort 默认 0（决策 16）
                 wsDelegateFactory = {
                     // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发；
-                    // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）
+                    // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）；
+                    // T17（FR-B9 / 决策 34）：配对成功驻留 deviceName 并通知 UI 刷新状态机。
+                    // 回调在 WS 读线程：volatile 写安全，UI 通知经主线程 Handler 派发。
                     PairingSession(
                         tokens = tokens,
                         tvName = tvName,
@@ -130,6 +146,7 @@ object RemoteInputServerManager {
                         onInput = ::onRemoteInput,
                         onClear = ::onRemoteClear,
                         onCommit = ::onRemoteCommit,
+                        onPaired = ::onPaired,
                     )
                 },
                 mainPageProvider = { loadMainPage(context) },
@@ -151,7 +168,7 @@ object RemoteInputServerManager {
         }
     }
 
-    /** 停止服务并确认无端口残留；token、配对地址与远程输入缓冲一并清空。返回停止前是否在运行。幂等。 */
+    /** 停止服务并确认无端口残留；token、配对地址、设备名与远程输入缓冲一并清空。返回停止前是否在运行。幂等。 */
     fun stop(): Boolean {
         synchronized(this) {
             val instance = server ?: return false
@@ -159,6 +176,7 @@ object RemoteInputServerManager {
             addressText = null
             pairingUrlText = null
             tokens.clear()
+            pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
             // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态（完整退出流程随 T17）
@@ -170,6 +188,16 @@ object RemoteInputServerManager {
     }
 
     // ---- T15 · 业务回调与页面下发 ----
+
+    /**
+     * 配对成功（T17 · FR-B9 / 决策 34，WS 读线程）：deviceName 会话内存驻留（volatile 写），
+     * UI 通知经主线程 Handler 派发到 [onPairingStateChanged]（副卡切已连接卡面 / 主卡状态行切绿点）。
+     * 名字仅驻内存展示，不入日志（隐私红线）。
+     */
+    private fun onPaired(deviceName: String?) {
+        pairedDeviceName = deviceName
+        mainHandler.post { onPairingStateChanged?.invoke() }
+    }
 
     /** input 消息（WS 读线程）：缓冲兜底限长后经主线程通知 UI；内容不入日志（隐私红线）。 */
     private fun onRemoteInput(text: String) {

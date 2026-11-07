@@ -109,4 +109,41 @@
     <dimen name="ime_remote_cursor_width">1.5dp</dimen>
     <dimen name="ime_remote_cursor_height">22dp</dimen>
     <dimen name="ime_remote_cursor_gap">1dp</dimen>
+
+    <!-- ═══ 跨屏引导副卡（T17 · FR-B1，画板①「字母键盘」右侧副卡；1080p px ÷ 2 = dp/sp） ═══
+         卡内边距 32px/36px；标题 24px 700 + 图标 24px；状态行距标题 20px、点 8px（PRD 6.3 状态点直径 8）、
+         文字 17px；三步指引距状态行 28px、行距 16px、序号圆 26px、序号字 14px、指引文字 17px；
+         主按钮高 60px（PRD 6.3 副卡主按钮）、字 21px、距卡底 92px；按钮下提示 16px、距卡底 34px。 -->
+    <dimen name="ime_side_card_padding_v">16dp</dimen>
+    <dimen name="ime_side_card_padding_h">18dp</dimen>
+    <dimen name="ime_guide_icon">12dp</dimen>
+    <dimen name="ime_guide_title_gap">5dp</dimen>
+    <dimen name="ime_guide_title_text">12sp</dimen>
+    <dimen name="ime_guide_status_margin_top">10dp</dimen>
+    <dimen name="ime_guide_status_gap">4dp</dimen>
+    <dimen name="ime_guide_status_text">8.5sp</dimen>
+    <dimen name="ime_guide_steps_margin_top">14dp</dimen>
+    <dimen name="ime_guide_step_gap">8dp</dimen>
+    <dimen name="ime_guide_step_circle">13dp</dimen>
+    <dimen name="ime_guide_step_gap_h">6dp</dimen>
+    <dimen name="ime_guide_step_num_text">7sp</dimen>
+    <dimen name="ime_guide_step_text">8.5sp</dimen>
+    <dimen name="ime_guide_button_height">30dp</dimen>
+    <dimen name="ime_guide_button_text">10.5sp</dimen>
+    <dimen name="ime_guide_button_bottom_margin">30dp</dimen>
+    <dimen name="ime_guide_button_gap">18dp</dimen>
+    <dimen name="ime_guide_hint_text">8sp</dimen>
+
+    <!-- ═══ 远程模式主卡框架（T17 · FR-B3 / 决策 33，画板⑤；1080p px ÷ 2 = dp/sp） ═══
+         状态行：点 8px（复用 ime_status_dot_size）、间隙 10px、「实时接收中」20px 500、
+         「来自 · 设备名」18px、退出远程按钮 120×52px 字 22px（画板⑤ bkey-fn）；
+         底部提示 18px、距卡底 28px（卡 padding-bottom 26px 承担，见 ime_card_padding_v）。 -->
+    <dimen name="ime_status_dot_size">4dp</dimen>
+    <dimen name="ime_remote_status_gap">5dp</dimen>
+    <dimen name="ime_remote_status_text">10sp</dimen>
+    <dimen name="ime_remote_from_text">9sp</dimen>
+    <dimen name="ime_remote_exit_width">60dp</dimen>
+    <dimen name="ime_remote_exit_height">26dp</dimen>
+    <dimen name="ime_remote_exit_text">11sp</dimen>
+    <dimen name="ime_remote_hint_text">9sp</dimen>
 </resources>

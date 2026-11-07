@@ -33,6 +33,14 @@
     <color name="text_muted">#7F848D</color>
     <!-- 「更多⌄」入口文字（T11 · 画板① 候选行：text_body 50% 透明度） -->
     <color name="text_faint">#80E8EEF5</color>
+    <!-- 引导卡状态行文字（T17 · 画板①「未连接」：text_body 55% 透明度） -->
+    <color name="text_dim">#8CE8EEF5</color>
+    <!-- 引导卡三步指引文字（T17 · 画板①：text_body 75% 透明度） -->
+    <color name="text_step">#BFE8EEF5</color>
+    <!-- 提示文案（T17 · 画板① 按钮下提示 / 画板⑤ 来自·设备名与底部提示：text_body 45% 透明度） -->
+    <color name="text_hint">#73E8EEF5</color>
+    <!-- 状态点未连接色（T17 · PRD 6.3「未连接 rgba(232,239,246,.35)」：text_body 35% 透明度） -->
+    <color name="dot_idle">#59E8EEF5</color>
     <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
     <color name="border_accent">#8038BDF8</color>
     <!-- 主色描边文字态，rgba(56,189,248,.45) -->

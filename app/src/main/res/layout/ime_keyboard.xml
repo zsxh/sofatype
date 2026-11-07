@@ -2,9 +2,10 @@
 <!--
   T5 · 键盘悬浮层静态布局（画板①「字母键盘·小写」/ FR-A2 / 决策 7 R-1）。
   根容器 = 覆盖区 322dp：停靠屏幕底部，透明底透出宿主内容（悬浮卡片形态）。
-  主卡 = 候选栏占位 + 键盘区（数字列/字母区/功能键区）；键帽由 KeyboardLayout
+  主卡 = 候选栏占位 + 键盘区（数字列/字母区/功能键区）+ 远程模式框架（T17 · FR-B3 / 决策 33：
+  状态行 + 大字折行区 + 底部提示 + 「退出远程」，默认 GONE）；键帽由 KeyboardLayout
   模型驱动程序化生成（SofatypeImeService），跨两行完成键也在代码中挂载到键区。
-  副卡 = 跨屏输入引导占位（内容与状态机属 T17，FR-B1）。
+  副卡 = 跨屏引导/配对/已连接三卡面容器（T17 · 决策 32，卡面内容由服务层装配，FR-B1/B4/B9）。
   主/副卡均含底部柔影垫层（PRD 6.3「黑 55% 模糊 30」的近似实现，见 bg_card_shadow）。
   全部色值/规格走 Token（colors.xml / dimens.xml），本文件不出现字面值。
 -->
@@ -72,24 +73,73 @@
                 android:orientation="horizontal"
                 android:visibility="gone" />
 
-            <!-- 远程输入实时文本区（T33 · 决策 31）：40px 大字自动折行显示、不做横向滚动；
-                 折行内容超出显示区高度时纵向滚动保持末尾与青色光标可见（光标由 RemoteCursorSpan
-                 随文本流自绘，服务层装载后滚动到底）。收到文本时显示（候选栏/键区隐藏），
-                 清空 / 服务停止后隐藏回键盘态；完整远程模式状态机（状态行 / 退出远程）随 T17。默认 GONE。 -->
+            <!-- 远程模式主卡框架（T17 · FR-B3 / 决策 33，画板⑤）：状态行（点 + 状态文字 + 来自·设备名 +
+                 「退出远程」按钮）+ 40px 大字自动折行区（T33 决策 31 口径不变）+ 底部提示。
+                 进入远程模式时显示（候选栏/键区隐藏），退出（上屏成功自动收起 / 「退出远程」/ 服务停止）回键盘态；
+                 状态行三态（未连接灰 / 等待扫码青 / 已连接绿，FR-B9）由服务层依状态机刷新。默认 GONE。 -->
             <LinearLayout
-                android:id="@+id/remote_area"
+                android:id="@+id/remote_mode_area"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:layout_marginTop="@dimen/ime_remote_area_margin_top"
-                android:orientation="horizontal"
+                android:orientation="vertical"
                 android:visibility="gone">
+
+                <!-- 状态行（FR-B3 / FR-B9）：点随状态切灰/青/绿，等待态无「来自·设备名」，右侧「退出远程」 -->
+                <LinearLayout
+                    android:id="@+id/remote_status_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/remote_status_dot"
+                        android:layout_width="@dimen/ime_status_dot_size"
+                        android:layout_height="@dimen/ime_status_dot_size"
+                        android:background="@drawable/bg_status_dot_idle" />
+
+                    <TextView
+                        android:id="@+id/remote_status_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/ime_remote_status_gap"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/ime_remote_status_text"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/remote_status_from"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/ime_remote_status_gap"
+                        android:textColor="@color/text_hint"
+                        android:textSize="@dimen/ime_remote_from_text"
+                        android:visibility="gone" />
+
+                    <Space
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/remote_exit_button"
+                        android:layout_width="@dimen/ime_remote_exit_width"
+                        android:layout_height="@dimen/ime_remote_exit_height"
+                        android:background="@drawable/bg_key"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/ime_remote_exit_text" />
+                </LinearLayout>
 
                 <!-- 纵向滚动（决策 31「超出显示区高度纵向滚动保持末尾」）：TV 无触控故不显滚动条 -->
                 <ScrollView
                     android:id="@+id/remote_text_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginTop="@dimen/ime_remote_area_margin_top"
+                    android:layout_weight="1"
                     android:scrollbars="none">
 
                     <!-- 折行文本（宽度 = 卡内容区宽，无 maxLines 自动折行；末尾光标为文本尾 Span） -->
@@ -102,6 +152,15 @@
                         android:letterSpacing="0.025" />
                 </ScrollView>
             </LinearLayout>
+
+            <!-- 远程模式主卡底部提示（T17 · FR-B3 原文，文案由服务层装载），随远程模式显隐 -->
+            <TextView
+                android:id="@+id/remote_bottom_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_hint"
+                android:textSize="@dimen/ime_remote_hint_text"
+                android:visibility="gone" />
 
             <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->
             <FrameLayout
@@ -148,8 +207,8 @@
         </LinearLayout>
         </FrameLayout>
 
-        <!-- 副卡（含柔影垫层）：默认空占位；远程服务运行中时由服务层装配对卡
-             （二维码 + 地址一行，T14 · FR-B4）；引导内容与状态机属 T17（FR-B1）；
+        <!-- 副卡（含柔影垫层）：跨屏三卡面容器（T17 · 决策 32）——引导卡（未连接，FR-B1）/
+             配对卡（等待扫码，T14 · FR-B4）/ 已连接卡面（FR-B9 / 决策 32）；卡面内容由服务层装配；
              底对齐：主卡展开态加高时主/副卡保持底缘对齐（T11） -->
         <FrameLayout
             android:layout_width="@dimen/ime_side_card_width"

@@ -20,7 +20,8 @@ class PairingSessionTest {
         onInput: (String) -> Unit = {},
         onClear: () -> Unit = {},
         onCommit: (text: String, ack: (Boolean) -> Unit) -> Unit = { _, _ -> },
-    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear, onCommit)
+        onPaired: (deviceName: String?) -> Unit = {},
+    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear, onCommit, onPaired)
 
     private fun helloJson(token: String?): String =
         if (token == null) """{"type":"hello","deviceName":"browser"}"""
@@ -363,5 +364,41 @@ class PairingSessionTest {
         session.onTextMessage(helloJson(token))
         val reply = session.onTextMessage("""{"type":"commit","text":"客厅"}""")
         assertEquals(WsReply.None, reply)
+    }
+
+    // ---- T17 · 配对成功回调（FR-B9 / 决策 34：deviceName 上送供状态行展示） ----
+
+    @Test
+    fun pairedCallbackInvokedWithDeviceNameOnSuccessfulHello() {
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val names = mutableListOf<String?>()
+        val session = newSession(store, onPaired = { names.add(it) })
+        session.onTextMessage(helloJson(token))
+        assertEquals(listOf<String?>("browser"), names)
+    }
+
+    @Test
+    fun pairedCallbackNotInvokedOnRejectedHello() {
+        // 被拒（缺失 / 错误 / 重放）不触发配对成功回调
+        val store = PairingTokenStore()
+        val token = store.issue()
+        var callbackCount = 0
+        val session = newSession(store, onPaired = { callbackCount++ })
+        session.onTextMessage(helloJson(null)) // 缺失 token
+        session.onTextMessage(helloJson("wrong-guess")) // 错误 token
+        session.onTextMessage(helloJson(token))
+        session.onTextMessage(helloJson(token)) // 重放已消费 token
+        assertEquals(1, callbackCount) // 仅第三次（合法首次）触发
+    }
+
+    @Test
+    fun pairedCallbackReceivesNullWhenHelloLacksDeviceName() {
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val names = mutableListOf<String?>()
+        val session = newSession(store, onPaired = { names.add(it) })
+        session.onTextMessage("""{"type":"hello","token":"$token"}""")
+        assertEquals(listOf<String?>(null), names)
     }
 }
