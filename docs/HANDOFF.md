@@ -1,33 +1,33 @@
 # Handoff · 开发交接文档
 
-给 agent 和人看的开发注意事项。核心价值：关键决策、踩过的坑、任务索引。
+给 agent 和人看的开发注意事项。核心价值：关键决策、踩过的坑、代码接入点。
 
-细节出处：
+细节出处（本文不重复）：
 
-- 简版差异：根目录 `CHANGELOG.md`。
-- 实机参数与坑：`docs/devices/` 设备档案。
-- 原则与红线：`AGENTS.md`。
-- 任务状态：`docs/TASKS_20261104.md`；需求决策全文：`docs/PRD_20261104.md` 第 12 章；环境与命令模板：`local/DEV-GUIDE.md`。
+- 简版差异：根目录 `CHANGELOG.md`
+- 实机参数与坑：`docs/devices/` 设备档案
+- 原则与红线：`AGENTS.md`
+- 任务状态与明细：`docs/TASKS_20261104.md`；决策全文：`docs/PRD_20261104.md` 第 12 章；环境与命令模板：`local/DEV-GUIDE.md`
+- 各任务细节：`docs/issues/closed/` 对应 issue
 
-本文不重复上述内容；本文提及的各任务细节均已归档至 `docs/issues/closed/` 对应 issue。
+## 维护约定（三处记录分工）
 
-## 维护约定（三处记录分工，2026-11-04 拍板）
-
-1. **issue（`docs/issues/`）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 TASKS 任务同名同编号；`open/` 进行中，户主验收拍板后挪入 `closed/`。纯文档调整不建 issue。规范与模板见 `docs/issues/README.md`。
-2. **本文（HANDOFF）**：agent 每次独立完成一批活后追加一节记录：简短几句——干了啥、遇到什么坑、还有什么没干成；细节指向 issue，不重复展开。
-3. **`CHANGELOG.md`**：发版时更新。一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
-4. 实机新坑写入对应设备档案。同一事实只在设备档案维护，本文只写指向。
-5. 需求 / 设计变更追加到 PRD 第 12 章。编号顺延，不重排。
+1. **issue（`docs/issues/`）**：单次变更的唯一详细记录，与 TASKS 任务同名同编号；`open/` 进行中，户主验收拍板后挪入 `closed/`。纯文档调整不建 issue。规范见 `docs/issues/README.md`。
+2. **本文（HANDOFF）**：只留关键决策、踩过的坑、当前状态与待办，细节指向 issue。**不记录工作过程**——干了什么事的过程叙事不进本文（归 issue 与 git 历史）；与 TASKS / issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
+3. **`CHANGELOG.md`**：发版时更新，一版一节，按该版本 issue 汇总。
+4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
+5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。
 
 ## 当前快照（截至 2026-11-07）
 
-- 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板与沙箱重定向见 `local/DEV-GUIDE.md` 1.5。
-- 工具链拍板（2026-11-03）：纯 Kotlin、无第三方 SDK；拼音引擎自研词组级 + 内置词库；跨屏 HTTP/WS 自研、二维码 ZXing core；一切工具由 `flake.nix` 声明，不手工装 SDK，新工具先进 flake 再用。
-- 词库现行口径：AOSP 谷歌拼音词库（65 105 条，词 + 逐字拼音 + 内建频次，Apache-2.0）；源文件入库 + sha256 门禁 + 构建零网络。演变：决策 15（CC-CEDICT，作废）→ 28（换源）→ 29（源文件入库），全文见 PRD 第 12 章。
-- 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落 handoff 文件（6.2-10）。
-- 待办焦点：T12 M1 真机验收（里程碑：完整遥控走查 S1、候选刷新 ≤200ms / 键帽反馈 ≤100ms 初测、杀 IME 进程后系统拉起且不阻塞宿主；须户主配合接线与验收拍板，前置检查见设备档案）。T11 更多候选展开已归档（2026-11-06 评审第 1 轮 PASS，2 条非阻塞建议当轮落实、增量复核 PASS 维持，细节见 `docs/issues/closed/T11.md`；真机验证随 T12）。T31 候选栏高亮口径变更已归档（2026-11-06 决策 30 落地，评审第 1 轮 PASS 自动归档：无常亮高亮、高亮仅焦点态；细节见 `docs/issues/closed/T31.md`；真机验证随 T12）。T13 局域网服务骨架已归档（2026-11-07 评审第 1 轮 PASS 自动归档：HTTP + RFC 6455 WS 纯 Kotlin 自研、随机端口、仅绑默认路由 IPv4、退出无端口残留、debug 门控广播启停；细节见 `docs/issues/closed/T13.md`；真机验证随 T19）。T14 配对闭环已归档（2026-11-07 评审第 1 轮 PASS 自动归档：一次性 token 用后即失效、ZXing core 3.5.3 二维码、副卡配对卡=二维码+地址一行（决策 4）、hello/state 握手下发 TV 名与字数上限；:app 198（161+37）/ :pinyin 44 单测全绿；评审 4 条非阻塞建议落 T15/T17 与 debug 日志口径，见 `docs/issues/closed/T14.md` 评审记录；真机验证随 T19；M2 下一任务 T15）。T32 release 词库资产依赖边修复已归档（2026-11-07，dev 实现 + review-qa 盲审 Round 1 PASS，按 TASKS 6.2-9 自动归档：assembleRelease 转绿并纳入 DEV-GUIDE 1.5 标准构建模板，:app 161 / :pinyin 44 单测回归全绿；细节见 docs/issues/closed/T32.md）。T15 手机 H5 页 + 实时同步已归档（2026-11-07 评审第 1 轮 PASS（0 阻塞）+ 非阻塞建议 3 条当轮落实、增量复核 PASS 维持，按 TASKS 6.2-7 自动归档：H5 纯原生 assets 下发（决策 20）、input/clear 实时推送、TV 主卡 40px 大字超宽滚动末尾、200 码点上限、清空同步、微信初测口径；T14 遗留建议 3 条随轮落实（awaitPeerClose 截止保护、MinimalJson 数字文法收紧、main 源集日志口径）；:app 237 / :pinyin 44 单测全绿；真机验证随 T19；M2 下一任务 T16）。
+- 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
+- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研；一切工具由 `flake.nix` 声明，新工具先进 flake 再用。`flake.lock` 锁 nixos-26.05、必须随批提交；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake（flake 相关坑见坑清单构建与环境 3/4）。
+- 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
+- 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑评审通过即自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落交接文件（6.2-10）。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
+- 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T5、T28；已实现（真机验证随 T12）T6~T11、T29~T32；（真机验证随 T19）T13~T15、T33。
+- 待办焦点：**T12** M1 真机验收（里程碑，须户主配合接线与拍板）→ **T16** 上屏闭环（M2 下一任务，待户主指令派发）→ M2 收尾至 **T19** 真机验收。遗留观察：行 4 键帽顶缘 +2px（坑清单词库与数据 2）；H5 矮视口垂直溢出、微信真实内核实测（随 T19）。
 
-## 关键决策速查（本文涉及项，全文以 PRD 第 12 章为准）
+## 关键决策速查（全文以 PRD 第 12 章为准）
 
 | 决策 | 一句话 |
 | --- | --- |
@@ -38,67 +38,64 @@
 | 27 | 符号键盘键位微调排入全部 30 个全角符号、不含 `.com`/`@`、`designs/` 不改 |
 | 28 | 词库换源 AOSP 谷歌拼音词库（CC-CEDICT 选型作废） |
 | 29 | 词库源文件入库 + sha256 锁定 + 构建零网络（取代 28 的「源文件不入库」条款） |
+| 30 | 候选栏无常亮高亮，高亮仅表达遥控器焦点态（FR-A7 首候选高亮条款废止） |
+| 31 | TV 远程大字区自动折行（FR-B5 TV 端横滚取末尾废止），超出高度纵向滚动保持末行 + 光标 |
 
-## 坑清单（按主题合并；细节与 issue 编号见各 closed issue 对应坑）
+## 坑清单（按主题合并；细节见对应 issue 与 DEV-GUIDE）
 
 ### 构建与环境
 
-1. 沙箱构建四件套重定向：HOME / GRADLE_USER_HOME / XDG_CACHE_HOME / `JAVA_TOOL_OPTIONS=-Duser.home`；且 JAVA_TOOL_OPTIONS 必须单独一条 export、写在 HOME 之后——同一 export 语句内展开先于赋值生效（T1/T3，模板已固化 DEV-GUIDE 1.5）。
-2. Gradle wrapper 官方域名超时：改腾讯镜像 + `distributionSha256Sum` 钉官方校验和；版本以 nix 包为准（决策 24）（T1）。
-3. flake 三坑：SDK 许可经 nixpkgs config `android_sdk.accept_license` 声明（`composeAndroidPackages` 已不收该参数）；SDK 组件 unfree 需 `config.allowUnfree = true`；`nix run` 的 app 脚本 PATH 必须自带 `${sdk}/bin` 且脚本要 `set -euo pipefail`（否则失败还打印成功文案）。
-4. 组合 SDK 的镜像目录是符号链接，`find -type d` 看不见，要用 `ls -la`；镜像路径带 `android-` 前缀（flake 批次）。
-5. 自研二进制格式字段位宽按数据规模上限先算：SPD1 音节 id 用 uint8 时，416 个音节的 id ≥ 256 被 `writeByte` 静默截断（ting→dun），读写两端均不报错（T9）。
-6. 同轮构建中 `processResources` 与 `convertDict` 无依赖边则执行顺序不定，测试可能复制旧产物；JavaExec 任务 classpath 用 `compileClasspath + classesDirs`，用 `runtimeClasspath` 会经 processResources 成环（T9）。
-7. JUnit 4 `Assert.fail` 返回 void 非 Kotlin `Nothing`，`?: fail(...)` 的 elvis 推断失效；同包双 top-level `main` 裸调引用歧义——校验逻辑抽命名函数（T30）。
-8. 词库转换必须确定性 + sha256 门禁：`verifyDict` 无输出声明每次必跑，防 up-to-date 跳过校验（T30）。
-9. app 依赖 `:pinyin` 后两模块同图构建：`mergeDebugAssets` 需显式 `dependsOn(":pinyin:buildDict")`，否则隐式依赖校验失败（T10）；`pinyin/assets` 同时是 JVM resources 与 app assets 源目录，词库产物会双份入包（`assets/dict/` + 根级 `dict/`，各 1.5 MB），待后续任务 resources 排除（T10 评审非阻塞建议）。release 变体同病已修（T32）：`mergeReleaseAssets` 与 debug 同挂该依赖边，`assembleRelease` 已纳入 DEV-GUIDE 1.5 标准构建模板。
-10. 分页模型区间是相对坐标系：`CandidateMoreRow.paginate` 返回区间与入参 widths（溢出段）同坐标系，服务层绑页直用作候选全局下标会重复展示首行候选；词条取「首行可见数 + 相对下标」（T11）。
-11. 单测取证防旧结果：改构建脚本后 `testDebugUnitTest` 可能 UP-TO-DATE，test-results 还是旧文件；引用计数前核对 `app/build/test-results/` 时间戳，必要时 `--rerun` 强制实跑——`--rerun` 只对紧邻其前的一个任务生效，多任务须逐个各带（T32）。
-12. merge/package 类任务输入快照未变则 UP-TO-DATE：重转换产物字节一致时 `mergeReleaseAssets` 不实跑，「merge 实跑通过校验」须删 `app/build/intermediates/assets/<variant>/` 后复跑取证；release 产物名为 `app-release-unsigned.apk`（T32）。
-13. `testDebugUnitTest` 只覆盖 Android 模块（:app），纯 JVM 模块 `:pinyin` 要单独 `:pinyin:test` 补跑取证（T15 评审复核口径）。
+1. 沙箱构建四件套重定向（HOME / GRADLE_USER_HOME / XDG_CACHE_HOME / `JAVA_TOOL_OPTIONS=-Duser.home`）；JAVA_TOOL_OPTIONS 必须单独一条 export、写在 HOME 之后——同一 export 语句内展开先于赋值生效；模板固化 DEV-GUIDE 1.5（T1/T3）。
+2. Gradle wrapper 官方域名超时：腾讯镜像 + `distributionSha256Sum` 钉官方校验和；版本以 nix 包为准（决策 24）（T1）。
+3. flake 三坑：SDK 许可走 nixpkgs config `android_sdk.accept_license`；unfree 组件需 `allowUnfree = true`；`nix run` 的 app 脚本 PATH 自带 `${sdk}/bin` 且要 `set -euo pipefail`（否则失败还打印成功文案）。
+4. 组合 SDK 镜像目录是符号链接，`find -type d` 看不见，用 `ls -la`；镜像路径带 `android-` 前缀。
+5. 自研二进制字段位宽按数据规模上限先算：SPD1 音节 id 用 uint8，≥256 被 `writeByte` 静默截断（T9）。
+6. `processResources` 与 `convertDict` 同轮无依赖边则顺序不定，测试可能复制旧产物；JavaExec classpath 用 `compileClasspath + classesDirs`（`runtimeClasspath` 成环）（T9）。
+7. JUnit4 `Assert.fail` 返回 void 非 `Nothing`，`?: fail(...)` 的 elvis 推断失效；同包双 top-level `main` 裸调歧义——校验逻辑抽命名函数（T30）。
+8. 词库转换确定性 + sha256 门禁：`verifyDict` 无输出声明每次必跑，防 up-to-date 跳过校验（T30）。
+9. 两模块同图构建：`mergeDebugAssets` / `mergeReleaseAssets` 均须显式 `dependsOn(":pinyin:buildDict")`（T10/T32）；`pinyin/assets` 双源目录致词库产物双份入包，待 resources 排除（T10 遗留非阻塞建议）。
+10. 分页模型区间是相对坐标系：`CandidateMoreRow.paginate` 返回区间勿直用作候选全局下标（T11）。
+11. 单测取证防旧结果：引用计数前核对 test-results 时间戳，必要时 `--rerun`——只对紧邻前一任务生效，多任务逐个各带（T32）。
+12. merge/package 类任务输入未变则 UP-TO-DATE：「实跑取证」须删 `app/build/intermediates/assets/<variant>/` 后复跑；release 产物名 `app-release-unsigned.apk`（T32）。
+13. `testDebugUnitTest` 只覆盖 Android 模块（:app），纯 JVM 模块 `:pinyin` 单独 `:pinyin:test` 补跑（T15）。
 
 ### 模拟器走查
 
 1. 模拟器只做逻辑回归：API 34 ≠ 验收机 API 23；不覆盖性能预算、微信内核、真实遥控器。
-2. `uiautomator dump` 不含 IME 窗口，键位坐标用截图目测；dump XML 属性顺序 text 在 resource-id/class 之前（T3）。
-3. 键帽 `focusableInTouchMode` 首击聚焦不点击：tap 走查丢键，用 `input keyevent` 或双击 tap（T7/T8）。
-4. 注入通道偶发丢事件（keyevent/tap 均有）：`ImeKeyTrace` 无记录 = 注入层丢失，重启模拟器实例恢复（T6/T7/T8 多轮复现）。
-5. CENTER 键收起延迟 120ms（`hideSelfAfterKeyDispatch`）防宿主 showSoftInput 覆盖，时序常量真机待复核；BACK 在宿主文本选择手柄激活时第一下被宿主消费（T6/T7）。
-6. `adb force-stop` IME 包会把系统输入法打回 Gboard：恢复用 `ime set` + BACK + 重 tap 输入框，勿 force-stop（T29）。
-7. 新增键盘布局必须同 `columnRhythmMatchesArtboard` 口径加列节奏 x 原点断言：格网列号断言拦不住视觉错位（T28/T29 教训）。
-8. 未挂载的测量用 `TextView` 先设 `LayoutParams` 再 `setText`，否则 NPE 崩溃（系统自动重启 IME 恢复，不阻塞宿主）（T10）。
-9. 候选行进入口径：仅行 1 键 UP 进候选行（栏区在行 1 上方）；行 2/3/4 先按格网到行 1 再进（T10）。
-10. 候选区焦点回归只能单点触发：多路径各调一次 `refocusKeyboardAfterBarHidden` 会二次消费 `candidateReturnKey`，第二次落初始键；收起路径不自行回归，统一由调用方判定（T11）。
-11. 新装应用 stopped 态 + 后台策略不收隐式广播（静默跳过，dumpsys 报 `Background execution not allowed`）：走查先 `am start` 一次应用，再用 `-n` 显式组件定向广播（T13）。
-12. 服务监听条目在 `/proc/net/tcp6` 呈 IPv4 映射形态（`::ffff:<ipv4>`），纯 IPv4 `/proc/net/tcp` 表无条目；查「仅绑局域网地址」按映射形态解读（T13）。
-13. `adb emu redir` 并发连接约半数轮次单连接 reset：模拟器 slirp 用户态 NAT 缺陷，非服务问题；同通道串行 20/20 全过、模拟器内部并发 30/30 全过；并发探针改串行或模拟器内部直连（T13 评审判别实验）。
-14. debug 广播显式组件的包段写错 → 广播静默不派发：组件写成 `com.sofatype.ime.debug/...`（把 src/debug 源集路径当包名），实际 applicationId 是 `com.sofatype.ime`；`am broadcast` 对不存在组件 `result=0` 无报错、AMS 记 `disp=1970` 从未派发，极易误判成 stopped 态 / 快照劣化。组件包段一律用 applicationId（T15）。
-15. 冷启 `ime set` 后立即 `input tap` 唤不起键盘（`mInputShown=false`），TV 端截图扑空：tap 后核对 `dumpsys input_method` 再取证（T15）。
-16. 无头浏览器残留报错页 tab 会在 redir 就绪后自动重载，抢先消费一次性 token：换 token 前 `/json/close` 清尽残留 tab；`adb emu redir` 端口随服务重启变化，每轮 STOP→START 后都要重新 `redir add`（T15）。
+2. `uiautomator dump` 不含 IME 窗口，键位坐标截图目测；dump XML 属性顺序 text 在 resource-id/class 之前（T3）。
+3. 键帽 `focusableInTouchMode` 首击聚焦不点击：用 `input keyevent` 或双击 tap（T7/T8）。
+4. 注入通道偶发丢事件：`ImeKeyTrace` 无记录 = 注入层丢失，重启模拟器实例恢复（T6/T7/T8）。
+5. CENTER 键收起延迟 120ms 防宿主 showSoftInput 覆盖（时序常量真机待复核）；BACK 在宿主文本选择手柄激活时首下被宿主消费（T6/T7）。
+6. 勿 `force-stop` IME 包（会把默认输入法打回 Gboard）：恢复 `ime set` + BACK + 重 tap 输入框（T29）。
+7. 新增键盘布局必须同 `columnRhythmMatchesArtboard` 口径加列节奏 x 原点断言：格网列号断言拦不住视觉错位（T28/T29）。
+8. 未挂载的测量先设 `LayoutParams` 再 `setText`，否则 NPE（系统自动重启 IME 恢复，不阻塞宿主）（T10）。
+9. 候选行进入口径：仅行 1 键 UP 直接进候选行；行 2/3/4 先按格网回行 1 再进（T10）。
+10. 候选区焦点回归只能单点触发，收起路径不自行回归，统一由调用方判定（T11）。
+11. 新装应用 stopped 态不收隐式广播（静默跳过）：先 `am start` 一次，再 `-n` 显式组件定向广播（T13）。
+12. 服务监听条目在 `/proc/net/tcp6` 呈 IPv4 映射形态（`::ffff:<ipv4>`），纯 `/proc/net/tcp` 表无条目（T13）。
+13. `adb emu redir` 并发连接约半数轮次单连接 reset（slirp 缺陷）：探针串行或模拟器内部直连（T13）。
+14. debug 广播显式组件包段一律用 applicationId（`com.sofatype.ime`）：写成源集路径（`com.sofatype.ime.debug/...`）则 `am broadcast` 静默不派发（result=0 无报错），极易误判（T15）。
+15. 冷启 `ime set` 后立即 tap 唤不起键盘（`mInputShown=false`）：tap 后核对 `dumpsys input_method` 再取证（T15）。
+16. 无头浏览器残留报错页 tab 会在 redir 就绪后自动重载，抢先消费一次性 token：换 token 前 `/json/close` 清尽残留 tab；redir 端口随服务重启逐轮重加（T15）。
+17. 走查脚本 HOME 重定向后 `$HOME` 不再指向真实用户目录：外部程序（无头浏览器等）路径一律绝对路径，否则 exit 127 静默失败（T33）。
 
 ### 真机走查（前置检查；细节以设备档案为准）
 
-1. 弹键盘前核对 `default_input_method`：`ime set` 后搜狗崩溃反馈会把默认输入法切回搜狗（T4）。
+1. 弹键盘前核对 `default_input_method`：`ime set` 后搜狗崩溃反馈会切回搜狗（T4）。
 2. 电视空闲自动进屏保，tap 全落空：走查须连贯执行（T4）。
 3. 根 Activity BACK 直接退应用；DPAD 唤起后 BACK 只收 IME（T4）。
-4. 几何偏移定性前先排除自身工具口径因素（T4 评审纪律：dev 报的「+1 系统性偏移」被证伪为扫描口径差）。
+4. 几何偏移定性前先排除自身工具口径因素（T4 评审纪律）。
 
 ### 词库与数据
 
 1. AOSP 源词库每行第 3 列标志字段语义无官方文档确认，转换忽略（不影响词/频次/拼音三要素）（T9）。
-2. 行 4 键帽顶缘 +2px 偏移（容差内、机制未查明）：真机与模拟器跨 API 数据已在 T4 采集，T28 遗留观察项。
+2. 行 4 键帽顶缘 +2px 偏移（容差内、机制未查明）：真机与模拟器跨 API 数据已在 T4 采集，遗留观察项（T28）。
 
-## 任务档案（一句话结论；细节见对应 closed issue）
-
-- 阶段 0（2026-10-28~11-03）：PRD v1.1 定稿、设计稿四组定稿、AGENTS.md 定稿、git init。
-- Nix flake（2026-11-03，无 issue 档案，坑见上文清单）：JDK 17（Zulu）+ Android SDK + TV 镜像 API 34 + `nix run .#tv-avd/.#tv-emulator`；真实求值验证通过（环境内 JDK/adb/gradle/build-tools/镜像逐项核实）；`flake.lock` 锁 nixos-26.05、必须随批提交；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake。
-- T1 工程骨架（2026-11-04，真机已验证）/ T2 设置页壳（debug 测试输入区 + 全集 Token 化，真机已验证）/ T3 最小 IME（service 注册 + `onEvaluateFullscreenMode` 恒 false + 收起不丢内容，真机已验证）/ T5 星夜青键盘布局（盲审 3 轮闭环，真机已验证）/ T4 真机无线 adb 通道（真机已验证）/ T28 列间隔 66px 口径修复（真机已验证）/ T6 焦点导航基座 / T7 英文完整输入 / T8 符号键盘（决策 27）/ T29 符号键盘列对齐回归修复 / T9 拼音引擎（决策 28）/ T30 词库入库零网络（决策 29）/ T10 中文模式接入 + 候选词栏 / T11 更多候选展开 / T31 候选栏高亮口径变更（决策 30）/ T13 局域网服务骨架（HTTP + RFC 6455 WS 自研基座，真机验证随 T19）/ T15 手机 H5 页 + 实时同步（H5 纯原生 assets 下发 + input/clear 实时推送 + TV 主卡 40px 大字超宽滚动末尾，真机验证随 T19）/ T32 release 词库资产依赖边修复（assembleRelease 转绿，发版前必修项清零）：全部归档于 `docs/issues/closed/`，状态标注以 TASKS 为准。
-
-## 给下一个 agent（T10 接入相关）
+## 给下一个 agent · 代码接入速查
 
 - 键位事件处理全部在 `SofatypeImeService.onKeyDown`：方向键 → FocusNavigator，OK/ENTER → performClick；新增键面行为改 `execute(action)` 分支（T6/T7）。
 - 布局切换入口：`SofatypeImeService.switchKeyboardMode` / `rebuildKeys`；新布局须提供 rows + overlayCells（跨行键格位）+ initialCell，12 列 × 4 行与既有布局同构（数字列 col1-3、功能区 col11/12）（T8）。
 - 大小写变换入口在模型层：`displayLabel` / `outputValue` / `shiftContentDescription`（T7）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
-- 拼音引擎接口见 `:pinyin` 模块与 issue T9；接入时顺带处理评审非阻塞建议（Segmenter 超长防御、多音双桶用例、VerifyDict 常量抽取等，清单见各 issue 评审段）。
+- 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
 - 开工顺序：`AGENTS.md` → `docs/PRD_20261104.md` → `docs/TASKS_20261104.md` → `docs/devices/` → `local/DEV-GUIDE.md` → `designs/`。

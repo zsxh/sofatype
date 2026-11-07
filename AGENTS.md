@@ -1,7 +1,7 @@
 # AGENTS.md · Agent 工作指引
 
 本仓库是 **sofatype 输入法**：Android TV 输入法（IME）+ 跨屏输入（TV 出二维码、手机 H5 远程打字）+ TV 设置页。
-当前状态：PRD 与设计稿已评审定稿，代码工程尚未创建。任何 agent 在本仓库工作前，先读完本文件，再读完 `local/` 下全部文件——**动手之前必须先看 `local/`，这是硬性前置步骤**（详见文档原则）。
+当前状态：工程已创建，v1.2 施工进行中（进度见 `docs/TASKS_*.md` 与 `docs/HANDOFF.md` 当前快照）；PRD 与设计稿已评审定稿。任何 agent 在本仓库工作前，先读完本文件，再读完 `local/` 下全部文件——**动手之前必须先看 `local/`，这是硬性前置步骤**（详见文档原则）。
 
 ## 一、项目目录结构
 
@@ -11,7 +11,7 @@ sofatype/
 ├── CHANGELOG.md            # 简版发布记录：新增 / 变更 / 修复
 ├── docs/                   # 项目文档
 │   ├── PRD_*.md            # 需求唯一来源（按需求批次建档，如 PRD_20261104.md）
-│   ├── HANDOFF.md          # 开发交接：版本详细改动与踩过的坑
+│   ├── HANDOFF.md          # 开发交接：当前快照、关键决策速查、坑清单、代码接入点
 │   ├── TASKS_*.md          # 施工任务拆解：任务、验收点、状态（按需求批次建档，如 TASKS_20261104.md）
 │   ├── issues/             # 变更记录：一个任务一个 issue，open / closed 分目录
 │   └── devices/            # 设备档案，一机一档
@@ -25,12 +25,12 @@ sofatype/
     └── color-schemes/      # 三端配色方案
 ```
 
-- 代码工程尚未创建。创建位置（仓库根）与工具链（Kotlin + Nix flake，见 HANDOFF 当前状态）已拍板；开工须用户明确指令，施工计划见 `docs/TASKS_*.md`。
+- 创建位置（仓库根）与工具链（Kotlin + Nix flake，见 HANDOFF 当前快照与 PRD 第 12 章）已拍板；开工须用户明确指令，施工计划见 `docs/TASKS_*.md`。
 - `local/`（本地文件：签名密钥、IP、本地开发指南）不提交。开发环境问题只在 `local/DEV-GUIDE.md` 记录；git 管理的其余文档不记录、不指向其内容，本条是唯一指向。
 
 ## 二、文档原则
 
-- **当前处理批次（2026-11-05 更新）**：PRD = `docs/PRD_20261104.md`；TASKS = `docs/TASKS_20261104.md`。引用 PRD / TASKS 时一律用 `docs/PRD_*.md` / `docs/TASKS_*.md` 通配符；新建需求批次时更新本行。
+- **当前处理批次**：PRD = `docs/PRD_20261104.md`；TASKS = `docs/TASKS_20261104.md`。引用 PRD / TASKS 时一律用 `docs/PRD_*.md` / `docs/TASKS_*.md` 通配符；新建需求批次时更新本行。
 - **PRD（`docs/PRD_*.md`）是需求的唯一来源**：动手前先读当前处理批次；实现范围、兼容基线、技术约束一律以 PRD 为准，与 PRD 冲突时先向用户确认，不自行改需求。文件名批次后缀对应需求批次；新需求批次的 PRD / 任务清单另行建档，新 issue 未必记录于既有批次文件。
 - **已拍板决策不重开**：[PRD 决策记录章节](docs/PRD_*.md) 的结论视为定论，不质疑、不绕开，不改设计稿定稿（[`designs/`](designs/)）；确有必要变更，先向用户提出。
 - **设备档案（[`docs/devices/`](docs/devices/)）一机一档**：涉及实机部署、调试、传输前，先读目标设备的「踩过的坑」与「已知问题」；已实测失败的路径不要重走，已排除的原因不要重新验证。
@@ -53,10 +53,10 @@ sofatype/
 - **无障碍**：全部可交互元素提供无障碍标注，焦点与状态满足可读性要求。
 - **性能预算**：以 [PRD 非功能需求章节](docs/PRD_*.md) 的指标为准，实现时逐条对照。
 - **「已完成」的唯一标准是真机验证**：没有在真机上验证过的功能，不说「已完成」；汇报时明确区分「已实现」与「真机已验证」。
-- **截图统一存放与清理（2026-11-05 户主拍板）**：凡需要截图验证的产物，统一放仓库根 `screenshots/` 目录（按任务建子目录，如 `screenshots/T6/`），不再另建 `.shots-*`、`.verify-tmp` 等散目录；该目录已 gitignore、不入库。**真机验证完成后，询问户主是否需要删除截图**，未经户主确认不自行清理。
+- **截图统一存放与清理**：凡需要截图验证的产物，统一放仓库根 `screenshots/` 目录（按任务建子目录，如 `screenshots/T6/`），不再另建 `.shots-*`、`.verify-tmp` 等散目录；该目录已 gitignore、不入库。**真机验证完成后，询问户主是否需要删除截图**，未经户主确认不自行清理。
 - **工作留痕（三处分工，操作规范见 [`docs/issues/README.md`](docs/issues/README.md) 与 [`docs/HANDOFF.md`](docs/HANDOFF.md) 开头的「维护约定」）**：
   - **issue（[`docs/issues/`](docs/issues/)）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 [`docs/TASKS_*.md`](docs/TASKS_*.md) 任务同名同编号；**新建 issue / 任务前先读 [`docs/issues/README.md`](docs/issues/README.md) 并按其规则从 [`docs/issues/NEXT-ID.md`](docs/issues/NEXT-ID.md) 取号、立即回写**；agent 通过模拟器 / 模拟过程验证后通知户主，户主验收拍板后由 `open/` 挪入 `closed/`。纯文档调整不建 issue。
-  - **HANDOFF（[`docs/HANDOFF.md`](docs/HANDOFF.md)）**：agent 每次独立完成一批活后更新——简短几句：干了啥、遇到什么坑、还有什么没干成；细节指向 issue，不重复展开。
+  - **HANDOFF（[`docs/HANDOFF.md`](docs/HANDOFF.md)）**：只留四类内容——关键决策、踩过的坑、当前状态、待办；细节指向 issue，不重复展开。**不记录工作过程**：干了什么事的过程叙事一律不进本文（归 issue 与 git 历史）；与 [`docs/TASKS_*.md`](docs/TASKS_*.md) / issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
   - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
 - **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；开发环境问题写入 `local/DEV-GUIDE.md`（不提交）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD_*.md)，编号顺延、不重排。
 - 提交信息与代码注释用中文。
@@ -70,4 +70,4 @@ sofatype/
 5. 禁止覆盖已有配置：写 `enabled_accessibility_services` 只追加、不覆盖已有服务；在 zsh 里写 `${VAR}:...`，不要写 `$VAR:...`。
 6. 禁止删除或改动户主的数据（上传的照片、选好的壁纸、电视里已有的他人 APK）；清理时只按自己创建时记下的 id 删，不按猜测批量删。
 7. 禁止提交 `local/` 目录（签名密钥、IP 等敏感信息）。
-8. 禁止自行执行 git 提交：只有户主审阅过变更并明确提出提交后，才可以提交。工作区可以随时改，commit 必须由户主发起。提交前先清理垃圾文件（临时截图、dump、临时产物等不入库文件），核对 `git status` 无垃圾残留后再提交（2026-11-05 户主拍板）。
+8. 禁止自行执行 git 提交：只有户主审阅过变更并明确提出提交后，才可以提交。工作区可以随时改，commit 必须由户主发起。提交前先清理垃圾文件（临时截图、dump、临时产物等不入库文件），核对 `git status` 无垃圾残留后再提交。
