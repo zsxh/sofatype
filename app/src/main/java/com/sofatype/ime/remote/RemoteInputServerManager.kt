@@ -17,10 +17,28 @@
 // 顶替旧连接（旧连接回发 replaced 后按 CLOSE_REPLACED 关闭），已配对连接断开经
 // PairedSessionRegistry 登记 / 清除驱动 UI 回等待扫码卡（新码仍有效）。「已连接」可观测值
 // 由「token 已消费」改为「存在已配对会话」。
+// T18 增量（FR-B7/B8/C8 · 第 8 章隐私/可靠性 · lead 拍板 2026-11-07 三项）：
+// ① TV 退出先通知手机（FR-B7）：stop() 在有已配对会话时先向手机回发 disconnect { reason }
+//  （PRD 第 7 章双向）并按 1000 关连接，随后才停服关监听——通知写经专用 teardown 线程
+//  执行（同步等待写完，主线程不阻塞；帧写仍走各连接单线程 ConnectionWriter）。
+// ② commit 回执与停服移出主线程（T16 评审遗留评估项落地）：主线程只执行 IME 写入，
+//  ack + 停服在 teardown 线程串行执行——原「主线程同步等待回执写完成上限 2s」阻塞消除，
+//  「回执先于停服」时序由单线程 teardown 保住。
+// ③ 已配对连接断开（非被顶替）即清远程缓冲（第 8 章隐私：会话结束即清除）+ 主卡状态行
+//  瞬时呈现「连接已断开」（FR-B8 原文，约 3s 后回决策 32 锁定的青点「等待手机扫码」，
+//  Q3 lead 拍板形式）；副卡回等待扫码卡沿 T35 既有链路不变。
+// ④ state 增配对地址字段（Q1 lead 拍板 A）：经 [PairingSession.pairingUrlProvider] 下发
+//  滚动新码，手机页刷新即可重连；FR-B10 逐 token 一次性不变。
+// ⑤ 网络变化自动重建（Q2 lead 拍板 A · PRD 5.3「二维码 IP 失效时自动重建服务并刷新二维码」）：
+//  服务运行期注册 ConnectivityManager 回调——默认网络丢失后恢复，或默认网络 IPv4 与绑定地址
+//  不一致（不同网段）时，自动 stop（尽力通知）+ start 重建服务并刷新二维码；仅 debug 构建
+//  路径内注册（start 即 debug 门控），重建走与手动退出同一通知链路。
 package com.sofatype.ime.remote
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -30,6 +48,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.SocketException
+import java.util.concurrent.Executors
 
 object RemoteInputServerManager {
     private const val TAG = "RemoteInputServer"
@@ -60,6 +79,62 @@ object RemoteInputServerManager {
 
     /** replaced 顶替通知载荷（T35 · 决策 35，TV → 旧手机）。 */
     private const val REPLACED_MESSAGE = "{\"type\":\"${PairingSession.MSG_REPLACED}\"}"
+
+    /** TV 退出远程的断连通知载荷（T18 · FR-B7 / PRD 第 7 章 disconnect 双向，TV → 手机）。 */
+    private const val DISCONNECT_TV_EXIT_MESSAGE =
+        "{\"type\":\"${PairingSession.MSG_DISCONNECT}\",\"reason\":\"${PairingSession.REASON_TV_EXIT}\"}"
+
+    /** 网络变化重建的断连通知载荷（R2 · PRD 5.3 行 2 / lead 批准 reason 取值增量，TV → 手机）。 */
+    private const val DISCONNECT_NETWORK_REBUILD_MESSAGE =
+        "{\"type\":\"${PairingSession.MSG_DISCONNECT}\",\"reason\":\"${PairingSession.REASON_NETWORK_REBUILD}\"}"
+
+    /** TV 退出远程关闭已配对连接的 WS 关闭码（RFC 6455 正常关闭）。 */
+    private const val CLOSE_NORMAL_EXIT = 1000
+
+    /**
+     * 「连接已断开」瞬时提示时长（ms，T18 · FR-B8 / Q3 lead 拍板）：已配对连接断开时主卡
+     * 状态行短暂呈现该提示，到期自动回决策 32 锁定的青点「等待手机扫码」终态。
+     */
+    private const val DISCONNECT_NOTICE_MS = 3_000L
+
+    /**
+     * 停服 / 通知编排队列（T18）：单线程串行执行「向手机回发 disconnect → 关连接 → 停服」
+     * 与「commit 回执 → 停服」序列——网络写（同步等待写完，上限 2s）不落主线程
+     * （T16 评审遗留评估项落地），时序依赖由单线程 FIFO 保住；daemon 线程不阻碍进程退出。
+     */
+    private val teardown = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "sofatype-remote-teardown").apply { isDaemon = true }
+    }
+
+    /** 停服编排进行中标记（防重入：编排窗口内的重复 stop 直接返回 false）。 */
+    @Volatile
+    private var stopping = false
+
+    /** 用户 / 外部主动退出标记（含 commit 成功停服、debug 广播）：网络重建任务据此放弃复活服务。 */
+    @Volatile
+    private var exitRequested = false
+
+    /** 网络重建进行中标记（防多网络事件并发触发重建）。 */
+    @Volatile
+    private var rebuilding = false
+
+    /**
+     * 「连接已断开」提示截止时刻（epoch ms，T18 · FR-B8 / Q3 lead 拍板）：> 当前时刻 =
+     * 瞬时提示呈现中；0 = 无提示。仅主线程写（mainHandler 派发），volatile 读安全。
+     */
+    @Volatile
+    private var disconnectNoticeUntil = 0L
+
+    /** 默认网络丢失标记（T18 · 网络重建）：丢失时置位，恢复后的首个网络事件触发重建。 */
+    @Volatile
+    private var rebuildAfterNetworkLoss = false
+
+    /** 网络变化回调（T18 · Q2 lead 拍板 A）：服务运行期注册，停止即解注册。 */
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    /** 网络重建用 Context（start 时的 applicationContext；重建 start 复用）。 */
+    @Volatile
+    private var watcherContext: Context? = null
 
     /**
      * 配对设备名（T17 · FR-B9 / 决策 34）：hello.deviceName 会话内存驻留供状态行展示——
@@ -131,14 +206,29 @@ object RemoteInputServerManager {
     fun remoteTextSnapshot(): String? = remoteBuffer.text.takeIf { it.isNotEmpty() }
 
     /**
+     * 「连接已断开」瞬时提示是否呈现中（T18 · FR-B8 / Q3 lead 拍板）：已配对连接断开后
+     * 3s 内为 true，终态仍为决策 32 锁定的青点「等待手机扫码」。主线程读取（渲染）。
+     */
+    fun disconnectNoticeActive(): Boolean = disconnectNoticeUntil > System.currentTimeMillis()
+
+    /**
      * 启动服务：解析默认路由 IPv4 → 随机端口绑定 → 签发一次性 token → 进入监听。
      * 仅 debug 构建可用（决策 21 口径）；release 返回 Failed，不做任何动作。
      * 失败只返回结果，不抛异常（第 8 章可靠性：不得影响 IME 进程）。
+     * 显式启动 = 新的会话意图：清除退出标记（网络重建路径走 [startInternal]，不清标记）。
      */
     fun start(context: Context): RemoteInputServer.StartResult {
         if (!BuildConfig.DEBUG) {
             return RemoteInputServer.StartResult.Failed("远程输入服务启动入口仅 debug 构建可用（决策 21）")
         }
+        synchronized(this) {
+            exitRequested = false
+        }
+        return startInternal(context)
+    }
+
+    /** 启动内部实现（start 与网络重建共用；不改变退出标记）。 */
+    private fun startInternal(context: Context): RemoteInputServer.StartResult {
         synchronized(this) {
             if (isRunning()) {
                 return RemoteInputServer.StartResult.Failed("服务已在运行（${addressUrl()}）")
@@ -151,6 +241,8 @@ object RemoteInputServerManager {
             }
             tokens.issue() // FR-B10：一次性 token，每轮服务会话新签发
             pairedDeviceName = null // 决策 34：设备名随会话，新一轮启动不残留上一轮值
+            disconnectNoticeUntil = 0 // T18：新一轮会话不残留上一轮断连提示
+            exitRequested = false // T18：新会话清除上一轮退出标记（重建路径据此放行）
             mainPageCache = null // 页面缓存随服务会话失效：资产更新后本次启动即生效
             val tvName = resolveTvName()
             val instance = RemoteInputServer(
@@ -163,6 +255,8 @@ object RemoteInputServerManager {
                     // T35（决策 35）：配对成功滚动签发新 token + 顶替旧连接；已配对连接断开
                     // 清登记并回等待扫码卡。回调在连接线程：volatile 写安全，
                     // UI 通知经主线程 Handler 派发。会话实例先创建再闭包捕获（作登记身份键）。
+                    // T18（Q1 lead 拍板 A）：state 经 pairingUrlProvider 下发滚动新码配对地址
+                    //（hello 校验通过后才取值，被拒路径不消费；FR-B10 一次性不变）。
                     lateinit var session: PairingSession
                     session = PairingSession(
                         tokens = tokens,
@@ -176,6 +270,7 @@ object RemoteInputServerManager {
                         onConnectionAttached = { sender, close ->
                             onPairedConnectionAttached(session, sender, close)
                         },
+                        pairingUrlProvider = { pairingUrlText },
                     )
                     session
                 },
@@ -187,9 +282,12 @@ object RemoteInputServerManager {
                     server = instance
                     addressText = address.hostAddress
                     pairingUrlText = "http://${address.hostAddress}:${result.port}/?token=${tokens.peek()}"
+                    watcherContext = context.applicationContext
+                    registerNetworkWatcher(context.applicationContext) // T18：网络变化自动重建（运行期生效）
                     // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
                     Log.i(TAG, "远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
-                    onPairingStateChanged?.invoke()
+                    // T18：start 可经网络重建在 teardown 线程进入，UI 回调统一主线程派发
+                    mainHandler.post { onPairingStateChanged?.invoke() }
                 }
                 is RemoteInputServer.StartResult.Failed ->
                     Log.w(TAG, "启动失败：${result.reason}")
@@ -198,10 +296,51 @@ object RemoteInputServerManager {
         }
     }
 
-    /** 停止服务并确认无端口残留；token、配对地址、设备名与远程输入缓冲一并清空。返回停止前是否在运行。幂等。 */
+    /**
+     * 停止服务（T18 · FR-B7 重写）：存在已配对会话时先向手机回发 disconnect { reason }
+     * （TV 退出远程通知，验收 2）并按 1000 关连接，随后停服；无已配对会话直接停服。
+     * 通知的网络写在专用 teardown 线程执行（主线程不阻塞；写完成才停服，保证通知可达），
+     * 本方法对调用方立即返回（返回停止前是否在运行）。幂等；token、配对地址、设备名与
+     * 远程输入缓冲在停服时一并清空。
+     */
     fun stop(): Boolean {
+        val notifyTarget: PairedConnection?
         synchronized(this) {
-            val instance = server ?: return false
+            // 退出意图无条件记录（含服务已停的冗余调用）：网络重建任务据此放弃复活服务；
+            // 显式 start 会清除该标记（新会话意图）
+            exitRequested = true
+            if (server == null || stopping) return false
+            stopping = true // 编排窗口防重入
+            notifyTarget = pairedSessions.currentConnection()
+        }
+        if (notifyTarget == null) {
+            stopNow()
+            return true
+        }
+        teardown.execute {
+            // 通知必须先于停服：停服关连接后回发不可达。写失败（对端已死 / 网络已断）静默
+            runCatching { notifyTarget.sender.send(DISCONNECT_TV_EXIT_MESSAGE) }
+            runCatching { notifyTarget.close(CLOSE_NORMAL_EXIT) }
+            stopNow()
+        }
+        return true
+    }
+
+    /**
+     * 停服实际清理（T18）：关监听与全部连接、清 token / 登记表 / 控制句柄 / 设备名 /
+     * 远程缓冲（第 8 章隐私：会话结束即清除）、解注册网络回调，UI 回键盘态。幂等。
+     */
+    private fun stopNow() {
+        synchronized(this) {
+            stopping = false
+            // R2（评审建议 2 采纳）：rebuilding 不在此清零——其生命周期收口到重建任务自身结束处，
+            // 防止重建窗口内的 stopNow 提前解除防重入（teardown FIFO 保持时序；用户退出路径由
+            // 重建任务的 exitRequested 分支收口）
+            rebuildAfterNetworkLoss = false
+            disconnectNoticeUntil = 0
+            unregisterNetworkWatcher()
+            watcherContext = null
+            val instance = server ?: return
             server = null
             addressText = null
             pairingUrlText = null
@@ -211,11 +350,13 @@ object RemoteInputServerManager {
             pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
-            // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态（完整退出流程随 T17）
+            // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态。
+            // T18：stop 编排已移至 teardown 线程（FR-B7 通知先于停服），UI 回调必须经
+            // mainHandler 派发——本线程直调会在非主线程碰视图（实测 CalledFromWrongThreadException
+            // 进程崩溃，见 issue T18 坑 1）；两条回调均为主线程契约。
             remoteBuffer.clear()
             mainHandler.post { onRemoteTextChanged?.invoke(null) }
-            onPairingStateChanged?.invoke()
-            return true
+            mainHandler.post { onPairingStateChanged?.invoke() }
         }
     }
 
@@ -265,10 +406,12 @@ object RemoteInputServerManager {
     }
 
     /**
-     * 已配对会话关闭（T35 · 决策 35 断连回退，连接线程）：仅当断开者仍是登记中的当前会话
-     * 时清除（被顶替旧连接的迟到关闭事件不清新登记），设备名一并清除；UI 通知经主线程
-     * Handler 派发——新 token 仍有效，副卡回等待扫码卡（FR-B8 口径按决策 35 修订，
-     * 完整断连提示与刷新重连归 T18）。
+     * 已配对会话关闭（T18 重写 · FR-B8 / 决策 35 断连回退，连接线程）：仅当断开者仍是登记中的
+     * 当前会话时清除（被顶替旧连接的迟到关闭事件不清新登记），设备名一并清除；随后——
+     * ① 清空远程缓冲（第 8 章隐私：输入会话结束即清除，不持久化；服务继续运行等待重新扫码）；
+     * ② 主卡状态行瞬时呈现「连接已断开」（FR-B8 原文，Q3 lead 拍板形式），到期自动回
+     *  决策 32 锁定的青点「等待手机扫码」（副卡回等待扫码卡沿 T35 既有链路不变）。
+     * UI 通知经主线程 Handler 派发。
      */
     private fun onPairedSessionClosed(session: PairingSession) {
         val cleared = synchronized(this) {
@@ -277,8 +420,22 @@ object RemoteInputServerManager {
         }
         if (cleared) {
             pairedDeviceName = null
+            remoteBuffer.clear() // 输入会话结束即清缓冲（第 8 章隐私；刷新重连后由手机端 input 重建显示）
             Log.i(TAG, "已配对连接断开，回等待扫码态（配对码仍有效）")
-            mainHandler.post { onPairingStateChanged?.invoke() }
+            mainHandler.post {
+                // R2（评审建议 3 采纳）：延迟任务带时效快照——停服 / 新提示已覆盖该截止值时，
+                // 到期任务不再重复清零与重渲染（快速断连-重连-再断连窗口不误清新提示）
+                val noticeUntil = System.currentTimeMillis() + DISCONNECT_NOTICE_MS
+                disconnectNoticeUntil = noticeUntil
+                onRemoteTextChanged?.invoke(null)
+                onPairingStateChanged?.invoke()
+                mainHandler.postDelayed({
+                    if (disconnectNoticeUntil == noticeUntil) {
+                        disconnectNoticeUntil = 0
+                        onPairingStateChanged?.invoke()
+                    }
+                }, DISCONNECT_NOTICE_MS)
+            }
         }
     }
 
@@ -295,20 +452,26 @@ object RemoteInputServerManager {
     }
 
     /**
-     * commit 消息（T16 · FR-B6/C6，WS 读线程）：经主线程执行上屏——
+     * commit 消息（T16 · FR-B6/C6，WS 读线程；T18 异步化重写）：主线程只执行 IME 上屏写入，
+     * 回执与停服移交 teardown 线程串行执行——
      * ① IME 在电视输入框光标处插入（onCommitRequested；null = 键盘侧未就绪，按失败处理）；
      * ② 写入结果经 ack 回发 committed { ok } 给手机端（成功后手机清草稿并提示「已上屏」）；
-     * ③ 写入成功即 [stop]：关服务、清缓冲，TV 端自动收起远程模式回键盘态（R-4）。
-     * 写入失败（无焦点输入框）保持远程模式与缓冲，手机端提示失败可重试；
-     * 断连与退出异常路径的完整清理属 T18，本任务不动其边界。
+     * ③ 写入成功即 [stop]：先向手机回发 disconnect 通知（验收 2：TV 退出提示手机），随后
+     *    停服关监听、清缓冲，TV 端自动收起远程模式回键盘态（R-4）。
+     * 时序保证：ack 先于 stop、帧序 committed → disconnect，由单线程 teardown + 各连接
+     * 单线程 ConnectionWriter 保住；主线程不再同步等待回执写完成（T16 评审遗留「上限 2s
+     * 阻塞主线程」评估项，本任务落地异步化）。
+     * 写入失败（无焦点输入框）保持远程模式与缓冲，手机端提示失败可重试。
      * 内容不入日志（隐私红线）。
      */
     private fun onRemoteCommit(text: String, ack: (Boolean) -> Unit) {
         mainHandler.post {
             val ok = onCommitRequested?.invoke(text) ?: false
-            ack(ok) // 回执必须先于 stop：stop 关闭连接后回发不可达
-            if (ok) {
-                stop()
+            teardown.execute {
+                ack(ok) // 回执必须先于 stop：stop 关闭连接后回发不可达
+                if (ok) {
+                    stop()
+                }
             }
         }
     }
@@ -327,6 +490,137 @@ object RemoteInputServerManager {
             Log.w(TAG, "H5 页读取失败（${e.javaClass.simpleName}），回退占位页")
             PlaceholderPage.HTML.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         }
+    }
+
+    // ---- T18 · 网络变化自动重建（Q2 lead 拍板 A · PRD 5.3「二维码 IP 失效时自动重建服务并刷新二维码」） ----
+
+    /**
+     * 注册默认网络变化回调（服务运行期有效，stopNow 解注册）：监听能力网络——
+     * 丢失（onLost）置「待重建」标记；恢复（onAvailable）或链路属性变化（onLinkPropertiesChanged，
+     * 含 IP 换段）时比对当前默认路由 IPv4 与绑定地址，按需重建。注册失败静默降级（无自动重建，
+     * 不影响服务本体，可靠性口径）。
+     */
+    private fun registerNetworkWatcher(appContext: Context) {
+        if (networkCallback != null) return
+        val connectivity = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                synchronized(this@RemoteInputServerManager) {
+                    if (server != null && !stopping) rebuildAfterNetworkLoss = true
+                }
+            }
+
+            override fun onAvailable(network: Network) {
+                handleNetworkMaybeChanged()
+            }
+
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                handleNetworkMaybeChanged()
+            }
+        }
+        val request = android.net.NetworkRequest.Builder()
+            .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        try {
+            connectivity.registerNetworkCallback(request, callback)
+            networkCallback = callback
+            Log.i(TAG, "网络变化监听已注册（运行期生效，停止即解注册）")
+        } catch (_: Exception) {
+            networkCallback = null
+            Log.w(TAG, "网络变化监听注册失败（降级为无自动重建）")
+        }
+    }
+
+    /** 解注册网络回调（stopNow 调用；幂等）。 */
+    private fun unregisterNetworkWatcher() {
+        val callback = networkCallback ?: return
+        networkCallback = null
+        val context = watcherContext ?: return
+        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        runCatching { connectivity.unregisterNetworkCallback(callback) }
+    }
+
+    /**
+     * 网络事件统一判定（回调线程进入）：两条重建触发规则——
+     * ① 「运行中默认网络丢失」标记已置位（onLost 置位，恢复后的首个事件消费）→ 重建
+     *   （同网段瞬断亦重建：恢复事件即视为服务可达性已破坏一次，换新端口刷新二维码，如实口径）；
+     * ② 当前默认路由 IPv4 与绑定地址不一致（onLinkPropertiesChanged / onAvailable 携带换段）→ 重建。
+     * 两规则均不命中 → 服务保持（无网络事件语义上的破坏）。
+     * 判定在 synchronized 区内完成，重建编排移出锁外。
+     */
+    private fun handleNetworkMaybeChanged() {
+        val context = watcherContext ?: return
+        val shouldRebuild = synchronized(this) {
+            if (server == null || stopping || rebuilding) return
+            val lost = rebuildAfterNetworkLoss
+            rebuildAfterNetworkLoss = false
+            val currentAddress = resolveLanAddress(context)?.hostAddress
+            lost || (currentAddress != null && currentAddress != addressText)
+        }
+        if (shouldRebuild) rebuildForNetworkChange()
+    }
+
+    /**
+     * 重建编排（teardown 线程执行）：尽力向已配对手机回发 disconnect 并关连接（对端多半已
+     * 不可达，写失败静默）→ 停服 → 重建启动（新随机端口 + 新 token，二维码随 UI 刷新）。
+     * 重建决策后用户已显式退出（exitRequested）则不复活服务。防重入由 [rebuilding] 保证。
+     */
+    private fun rebuildForNetworkChange() {
+        val context = watcherContext ?: return
+        synchronized(this) {
+            if (server == null || stopping || rebuilding) return
+            rebuilding = true
+        }
+        val notifyTarget: PairedConnection? = synchronized(this) { pairedSessions.currentConnection() }
+        Log.i(TAG, "检测到网络变化，重建远程输入服务并刷新二维码")
+        teardown.execute {
+            // rebuilding 收口保证（R2 · 建议 2 采纳）：任务体任意异常不悬挂防重入标记
+            runCatching {
+                // 尽力通知（R2：reason=network-rebuild，手机端呈现 FR-C8 重连引导而非「电视已退出」；
+                // 重建场景对端多半不可达，写失败静默）
+                if (notifyTarget != null) {
+                    runCatching { notifyTarget.sender.send(DISCONNECT_NETWORK_REBUILD_MESSAGE) }
+                    runCatching { notifyTarget.close(CLOSE_NORMAL_EXIT) }
+                }
+                stopNow()
+                val restart = synchronized(this) { !exitRequested }
+                if (restart) {
+                    when (val result = startInternal(context)) {
+                        is RemoteInputServer.StartResult.Started ->
+                            Log.i(TAG, "网络变化重建完成：${addressUrl()}；配对地址：$pairingUrlText（二维码已刷新）")
+                        is RemoteInputServer.StartResult.Failed ->
+                            Log.w(TAG, "网络变化重建失败：${result.reason}")
+                    }
+                } else {
+                    Log.i(TAG, "网络变化重建取消：远程输入已被退出")
+                }
+            }
+            synchronized(this) { rebuilding = false }
+        }
+    }
+
+    /**
+     * debug 走查通道（T18 · 决策 21 口径，仅 debug 构建可达）：模拟「运行中默认网络丢失后恢复」——
+     * 置丢失标记后进入与真实网络回调完全相同的 [handleNetworkMaybeChanged] 判定与重建路径。
+     * 依据：模拟器镜像默认网络为 eth0（ETHERNET），`cmd connectivity airplane-mode` 不注销该网络、
+     * `svc wifi` 通断不产生网络登记（实测），shell 无 root / ip 受限，回调接线在模拟器不可触发；
+     * 真机 Wi-Fi 开关的真实触发随 T19 里程碑验证。重建后新随机端口 + 新 token（二维码刷新）。
+     */
+    fun debugNetworkChange() {
+        // R2（评审建议 4 采纳）：BuildConfig.DEBUG 兜底对齐决策 21 防御纵深（与 debug 接收器双重门控）
+        if (!BuildConfig.DEBUG) {
+            Log.w(TAG, "网络变化模拟入口仅 debug 构建可用（决策 21）")
+            return
+        }
+        synchronized(this) {
+            if (server == null || stopping) {
+                Log.i(TAG, "网络变化模拟忽略：服务未运行")
+                return
+            }
+            rebuildAfterNetworkLoss = true
+        }
+        handleNetworkMaybeChanged()
     }
 
     /** TV 设备名（PRD 第 7 章 state.tvName）：取系统型号；空值兜底，避免下发空串。 */

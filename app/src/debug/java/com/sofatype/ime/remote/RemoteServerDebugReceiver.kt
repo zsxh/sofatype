@@ -20,6 +20,9 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
                 val stopped = RemoteInputServerManager.stop()
                 if (!stopped) Log.i(TAG, "服务未在运行，无需停止")
             }
+            // T18 · 决策 21 口径 debug 走查通道：模拟「运行中网络丢失后恢复」，走真实判定与重建路径
+            //（模拟器 eth0 默认网络无法经 shell 注销，真实回调触发随 T19 真机验证）
+            ACTION_SIMULATE_NETWORK_CHANGE -> RemoteInputServerManager.debugNetworkChange()
             ACTION_STATUS -> {
                 val url = RemoteInputServerManager.addressUrl()
                 val pairingUrl = RemoteInputServerManager.pairingUrl()
@@ -44,5 +47,8 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
         const val ACTION_START = "com.sofatype.ime.debug.action.START_REMOTE_SERVER"
         const val ACTION_STOP = "com.sofatype.ime.debug.action.STOP_REMOTE_SERVER"
         const val ACTION_STATUS = "com.sofatype.ime.debug.action.STATUS_REMOTE_SERVER"
+
+        /** T18 debug 走查通道：模拟网络丢失后恢复，触发真实判定与重建路径。 */
+        const val ACTION_SIMULATE_NETWORK_CHANGE = "com.sofatype.ime.debug.action.SIMULATE_NETWORK_CHANGE"
     }
 }

@@ -1,8 +1,11 @@
 // T17 · 跨屏界面文案单元测试：锁定与 PRD 原文逐字一致（FR-B1 三步指引 / 按钮下提示、
 // FR-B9 状态行三态、FR-B3 实时接收中 / 来自 · 设备名 / 底部提示 / 退出远程）。
+// T18 · FR-B8「连接已断开」瞬时提示文案（Q3 lead 拍板）+ T17 遗留修复：
+// connectedFromText 未携带设备名返回 null（渲染层隐藏「来自」行，不再输出悬空前缀）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class RemoteUiTextTest {
@@ -44,9 +47,18 @@ class RemoteUiTextTest {
 
     @Test
     fun connectedFromTextFormatsPerFrB3() {
-        // FR-B3「来自 · <设备名>」（决策 34：协议无位置字段，只展示设备名）
+        // FR-B3「来自 · <设备名>」（决策 34：协议无位置字段，只展示设备名）；
+        // T18 · T17 遗留修复：hello 未携带设备名（null / 空 / 空白）返回 null → 渲染层隐藏「来自」行
         assertEquals("来自 · browser", RemoteUiText.connectedFromText("browser"))
-        assertEquals("来自 · ", RemoteUiText.connectedFromText(null))
+        assertNull(RemoteUiText.connectedFromText(null))
+        assertNull(RemoteUiText.connectedFromText(""))
+        assertNull(RemoteUiText.connectedFromText("   "))
+    }
+
+    @Test
+    fun statusDisconnectedTextMatchesFrB8() {
+        // T18 · FR-B8 原文（Q3 lead 拍板：灰点瞬时过渡提示，终态仍为决策 32 锁定的「等待手机扫码」）
+        assertEquals("连接已断开", RemoteUiText.STATUS_DISCONNECTED)
     }
 
     @Test

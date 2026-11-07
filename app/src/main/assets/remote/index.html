@@ -5,8 +5,24 @@
      清空发 clear 同步 TV（FR-C5）；单次上限 200 字符（state.charLimit 下发），达限停输入并轻提示（FR-C7）。
      T16 · 上屏闭环（FR-C6 · 决策 10）：内容非空「上屏」可点，空内容置灰不可点；点击发 commit { text }，
      收到 TV 回执 committed { ok:true } 后草稿清空并轻提示「已上屏」；ok:false 提示失败可重试。
+     T35 · 被顶替（FR-B11 / 决策 35）：收 replaced 后状态行「连接已被替换」，关闭后不被覆盖。
+     T18 · 断连与退出清理（FR-B7/B8/C8 · PRD 5.3 · lead 拍板 2026-11-07）：
+     ① state { url } 为配对成功后滚动新码地址（lead 拍板 A）：收到即 history.replaceState 更新
+       地址栏（不落 localStorage / sessionStorage 等任何存储，隐私红线从严），刷新页面即持有效
+       新码重新配对（FR-B8「支持刷新重连」）；token 逐个一次性不变。
+     ② TV 退出远程（FR-B7 · PRD 5.3）：收 disconnect { reason:"tv-exit" } → 状态行「电视已退出远程输入」、
+       输入禁用（编辑卡 / 删除 / 清空 / 上屏全禁），已收未上屏内容按丢弃处理。
+     ②b R2 · 电视网络变化重建（PRD 5.3 行 2 · lead 批准 reason 取值增量）：收
+       disconnect { reason:"network-rebuild" } → 状态行「连接已断开」+ 常驻 FR-C8 重连引导
+       （检查同一 Wi-Fi 后重新扫码；重建后端口已换，刷新不可达，不给重注入口）。
+     ③ 手机侧断连（FR-C8 / PRD 5.3）：WS 关闭（非被顶替 / 非电视退出 / 非配对被拒）→ 状态行
+       「连接已断开」+ 「重连」入口（点击刷新页面，走地址栏中的有效新码重新配对）；重连失败
+       （服务已停 / 换网不可达）→ FR-C8 引导文案（检查同一 Wi-Fi、重新扫码）。
+     ③b R2 修复：配对被拒（state connected:false + 4001）的「配对失败…请重新扫码」文案
+       在 onclose 后保持，不被断连覆盖（T14/T15 口径回归）。
+     ④ 页面卸载（关闭 / 刷新前）best-effort 发送 disconnect { reason }（PRD 第 7 章 disconnect 双向）。
      JS 口径（微信内置浏览器初测 O-4）：ES5 语法 + 通用 API，无 URLSearchParams / 箭头函数 / 模板字符串；
-     字符按 Unicode 码点处理（emoji 不拆散）。 -->
+     字符按 Unicode 码点处理（emoji 不拆散）；不使用任何持久化存储。 -->
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -109,6 +125,21 @@
       flex: none;
     }
     .status-note-text { font-size: 12px; color: var(--text-muted-55); }
+    /* T18 · FR-C8 重连入口：断连后状态行内浮现（点击刷新页面，携地址栏有效新码重新配对） */
+    .reconnect-btn {
+      display: none;
+      align-items: center;
+      padding: 3px 12px;
+      border: 1px solid var(--border-accent);
+      border-radius: 9px;
+      background: var(--accent-wash);
+      color: var(--accent-text);
+      font-size: 12px;
+      cursor: pointer;
+      flex: none;
+    }
+    .reconnect-btn.show { display: flex; }
+    .reconnect-btn:active { background: var(--accent-hover); }
 
     /* 编辑卡（PRD 6.3 手机编辑卡 342×336 圆角 20，border rgba(56,189,248,.4) 1.5px） */
     .editor-card {
@@ -260,6 +291,7 @@
     <div class="status-row">
       <span class="dot" id="status-dot"></span>
       <span class="status-text" id="status-text" aria-live="polite">正在连接…</span>
+      <button class="reconnect-btn" id="btn-reconnect" type="button" aria-label="重连">重 连</button>
       <span class="status-extra" id="status-extra">
         <span class="status-divider" aria-hidden="true"></span>
         <span class="status-note">
@@ -298,6 +330,9 @@
     var text = ''; // 当前编辑内容（全量，码点安全）
     var gotState = false;
     var replaced = false; // T35：本连接已被新设备顶替（决定关闭后的状态行文案）
+    var rejected = false; // R2 修复：配对被拒（connected:false + 4001）——onclose 后保持「重新扫码」引导文案不被断连覆盖
+    var exited = false; // T18：电视已退出远程输入（决定关闭后的状态行文案与输入禁用）
+    var networkChanged = false; // R2：电视网络变化重建（disconnect reason=network-rebuild）——onclose 后保持 FR-C8 重新扫码引导
     var ws = null;
     var hintTimer = null;
 
@@ -310,6 +345,7 @@
     var deleteBtn = byId('btn-delete');
     var clearBtn = byId('btn-clear');
     var commitBtn = byId('btn-commit');
+    var reconnectBtn = byId('btn-reconnect');
     var dotEl = byId('status-dot');
     var statusEl = byId('status-text');
     var extraEl = byId('status-extra');
@@ -359,16 +395,23 @@
       }
     }
 
-    /* FR-C7 轻提示：浮现约 1.5s 后淡出 */
-    function showHint(message) {
+    /* FR-C7 轻提示：浮现约 1.5s 后淡出；sticky=true 时不自动淡出（R2 · FR-C8 重连引导常驻），
+       由 setConnected / 新提示清除 */
+    function showHint(message, sticky) {
       hintEl.textContent = message;
       hintEl.classList.add('show');
-      if (hintTimer) { clearTimeout(hintTimer); }
-      hintTimer = setTimeout(function () { hintEl.classList.remove('show'); }, 1500);
+      if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+      if (!sticky) {
+        hintTimer = setTimeout(function () { hintEl.classList.remove('show'); }, 1500);
+      }
     }
 
-    /* FR-C3：点击卡片任意位置唤起系统键盘（透明输入层已铺满卡片，此处兜底聚焦） */
-    cardEl.addEventListener('click', function () { inputEl.focus(); });
+    /* FR-C3：点击卡片任意位置唤起系统键盘（透明输入层已铺满卡片，此处兜底聚焦）；
+       T18：电视已退出后输入禁用，点击不再聚焦 */
+    cardEl.addEventListener('click', function () {
+      if (exited) { return; }
+      inputEl.focus();
+    });
 
     /* 编辑（FR-C3/C4/C7）：立即推送全量文本；超限截断并轻提示 */
     inputEl.addEventListener('input', function () {
@@ -415,12 +458,17 @@
     function setConnected(tvName) {
       dotEl.classList.add('connected');
       statusEl.textContent = '已连接 · ' + tvName;
+      reconnectBtn.classList.remove('show');
       extraEl.style.display = '';
+      hintEl.classList.remove('show'); // 清除常驻重连引导（R2）
     }
     function setRejected() {
+      /* T14/T15 口径：配对被拒引导重新扫码；R2 修复——rejected 标记使该文案在 onclose 后保持 */
+      rejected = true;
       dotEl.classList.remove('connected');
       statusEl.textContent = '配对失败：token 无效或已使用，请重新扫码';
       extraEl.style.display = 'none';
+      reconnectBtn.classList.remove('show');
     }
     /* T35 · FR-B11 / 决策 35：连接被新设备顶替——旧手机端提示并进入未连接态（重连随 T18） */
     function setReplaced() {
@@ -429,6 +477,38 @@
       statusEl.textContent = '连接已被替换';
       extraEl.style.display = 'none';
       showHint('连接已被另一台设备替换');
+    }
+    /* T18 · FR-B7 / PRD 5.3：电视端退出远程——提示并禁输入（编辑卡 / 删除 / 清空 / 上屏全禁），
+       已收未上屏内容按丢弃处理；无重连入口（服务已随退出停止） */
+    function setTvExited() {
+      exited = true;
+      dotEl.classList.remove('connected');
+      statusEl.textContent = '电视已退出远程输入';
+      extraEl.style.display = 'none';
+      reconnectBtn.classList.remove('show');
+      inputEl.disabled = true;
+      deleteBtn.disabled = true;
+      clearBtn.disabled = true;
+      commitBtn.disabled = true;
+    }
+    /* T18 · FR-C8 / PRD 5.3：手机侧断连（页面被顶替与电视退出之外）——断连提示 + 「重连」入口；
+       重连 = 刷新页面，携地址栏中的滚动新码重新配对 */
+    function setDisconnected() {
+      dotEl.classList.remove('connected');
+      statusEl.textContent = '连接已断开';
+      extraEl.style.display = 'none';
+      reconnectBtn.classList.add('show');
+    }
+    /* R2 · PRD 5.3 行 2 / FR-C8：电视端网络变化重建（disconnect reason=network-rebuild）——
+       状态行「连接已断开」+ 常驻重连引导（检查同一 Wi-Fi 后重新扫码）。重建后服务端口已更换，
+       刷新本页不可达，故不给「重连」入口，引导重新扫码（FR-C8 口径） */
+    function setNetworkChanged() {
+      networkChanged = true;
+      dotEl.classList.remove('connected');
+      statusEl.textContent = '连接已断开';
+      extraEl.style.display = 'none';
+      reconnectBtn.classList.remove('show');
+      showHint('电视网络已变化，请检查同一 Wi-Fi 后重新扫码', true);
     }
 
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
@@ -458,6 +538,18 @@
         setReplaced();
         return;
       }
+      if (msg.type === 'disconnect') {
+        /* T18 · PRD 5.3 / lead R2 批准的 reason 取值增量：tv-exit = 电视退出远程（输入禁用，
+           无重连）；network-rebuild = 电视网络变化重建（「连接已断开」+ FR-C8 重新扫码引导）。
+           已收未上屏内容按丢弃处理 */
+        gotState = true;
+        if (msg.reason === 'tv-exit') {
+          setTvExited();
+        } else {
+          setNetworkChanged();
+        }
+        return;
+      }
       if (msg.type !== 'state') { return; }
       gotState = true;
       if (msg.connected) {
@@ -467,26 +559,55 @@
         inputEl.value = text;
         render();
         setConnected(msg.tvName);
+        /* T18 · FR-B8 刷新重连（lead 拍板 A）：state.url = 配对成功后滚动签发的有效新码地址；
+           取其中的 token 原位更新地址栏查询串（保留页面自身访问来源的 host——走查 redir /
+           主机名别名场景与真实 Wi-Fi 同源可用；不落任何存储），刷新页面即持有效码重新配对。
+           token 逐个一次性不变 */
+        if (msg.url) {
+          var idx = msg.url.indexOf('token=');
+          if (idx >= 0) {
+            var rolled = msg.url.substring(idx + 'token='.length);
+            try { history.replaceState(null, '', '/?token=' + rolled); } catch (e2) { /* 旧内核不支持时保持原地址 */ }
+          }
+        }
       } else {
         setRejected();
       }
     };
     ws.onclose = function (ev) {
-      /* 断连提示与重连随 T18；此处处理未完成配对即断开的展示，与被顶替关闭（4002）的文案 */
-      if (replaced) {
-        return; // setReplaced 已更新状态行，保持「连接已被替换」
+      /* T18 · FR-C8：关闭后按成因分派状态行——电视退出（disconnect 已达）/ 被顶替（replaced 已达）/
+         配对被拒（R2 修复：rejected，保持「重新扫码」引导不被覆盖）各自保持既有文案；
+         已配对连接意外断开（手机断网 / TV 进程被杀）→ 断连提示 + 重连入口；
+         未完成配对即断开 → FR-C8 引导（检查同一 Wi-Fi、重新扫码；与 onerror 同文案，
+         两个事件都触发时最终文案确定） */
+      if (exited || replaced || rejected || networkChanged) {
+        return; // setTvExited / setReplaced / setRejected / setNetworkChanged 已定文案，不被关闭事件覆盖
       }
-      if (!gotState) {
+      if (gotState) {
+        setDisconnected();
+      } else {
         dotEl.classList.remove('connected');
-        statusEl.textContent = '连接已关闭（' + ev.code + '）';
+        statusEl.textContent = '连接失败，请检查与电视在同一 Wi-Fi 后重新扫码';
         extraEl.style.display = 'none';
       }
     };
     ws.onerror = function () {
+      /* T18 · FR-C8 重连失败引导：服务已停 / 换网不可达时，刷新重连无法到达——给重新扫码引导 */
       if (!gotState) {
         statusEl.textContent = '连接失败，请检查与电视在同一 Wi-Fi 后重新扫码';
       }
     };
+
+    /* T18 · FR-C8 重连入口：刷新页面（携地址栏滚动新码重新走配对） */
+    reconnectBtn.addEventListener('click', function () { location.reload(); });
+
+    /* T18 · PRD 第 7 章 disconnect 双向：页面关闭 / 刷新前 best-effort 通知电视（尽力发送，
+       发送后连接即随页面卸载关闭）；不做任何持久化 */
+    window.addEventListener('pagehide', function () {
+      if (ws && ws.readyState === 1) {
+        try { ws.send(JSON.stringify({ type: 'disconnect', reason: 'page-unload' })); } catch (e3) { /* 连接已不可用 */ }
+      }
+    });
 
     /* <390px 视口等比缩放兜底：360px 常见安卓视口下整卡缩放，不横向滚动、编辑卡不裁边
        （FR-C2「无滚动或最小滚动」最小实现；真实机型适配随 T19） */

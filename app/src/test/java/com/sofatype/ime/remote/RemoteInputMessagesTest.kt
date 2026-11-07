@@ -108,9 +108,24 @@ class RemoteInputMessagesTest {
         for (json in listOf(
             """{"type":"input","text":"同步"}""",
             """{"type":"commit","text":"上屏内容"}""",
+            """{"type":"disconnect","reason":"page-unload"}""",
         )) {
             val fields = MinimalJson.parseTopLevelObjectTyped(json)
             assertEquals(RemoteInputMessages.parse(json), RemoteInputMessages.dispatch(fields))
         }
+    }
+
+    // ---- T18 · disconnect 断连通知解析（FR-B7/B8 · PRD 第 7 章 disconnect 双向） ----
+
+    @Test
+    fun parsesDisconnectMessageWithReason() {
+        val message = RemoteInputMessages.parse("""{"type":"disconnect","reason":"page-unload"}""")
+        assertEquals(RemoteInputMessage.Disconnect, message)
+    }
+
+    @Test
+    fun parsesDisconnectMessageWithoutReason() {
+        // reason 字段可选（PRD 载荷 { reason }，缺省按无理由处理）
+        assertEquals(RemoteInputMessage.Disconnect, RemoteInputMessages.parse("""{"type":"disconnect"}"""))
     }
 }

@@ -374,23 +374,42 @@ class SofatypeImeService : InputMethodService() {
     private fun renderMainCardMode(state: RemoteUiState) {
         val area = remoteModeArea ?: return
         val prevMode = lastRenderedMode
-        // 状态行三态（FR-B9 / PRD 6.4 连接状态色）：点随状态换色，连接态加「来自 · 设备名」
+        // 状态行三态（FR-B9 / PRD 6.4 连接状态色）：点随状态换色，连接态加「来自 · 设备名」；
+        // T18：等待扫码态叠加「连接已断开」瞬时提示（已配对连接断开后 3s 内，FR-B8 / Q3 lead 拍板），
+        // 到期自动回青点「等待手机扫码」终态；连接态 hello 未携带设备名时隐藏「来自」行（T17 遗留）
         when (state.status) {
             RemoteStatus.NOT_CONNECTED -> {
                 remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_idle)
                 remoteStatusText?.text = RemoteUiText.STATUS_NOT_CONNECTED
+                remoteStatusText?.contentDescription = null
                 remoteStatusFrom?.visibility = View.GONE
             }
             RemoteStatus.WAITING_SCAN -> {
-                remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_waiting)
-                remoteStatusText?.text = RemoteUiText.STATUS_WAITING_SCAN
+                val noticeActive = RemoteInputServerManager.disconnectNoticeActive()
+                if (noticeActive) {
+                    remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_idle)
+                    remoteStatusText?.text = RemoteUiText.STATUS_DISCONNECTED
+                    // 过渡态无障碍标注（Q3 lead 拍板约束）：标注完整语义，提示是瞬时过渡
+                    remoteStatusText?.contentDescription = "连接已断开，等待手机重新扫码"
+                } else {
+                    remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_waiting)
+                    remoteStatusText?.text = RemoteUiText.STATUS_WAITING_SCAN
+                    remoteStatusText?.contentDescription = null
+                }
                 remoteStatusFrom?.visibility = View.GONE
             }
             RemoteStatus.CONNECTED -> {
                 remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_connected)
                 remoteStatusText?.text = RemoteUiText.STATUS_CONNECTED
-                remoteStatusFrom?.text = RemoteUiText.connectedFromText(state.deviceName)
-                remoteStatusFrom?.visibility = View.VISIBLE
+                remoteStatusText?.contentDescription = null
+                val fromText = RemoteUiText.connectedFromText(state.deviceName)
+                if (fromText != null) {
+                    remoteStatusFrom?.text = fromText
+                    remoteStatusFrom?.visibility = View.VISIBLE
+                } else {
+                    // T17 遗留修复：hello 未携带 deviceName 时判空隐藏，不再渲染「来自 · 」悬空尾巴
+                    remoteStatusFrom?.visibility = View.GONE
+                }
             }
         }
         if (state.mode == RemoteMode.REMOTE) {
@@ -433,9 +452,11 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 退出远程模式（T17 · FR-B3 / 决策 33）：「退出远程」按钮触发，接既有服务停止链路
-     *（关闭 HTTP/WS 监听、清 token / 缓冲 / 设备名）——停止回调把状态机切回键盘态
-     *（副卡回引导卡、焦点回初始键）。FR-B7 完整清理语义（通知手机、已收未上屏内容丢弃提示）仍归 T18。
+     * 退出远程模式（T18 · FR-B7 完整语义 / 决策 33 接线完成）：「退出远程」按钮或系统返回键触发。
+     * 调 Manager 停服链路——存在已配对会话时先向手机回发 disconnect 通知（手机端提示
+     * 「电视已退出远程输入」并禁输入）再关 HTTP/WS 监听、清 token / 远程缓冲 / 设备名
+     * （已接收未上屏内容按丢弃处理，提示由手机端断连通知承载），停止回调把状态机切回键盘态
+     * （副卡回引导卡、焦点回初始键）。停服编排异步执行，本方法立即返回。
      */
     private fun exitRemoteMode() {
         trace("remote exit requested")
@@ -568,6 +589,13 @@ class SofatypeImeService : InputMethodService() {
         // 结构信息，不输出用户输入内容（隐私红线）
         trace("onKeyDown keyCode=$keyCode action=${ev.action} focus=${(keyboardView?.findFocus() as? View)?.tag}")
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            // T18 · FR-B7（决策 33 划归本任务）：远程模式下系统返回键 = 退出远程模式
+            //（通知手机 + 关 HTTP/WS 监听 + 清缓冲，回键盘态）；键盘态 BACK 维持 FR-A1 收起键盘
+            if (RemoteInputServerManager.isRunning()) {
+                trace("remote exit via BACK")
+                exitRemoteMode()
+                return true
+            }
             requestHideSelf(0)
             return true
         }

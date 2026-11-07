@@ -2,6 +2,8 @@
 // 会话工厂按连接装配配对会话——hello 成功后 input 全量文本 / clear 送达业务回调、
 // 未配对连接的业务消息不下发、主页字节由注入 Provider 提供（决策 20 assets 下发口径）、
 // 关闭等待截止保护（T14 评审建议：对端半帧停滞不越过 1s 截止）。
+// T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知连接保持
+//（PRD 第 7 章 disconnect 双向）。
 package com.sofatype.ime.remote
 
 import org.junit.After
@@ -31,6 +33,8 @@ class RemoteInputLoopbackTest {
     private class Biz(
         private val bindAddress: InetAddress,
         private val registry: MutableList<RemoteInputServer>,
+        /** T18：state.url 提供值（null = 不带 url 字段，既有基线不变）。 */
+        private val pairingUrl: String? = null,
     ) {
         val inputs = CopyOnWriteArrayList<String>()
         val clears = AtomicInteger(0)
@@ -56,6 +60,7 @@ class RemoteInputLoopbackTest {
                             val ok = commitResults.removeAt(0)
                             ack(ok)
                         },
+                        pairingUrlProvider = { pairingUrl },
                     )
                 },
                 mainPageProvider = {
@@ -294,6 +299,41 @@ class RemoteInputLoopbackTest {
             }
             assertEquals(listOf("配对后合法"), biz.commits.toList())
             assertEquals(1, biz.commits.size)
+        }
+    }
+
+    // ---- T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知 ----
+
+    @Test
+    fun stateCarriesRollingPairingUrlEndToEnd() {
+        // 真实套接字：hello 成功后的 state 含 url 字段（手机页据此刷新重连，FR-B8）
+        val biz = Biz(loopback, servers, pairingUrl = "http://10.0.2.15:40000/?token=rolled")
+        val (_, port, token) = biz.newServer()
+        openWs(port).use { client ->
+            client.sendText(hello(token))
+            val state = client.readText()
+            assertTrue(state, state.contains(""""connected":true"""))
+            assertTrue(state, state.contains(""""url":"http://10.0.2.15:40000/?token=rolled""""))
+        }
+    }
+
+    @Test
+    fun disconnectMessageIsAcceptedAndConnectionStaysUsable() {
+        // 手机端 disconnect（页面关闭 / 刷新前 best-effort，PRD 第 7 章 disconnect 双向）：
+        // 服务端接受不回发、连接保持——随后业务消息仍正常送达回调（刷新重连的前置口径）
+        val biz = Biz(loopback, servers)
+        val (_, port, token) = biz.newServer()
+        openWs(port).use { client ->
+            client.sendText(hello(token))
+            assertTrue(client.readText().contains(""""connected":true"""))
+            client.sendText("""{"type":"disconnect","reason":"page-unload"}""")
+            client.sendText("""{"type":"input","text":"通知后仍在线"}""")
+            val deadline = System.currentTimeMillis() + 3_000
+            while (biz.inputs.size < 1) {
+                if (System.currentTimeMillis() > deadline) break
+                Thread.sleep(10)
+            }
+            assertEquals(listOf("通知后仍在线"), biz.inputs.toList())
         }
     }
 

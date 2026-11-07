@@ -36,6 +36,12 @@ object RemoteUiText {
     /** 等待扫码状态行文字（青点态，远程模式主卡状态行等待态）。 */
     const val STATUS_WAITING_SCAN = "等待手机扫码"
 
+    /**
+     * 「连接已断开」瞬时提示文字（T18 · FR-B8 原文 / Q3 lead 拍板）：已配对连接断开时主卡
+     * 状态行短暂呈现（灰点），约 3s 后回 [STATUS_WAITING_SCAN] 终态；FR-B9 三态文字不动。
+     */
+    const val STATUS_DISCONNECTED = "连接已断开"
+
     /** 已连接状态行文字（绿点态主标题，FR-B3「实时接收中」）。 */
     const val STATUS_CONNECTED = "实时接收中"
 
@@ -46,8 +52,15 @@ object RemoteUiText {
     fun connectedFaceText(deviceName: String?): String =
         if (deviceName.isNullOrEmpty()) "已连接" else "$CONNECTED_FACE_PREFIX$deviceName"
 
-    /** 远程主卡状态行「来自 · <设备名>」（FR-B3；决策 34：协议无位置字段，只展示设备名）。 */
-    fun connectedFromText(deviceName: String?): String = "来自 · ${deviceName ?: ""}"
+    /**
+     * 远程主卡状态行「来自 · <设备名>」（FR-B3；决策 34：协议无位置字段，只展示设备名）。
+     * hello 未携带设备名（null / 空）时返回 null——渲染层据此隐藏「来自」行（T18 · T17 遗留：
+     * 修复「来自 · 」悬空尾巴），不再输出悬空前缀。
+     */
+    fun connectedFromText(deviceName: String?): String? {
+        val name = deviceName?.takeIf { it.isNotBlank() } ?: return null
+        return "来自 · $name"
+    }
 
     // ---- 远程模式主卡其余框架（FR-B3 / 决策 33，画板⑤原文） ----
 

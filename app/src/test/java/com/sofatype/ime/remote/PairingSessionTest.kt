@@ -2,6 +2,8 @@
 // 有效 token → state connected:true 且 token 失效；重放 / 错误 / 缺失 token → state connected:false + 4001；
 // 非 hello 消息忽略；state 载荷转义正确。
 // T15 · input / clear 业务分发；T16 · commit 分发、码点兜底截断、committed 回执（ack → sender）。
+// T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A：仅 connected:true 携带，被拒不带）+
+// disconnect 断连通知分发（记事件、连接保持，PRD 第 7 章 disconnect 双向）。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -23,7 +25,20 @@ class PairingSessionTest {
         onPaired: (deviceName: String?) -> Unit = {},
         onPairedSessionClosed: () -> Unit = {},
         onConnectionAttached: (WsMessageSender, (Int) -> Unit) -> Unit = { _, _ -> },
-    ) = PairingSession(store, tvName, charLimit, log, onInput, onClear, onCommit, onPaired, onPairedSessionClosed, onConnectionAttached)
+        pairingUrl: () -> String? = { null },
+    ) = PairingSession(
+        store,
+        tvName,
+        charLimit,
+        log,
+        onInput,
+        onClear,
+        onCommit,
+        onPaired,
+        onPairedSessionClosed,
+        onConnectionAttached,
+        pairingUrl,
+    )
 
     private fun helloJson(token: String?): String =
         if (token == null) """{"type":"hello","deviceName":"browser"}"""
@@ -435,5 +450,82 @@ class PairingSessionTest {
         session.onTextMessage(helloJson(token))
         session.onSessionClosed()
         assertEquals("已配对连接断开触发一次", 1, closedCount)
+    }
+
+    // ---- T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知分发 ----
+
+    @Test
+    fun connectedStateCarriesRollingPairingUrl() {
+        // hello 校验通过 → state 附当前配对地址 url（Manager 在 onPaired 内滚动签发后提供，此处以固定值模拟）：
+        // 手机页据此 history.replaceState 更新地址栏，刷新页面即持有效新码重新配对（FR-B8）
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
+        val reply = session.onTextMessage(helloJson(token))
+        val body = (reply as WsReply.Text).text
+        assertTrue(body, body.contains(""""url":"http://10.0.2.15:40000/?token=rolled""""))
+    }
+
+    @Test
+    fun rejectedStateDoesNotCarryPairingUrl() {
+        // FR-B10 防套取：被拒连接未通过配对校验，不得获得有效配对地址
+        val store = PairingTokenStore()
+        store.issue()
+        val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
+        val reply = session.onTextMessage(helloJson("wrong-guess"))
+        val body = (reply as WsReply.TextThenClose).text
+        assertFalse(body, body.contains(""""url""""))
+    }
+
+    @Test
+    fun stateOmitsUrlFieldWhenProviderReturnsNull() {
+        // 未提供 url（缺省 / 防御分支）：state 不带该字段，既有测试与占位页基线不受影响
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store)
+        val reply = session.onTextMessage(helloJson(token))
+        val body = (reply as WsReply.Text).text
+        assertFalse(body, body.contains(""""url""""))
+    }
+
+    @Test
+    fun connectedStateEscapesPairingUrl() {
+        // url 含需转义字符（引号 / &）时按 JSON 转义下发，解析回环一致
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val rawUrl = """http://10.0.2.15:40000/?a="x"&b=y"""
+        val session = newSession(store, pairingUrl = { rawUrl })
+        val reply = session.onTextMessage(helloJson(token))
+        val fields = MinimalJson.parseTopLevelObject((reply as WsReply.Text).text)
+        assertEquals(rawUrl, fields["url"])
+    }
+
+    @Test
+    fun pairedConnectionDispatchesDisconnectAndKeepsSession() {
+        // 手机端页面关闭 / 刷新前发 disconnect（PRD 第 7 章 disconnect 双向）：
+        // 记事件、不回发、连接保持（后续业务消息仍分发；实际断开由 TCP 关闭驱动）
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val events = mutableListOf<String>()
+        val received = mutableListOf<String>()
+        val session = newSession(store, log = { events.add(it) }, onInput = { received.add(it) })
+        session.onTextMessage(helloJson(token))
+        assertEquals(WsReply.None, session.onTextMessage("""{"type":"disconnect","reason":"page-unload"}"""))
+        session.onTextMessage("""{"type":"input","text":"通知后仍在线"}""")
+        assertEquals(listOf("通知后仍在线"), received)
+        assertTrue(events.any { it.contains("disconnect") })
+    }
+
+    @Test
+    fun unpairedConnectionDisconnectIsSilentlyIgnored() {
+        // 未配对连接的 disconnect 不触发事件、连接保持（仍可完成配对）
+        val store = PairingTokenStore()
+        store.issue()
+        val events = mutableListOf<String>()
+        val session = newSession(store, log = { events.add(it) })
+        assertEquals(WsReply.None, session.onTextMessage("""{"type":"disconnect","reason":"page-unload"}"""))
+        assertFalse(events.any { it.contains("disconnect") })
+        val token = store.peek()
+        assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
     }
 }

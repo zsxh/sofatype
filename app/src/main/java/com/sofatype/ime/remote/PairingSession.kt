@@ -17,6 +17,15 @@
 // T35 增量（决策 35 滚动 token / 自动顶替 / 断连回退）：token 消费成功后由 Manager 立即
 // 滚动签发新 token（本类不持有签发时序）；[attachConnection] 同步缓存关闭句柄；
 // [onSessionClosed] 仅在本连接已配对时上抛（未配对连接的断开不入会话登记）。
+// T18 增量（FR-B8 刷新重连 · lead 2026-11-07 拍板 A / FR-C8）：
+// ① state { connected:true } 增加当前配对地址字段 url（TV → 手机）——配对成功时 Manager
+//   已滚动签发新 token 并刷新配对地址，手机页据此 history.replaceState 更新地址栏，
+//   刷新页面即持有效新码重新配对（FR-B8「支持刷新重连」P0）。url 仅随 connected:true 下发
+//  （被拒连接未通过配对校验，不下发有效配对地址，防未认证方套取 token）；FR-B10 逐 token
+//   一次性语义不变（该码本就整卡展示在 TV 副卡上，无新增暴露面）；手机端不落任何存储。
+// ② 配对后连接上的 disconnect { reason }（手机 → TV，PRD 第 7 章双向）按已知消息分发：
+//   仅记事件、连接保持——会话实际断开由 TCP 关闭驱动（页面关闭 / 刷新必然关连接），
+//   断连回退与清理见 Manager.onPairedSessionClosed。
 // 本实例持有每连接的配对态：由 RemoteInputServerManager 以会话工厂按连接创建（一连接一实例）。
 package com.sofatype.ime.remote
 
@@ -54,6 +63,12 @@ class PairingSession(
      * 处理方（Manager）据此登记该连接的控制通道供顶替使用。回调在连接处理线程执行。
      */
     private val onConnectionAttached: (sender: WsMessageSender, close: (Int) -> Unit) -> Unit = { _, _ -> },
+    /**
+     * 当前配对地址提供者（T18 · FR-B8 刷新重连，lead 拍板 2026-11-07）：hello 校验通过后构建
+     * state 载荷时取值（此时 Manager 已完成滚动签发，返回滚动新码地址）；null / 未提供 = 不带
+     * url 字段（既有测试基线与占位页口径不变）。仅在 connected:true 时消费。
+     */
+    private val pairingUrlProvider: () -> String? = { null },
 ) : WsSessionDelegate {
 
     /** 本连接配对态：hello 成功后置位；业务消息仅在此态分发（未配对连接不得注入内容）。 */
@@ -121,6 +136,12 @@ class PairingSession(
                 WsReply.None
             }
             RemoteInputMessage.Ignore -> WsReply.None
+            RemoteInputMessage.Disconnect -> {
+                // T18（PRD 第 7 章 disconnect 双向）：手机端页面关闭 / 刷新前的通知，仅记事件；
+                // 会话断开由随之而来的 TCP 关闭驱动（onSessionClosed → Manager 断连回退与清理）
+                logEvent("收到手机端断连通知（disconnect）")
+                WsReply.None
+            }
         }
     }
 
@@ -136,10 +157,20 @@ class PairingSession(
     private fun rejected(): WsReply =
         WsReply.TextThenClose(buildState(connected = false), CLOSE_POLICY_REJECTED)
 
-    /** state 消息载荷（PRD 第 7 章定式）：{ type, connected, tvName, charLimit }。 */
-    private fun buildState(connected: Boolean): String =
-        "{\"$KEY_TYPE\":\"$MSG_STATE\",\"connected\":$connected," +
-            "\"tvName\":\"${MinimalJson.escape(tvName)}\",\"charLimit\":$charLimit}"
+    /**
+     * state 消息载荷（PRD 第 7 章定式 + T18 lead 拍板增量）：{ type, connected, tvName, charLimit }；
+     * connected:true 时附当前配对地址 url（滚动新码，供手机页刷新重连）；connected:false
+     * （被拒）不带 url——未通过配对校验的连接不得获得有效配对地址（FR-B10）。
+     */
+    private fun buildState(connected: Boolean): String {
+        val urlField = if (connected) {
+            pairingUrlProvider()?.let { ",\"url\":\"${MinimalJson.escape(it)}\"" } ?: ""
+        } else {
+            ""
+        }
+        return "{\"$KEY_TYPE\":\"$MSG_STATE\",\"connected\":$connected," +
+            "\"tvName\":\"${MinimalJson.escape(tvName)}\",\"charLimit\":$charLimit$urlField}"
+    }
 
     /** committed 回执载荷（T16 · PRD 第 7 章 commit 的 TV → 手机确认）：{ type, ok }。 */
     private fun buildCommitted(ok: Boolean): String =
@@ -162,6 +193,18 @@ class PairingSession(
 
         /** TV → 手机「连接已被替换」通知消息类型（T35 · FR-B11 / 决策 35）。 */
         const val MSG_REPLACED = "replaced"
+
+        /** 断连通知消息类型（T18 · PRD 第 7 章 disconnect 双向）。 */
+        const val MSG_DISCONNECT = "disconnect"
+
+        /** TV → 手机断连通知的 reason 取值：电视端退出远程（T18 · FR-B7）。 */
+        const val REASON_TV_EXIT = "tv-exit"
+
+        /**
+         * TV → 手机断连通知的 reason 取值：电视端网络变化重建（R2 · PRD 5.3 行 2，lead 批准的
+         * 第 7 章草案 reason 取值增量）——手机端呈现「连接已断开」+ FR-C8 重连引导，不等同电视退出。
+         */
+        const val REASON_NETWORK_REBUILD = "network-rebuild"
 
         /** 配对被拒关闭码（RFC 6455 §7.4.2：4000–4999 为应用自定义段）。 */
         const val CLOSE_POLICY_REJECTED = 4001

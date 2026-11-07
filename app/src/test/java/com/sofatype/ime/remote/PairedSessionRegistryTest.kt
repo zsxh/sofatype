@@ -66,4 +66,20 @@ class PairedSessionRegistryTest {
         assertTrue(registry.clear())
         assertFalse("清空后无已配对会话", registry.hasPairedSession)
     }
+
+    @Test
+    fun currentConnectionReturnsLatestRegistrationHandle() {
+        // T18 · FR-B7：TV 退出远程经 currentConnection 取当前连接句柄（回发 disconnect 后关闭）；
+        // 无登记 / 断连清除后返回 null，顶替后返回新连接句柄
+        val registry = PairedSessionRegistry()
+        assertNull("无登记时返回 null", registry.currentConnection())
+        val handle = connection()
+        registry.attach("session-a", handle)
+        assertSame(handle, registry.currentConnection())
+        val replacedHandle = connection()
+        registry.attach("session-b", replacedHandle)
+        assertSame("顶替后返回新连接句柄", replacedHandle, registry.currentConnection())
+        registry.detachIfCurrent("session-b")
+        assertNull("断连清除后返回 null", registry.currentConnection())
+    }
 }

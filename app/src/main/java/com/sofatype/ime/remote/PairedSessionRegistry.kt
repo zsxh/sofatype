@@ -25,6 +25,12 @@ class PairedSessionRegistry {
         get() = current != null
 
     /**
+     * 当前已配对连接的控制句柄（T18 · FR-B7）：TV 退出远程时经此向手机回发 disconnect
+     * 通知并关闭连接（通知必须先于停服关连接）；无已配对会话返回 null。
+     */
+    fun currentConnection(): PairedConnection? = current?.second
+
+    /**
      * 登记新配对连接，返回被顶替的旧连接（无旧连接返回 null）。
      * 同一身份重复登记（hello 重放后的再次配对不可能，防御）按更新句柄处理、不视为顶替。
      */
