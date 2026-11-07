@@ -34,6 +34,8 @@ class RemoteInputLoopbackTest {
     ) {
         val inputs = CopyOnWriteArrayList<String>()
         val clears = AtomicInteger(0)
+        val commits = CopyOnWriteArrayList<String>()
+        val commitResults = CopyOnWriteArrayList<Boolean>()
         val mainPageHits = AtomicInteger(0)
 
         /** 启动服务；返回 (server, port, token)。 */
@@ -49,6 +51,11 @@ class RemoteInputLoopbackTest {
                         tvName = "回环电视",
                         onInput = { inputs.add(it) },
                         onClear = { clears.incrementAndGet() },
+                        onCommit = { text, ack ->
+                            commits.add(text)
+                            val ok = commitResults.removeAt(0)
+                            ack(ok)
+                        },
                     )
                 },
                 mainPageProvider = {
@@ -233,6 +240,61 @@ class RemoteInputLoopbackTest {
         val elapsed = client.readUntilEof()
         assertTrue("关闭等待应在截止附近结束（实测 ${elapsed}ms）", elapsed < 3_000)
         client.closeSocket()
+    }
+
+    // ---- T16 · commit 上屏指令与 committed 回执（FR-B6/C6，真实套接字全链路） ----
+
+    @Test
+    fun commitReachesCallbackAndAckRoundTripsCommitted() {
+        val biz = Biz(loopback, servers)
+        biz.commitResults.add(true)
+        val (_, port, token) = biz.newServer()
+        openWs(port).use { client ->
+            client.sendText(hello(token))
+            assertTrue(client.readText().contains(""""connected":true"""))
+            client.sendText("""{"type":"commit","text":"客厅"}""")
+            // 处理方 ack(true) → 服务经连接级回发器写 committed 帧（主动回发通道实证）
+            val ack = client.readText()
+            assertTrue(ack, ack.contains(""""type":"committed""""))
+            assertTrue(ack, ack.contains(""""ok":true"""))
+            assertEquals(listOf("客厅"), biz.commits.toList())
+        }
+    }
+
+    @Test
+    fun commitFailureAckCarriesOkFalse() {
+        val biz = Biz(loopback, servers)
+        biz.commitResults.add(false)
+        val (_, port, token) = biz.newServer()
+        openWs(port).use { client ->
+            client.sendText(hello(token))
+            assertTrue(client.readText().contains(""""connected":true"""))
+            client.sendText("""{"type":"commit","text":"客厅"}""")
+            val ack = client.readText()
+            assertTrue(ack, ack.contains(""""type":"committed""""))
+            assertTrue(ack, ack.contains(""""ok":false"""))
+        }
+    }
+
+    @Test
+    fun unpairedCommitDoesNotReachCallbackAndConnectionStaysUsable() {
+        val biz = Biz(loopback, servers)
+        biz.commitResults.add(true)
+        val (_, port, token) = biz.newServer()
+        openWs(port).use { client ->
+            // 未配对先发 commit：忽略不回调、不回执；随后配对正常、commit 正常分发
+            client.sendText("""{"type":"commit","text":"早到的上屏"}""")
+            client.sendText(hello(token))
+            assertTrue(client.readText().contains(""""connected":true"""))
+            client.sendText("""{"type":"commit","text":"配对后合法"}""")
+            val deadline = System.currentTimeMillis() + 3_000
+            while (biz.commits.size < 1) {
+                if (System.currentTimeMillis() > deadline) break
+                Thread.sleep(10)
+            }
+            assertEquals(listOf("配对后合法"), biz.commits.toList())
+            assertEquals(1, biz.commits.size)
+        }
     }
 
     private inline fun WsClient.use(block: (WsClient) -> Unit) {

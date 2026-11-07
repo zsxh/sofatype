@@ -7,6 +7,9 @@
 // 创建配对会话，input/clear 业务回调经主线程 Handler 通知 UI（onRemoteTextChanged）；
 // 远程文本缓冲仅驻内存（RemoteTextBuffer，200 字码点上限兜底），停止即清空、日志不涉内容。
 // 本层是唯一的 android.* 依赖面：地址收集（ConnectivityManager / NetworkInterface）、TV 名与日志。
+// T16 增量（FR-B6/C6 · 决策 9/10）：commit 上屏闭环——commit 经主线程交给 IME 写入
+//（onCommitRequested → InputConnection 光标处插入），写入结果经 ack 回发 committed 给手机端；
+// 写入成功即 stop()：关服务、清缓冲、自动收起远程模式回键盘态（FR-B6 / R-4）。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -64,6 +67,15 @@ object RemoteInputServerManager {
     @Volatile
     var onRemoteTextChanged: ((String?) -> Unit)? = null
 
+    /**
+     * 上屏写入回调（T16 · FR-B6/C6）：commit 上屏指令经主线程交 IME 执行——
+     * 在电视输入框光标处插入（不覆盖其余文字，有选中区间则替换该区间，InputConnection
+     * commitText 框架语义）。返回 true = 写入成功；false = 写入失败（如无焦点输入框）。
+     * 由 [SofatypeImeService] 注册；回调在主线程执行，内容仅经内存传递，任何日志不记录。
+     */
+    @Volatile
+    var onCommitRequested: ((String) -> Boolean)? = null
+
     /** 当前服务是否在监听。 */
     fun isRunning(): Boolean = server?.isRunning == true
 
@@ -109,13 +121,15 @@ object RemoteInputServerManager {
                 address,
                 0, // 端口随机：requestedPort 默认 0（决策 16）
                 wsDelegateFactory = {
-                    // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发
+                    // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发；
+                    // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）
                     PairingSession(
                         tokens = tokens,
                         tvName = tvName,
                         logEvent = { Log.i(TAG, it) },
                         onInput = ::onRemoteInput,
                         onClear = ::onRemoteClear,
+                        onCommit = ::onRemoteCommit,
                     )
                 },
                 mainPageProvider = { loadMainPage(context) },
@@ -167,6 +181,25 @@ object RemoteInputServerManager {
     private fun onRemoteClear() {
         remoteBuffer.clear()
         mainHandler.post { onRemoteTextChanged?.invoke(null) }
+    }
+
+    /**
+     * commit 消息（T16 · FR-B6/C6，WS 读线程）：经主线程执行上屏——
+     * ① IME 在电视输入框光标处插入（onCommitRequested；null = 键盘侧未就绪，按失败处理）；
+     * ② 写入结果经 ack 回发 committed { ok } 给手机端（成功后手机清草稿并提示「已上屏」）；
+     * ③ 写入成功即 [stop]：关服务、清缓冲，TV 端自动收起远程模式回键盘态（R-4）。
+     * 写入失败（无焦点输入框）保持远程模式与缓冲，手机端提示失败可重试；
+     * 断连与退出异常路径的完整清理属 T18，本任务不动其边界。
+     * 内容不入日志（隐私红线）。
+     */
+    private fun onRemoteCommit(text: String, ack: (Boolean) -> Unit) {
+        mainHandler.post {
+            val ok = onCommitRequested?.invoke(text) ?: false
+            ack(ok) // 回执必须先于 stop：stop 关闭连接后回发不可达
+            if (ok) {
+                stop()
+            }
+        }
     }
 
     /**

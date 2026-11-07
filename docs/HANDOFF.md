@@ -24,8 +24,8 @@
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研；一切工具由 `flake.nix` 声明，新工具先进 flake 再用。`flake.lock` 锁 `github:NixOS/nixpkgs/nixpkgs-unstable`（unstable 快照分支，单 channel 口径；update 时碰 GitHub API，限流期更新失败属预期）、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试通道：`obscura serve`，见 T34）；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake（flake 相关坑见坑清单构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑评审通过即自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落交接文件（6.2-10）。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T5、T28；已实现（真机验证随 T12）T6~T11、T29~T32；（真机验证随 T19）T13~T15、T33；T34（工具链，无真机维度）。
-- 待办焦点：**T12** M1 真机验收（里程碑，须户主配合接线与拍板）→ **T16** 上屏闭环（M2 下一任务，待户主指令派发）→ M2 收尾至 **T19** 真机验收。遗留观察：行 4 键帽顶缘 +2px（坑清单词库与数据 2）；H5 矮视口垂直溢出、微信真实内核实测（随 T19）。
+- 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T5、T28；已实现（真机验证随 T12）T6~T11、T29~T32；（真机验证随 T19）T13~T16、T33；T34（工具链，无真机维度）。
+- 待办焦点：**T17** 引导副卡与状态机补全（M2 下一任务，依赖顺序可直接派）→ T18 断连与退出清理 → **T12** M1 真机验收、**T19** M2 真机验收（里程碑，须户主配合）。遗留观察：行 4 键帽顶缘 +2px（坑清单词库与数据 2）；H5 矮视口垂直溢出、微信真实内核实测（随 T19）。
 
 ## 关键决策速查（全文以 PRD 第 12 章为准）
 
@@ -58,6 +58,7 @@
 11. 单测取证防旧结果：引用计数前核对 test-results 时间戳，必要时 `--rerun`——只对紧邻前一任务生效，多任务逐个各带（T32）。
 12. merge/package 类任务输入未变则 UP-TO-DATE：「实跑取证」须删 `app/build/intermediates/assets/<variant>/` 后复跑；release 产物名 `app-release-unsigned.apk`（T32）。
 13. `testDebugUnitTest` 只覆盖 Android 模块（:app），纯 JVM 模块 `:pinyin` 单独 `:pinyin:test` 补跑（T15）。
+14. debug 构建 StrictMode 查主线程网络 IO（death penalty）：WS 回发等任何 socket 写不得落主线程——帧写统一下沉专用线程（ConnectionWriter 模式），时序依赖用「同步等待写完」保住（T16，细节见 issue T16 坑 1）。
 
 ### 模拟器走查
 

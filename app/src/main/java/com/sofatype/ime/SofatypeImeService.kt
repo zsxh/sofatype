@@ -16,6 +16,10 @@
 //（ime_card_height_expanded，键位结构与列节奏不变）。
 // T15 接线：远程输入实时显示（FR-B3 显示部分 / FR-B5）——Manager 回调驱动主卡大字区显隐
 //（40px 文本 + 超宽滚动末尾 + 青色光标；候选栏/键区随显隐切换）；完整远程模式状态机随 T17。
+// T16 接线：上屏闭环（FR-B6/C6 · 决策 9/10）——Manager.onCommitRequested 注册上屏写入：
+// commit 在电视输入框光标处插入（不覆盖其余文字，有选中区间替换该区间，InputConnection
+// commitText 框架语义）；写入成功 Manager 停服（清缓冲 + token 作废），
+// 大字区随 onRemoteTextChanged(null) 隐藏回键盘态、副卡配对卡随之清空（R-4 自动收起远程）。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -242,6 +246,9 @@ class SofatypeImeService : InputMethodService() {
         //（Manager 保证回调在主线程；键盘重建后旧视图引用随回调闭包失效，此处重新绑定）
         renderRemoteText(RemoteInputServerManager.remoteTextSnapshot())
         RemoteInputServerManager.onRemoteTextChanged = { renderRemoteText(it) }
+        // T16 上屏写入（FR-B6）：commit 经 Manager 主线程派发，写入结果决定回执与停服；
+        // 键盘重建后旧闭包随引用失效，此处重新绑定（与 onRemoteTextChanged 同口径）
+        RemoteInputServerManager.onCommitRequested = { text -> commitRemoteText(text) }
         return root
     }
 
@@ -249,6 +256,7 @@ class SofatypeImeService : InputMethodService() {
     override fun onDestroy() {
         RemoteInputServerManager.onPairingStateChanged = null
         RemoteInputServerManager.onRemoteTextChanged = null
+        RemoteInputServerManager.onCommitRequested = null
         super.onDestroy()
     }
 
@@ -310,6 +318,34 @@ class SofatypeImeService : InputMethodService() {
         // 折行内容超出显示区高度时纵向滚动保持末尾（决策 31）：装载后滚动到底（光标恒可见）
         val scroll = remoteTextScroll
         scroll?.post { scroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    /**
+     * 远程上屏写入（T16 · FR-B6/C6 · 决策 9/10）：把手机上屏内容写入电视输入框光标处。
+     * commitText 框架语义即满足 R-3 口径：无选中区间 = 光标处插入、不覆盖其余已有文字；
+     * 有选中区间 = 替换该区间。写入前先落定本地组合串（finishComposingText）：
+     * 组合串是 IME 自身挂起的编辑区，不先落定会与上屏文本在光标处交叠；
+     * 随后组合态复位、候选栏按无组合态重算。返回 true = 已写入（Manager 据此回执并停服）；
+     * false = 无焦点输入框或写入异常（远程模式保持，手机端提示失败）。
+     * 任何异常吞掉不外抛（可靠性口径：不得阻塞宿主应用）；内容不入日志（隐私红线）。
+     */
+    private fun commitRemoteText(text: String): Boolean {
+        val ic = currentInputConnection ?: return false
+        return try {
+            ic.beginBatchEdit()
+            try {
+                ic.finishComposingText()
+                composer.reset()
+                refreshCandidatesBar()
+                ic.commitText(text, 1)
+                true
+            } finally {
+                ic.endBatchEdit()
+            }
+        } catch (t: Throwable) {
+            Log.w(TRACE_TAG, "远程上屏写入失败：${t.javaClass.simpleName}")
+            false
+        }
     }
 
     /**

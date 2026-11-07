@@ -1,5 +1,6 @@
 // T15 · 业务消息解析分发单元测试（PRD 第 7 章 input / clear）：
 // input 全量文本解析、clear 解析、未知类型 / 非法 JSON / 字段类型不合规 → 忽略不断连。
+// T16 · commit { text } 上屏指令解析（FR-B6/C6）。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -38,12 +39,42 @@ class RemoteInputMessagesTest {
     @Test
     fun unknownTypeIsIgnored() {
         for (json in listOf(
-            """{"type":"commit","text":"hi"}""", // commit 属 T16，本任务按未知忽略
             """{"type":"hello","token":"t"}""",
             """{"type":"cursor","index":3}""",
         )) {
             assertEquals(RemoteInputMessage.Ignore, RemoteInputMessages.parse(json))
         }
+    }
+
+    // ---- T16 · commit 上屏指令解析（FR-B6/C6） ----
+
+    @Test
+    fun parsesCommitMessageWithText() {
+        val message = RemoteInputMessages.parse("""{"type":"commit","text":"客厅"}""")
+        assertEquals(RemoteInputMessage.Commit("客厅"), message)
+    }
+
+    @Test
+    fun parsesCommitMessageWithEmptyText() {
+        // 空串是合法载荷（H5 空内容按钮置灰不会发送，防御性解析仍接受）
+        assertEquals(RemoteInputMessage.Commit(""), RemoteInputMessages.parse("""{"type":"commit","text":""}"""))
+    }
+
+    @Test
+    fun parsesCommitMessageWithEscapedText() {
+        val message = RemoteInputMessages.parse("""{"type":"commit","text":"行一\n行二"}""")
+        assertEquals(RemoteInputMessage.Commit("行一\n行二"), message)
+    }
+
+    @Test
+    fun commitWithoutTextFieldIsIgnored() {
+        assertEquals(RemoteInputMessage.Ignore, RemoteInputMessages.parse("""{"type":"commit"}"""))
+    }
+
+    @Test
+    fun commitWithNonStringTextFieldIsIgnored() {
+        assertEquals(RemoteInputMessage.Ignore, RemoteInputMessages.parse("""{"type":"commit","text":123}"""))
+        assertEquals(RemoteInputMessage.Ignore, RemoteInputMessages.parse("""{"type":"commit","text":null}"""))
     }
 
     @Test
@@ -74,8 +105,12 @@ class RemoteInputMessagesTest {
     @Test
     fun typedFieldDispatchMatchesParseFromString() {
         // PairingSession 复用同一次类型化解析：dispatch(fields) 与 parse(text) 结果一致
-        val json = """{"type":"input","text":"同步"}"""
-        val fields = MinimalJson.parseTopLevelObjectTyped(json)
-        assertEquals(RemoteInputMessages.parse(json), RemoteInputMessages.dispatch(fields))
+        for (json in listOf(
+            """{"type":"input","text":"同步"}""",
+            """{"type":"commit","text":"上屏内容"}""",
+        )) {
+            val fields = MinimalJson.parseTopLevelObjectTyped(json)
+            assertEquals(RemoteInputMessages.parse(json), RemoteInputMessages.dispatch(fields))
+        }
     }
 }

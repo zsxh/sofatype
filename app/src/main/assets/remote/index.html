@@ -3,7 +3,8 @@
      不引第三方框架与 CDN）。视觉规格 = PRD 第 6 章星夜青 Token（色值唯一来源），画板仅作布局参考。
      行为：点击编辑卡唤起系统键盘；每次编辑立即推送 input（全量文本，FR-C4）；删除移除末尾 1 字符；
      清空发 clear 同步 TV（FR-C5）；单次上限 200 字符（state.charLimit 下发），达限停输入并轻提示（FR-C7）。
-     「上屏」按钮仅按 FR-C2 结构呈现、默认置灰空操作（commit 闭环随 T16）。
+     T16 · 上屏闭环（FR-C6 · 决策 10）：内容非空「上屏」可点，空内容置灰不可点；点击发 commit { text }，
+     收到 TV 回执 committed { ok:true } 后草稿清空并轻提示「已上屏」；ok:false 提示失败可重试。
      JS 口径（微信内置浏览器初测 O-4）：ES5 语法 + 通用 API，无 URLSearchParams / 箭头函数 / 模板字符串；
      字符按 Unicode 码点处理（emoji 不拆散）。 -->
 <html lang="zh-CN">
@@ -217,7 +218,7 @@
     .secondary-btn:active { background: var(--key-hover); }
 
     /* 上屏主按钮（PRD 6.3 手机主按钮 342×56 圆角 16 accent 底 on-accent 17px w700）；
-       T15 仅呈现结构、置灰空操作（commit 闭环随 T16，FR-C6 空内容置灰口径） */
+       T16 · FR-C6：内容为空置灰不可点（disabled = key 底 + muted 文字），非空恢复 accent 可点 */
     .primary-btn {
       position: absolute;
       top: 636px;
@@ -339,6 +340,8 @@
     function render() {
       contentEl.textContent = text;
       counterEl.textContent = codePointLength(text) + ' / ' + charLimit;
+      // T16 · FR-C6：空内容上屏置灰不可点；非空恢复可点（disabled 元素天然不触发 click）
+      commitBtn.disabled = codePointLength(text) === 0;
       // 卡内滚动跟随末尾（滚动容器 = .editor-content；末字符与光标保持可见）
       scrollEl.scrollTop = scrollEl.scrollHeight;
     }
@@ -399,7 +402,14 @@
       pushClear();
     });
 
-    /* FR-C6 上屏闭环随 T16：本任务仅结构呈现，保持置灰空操作 */
+    /* T16 · FR-C6 上屏：发 commit { text }，写入结果由 TV 回执 committed { ok } 确认；
+       空内容（置灰态兜底）不发送；连接已断时仅即时反馈（断连提示与重连随 T18），
+       草稿保留，重连后可再点。 */
+    commitBtn.addEventListener('click', function () {
+      if (!text) { return; }
+      if (!ws || ws.readyState !== 1) { showHint('未连接，无法上屏'); return; }
+      ws.send(JSON.stringify({ type: 'commit', text: text }));
+    });
 
     function setConnected(tvName) {
       dotEl.classList.add('connected');
@@ -419,7 +429,21 @@
     ws.onmessage = function (ev) {
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
-      if (!msg || msg.type !== 'state') { return; }
+      if (!msg || !msg.type) { return; }
+      /* T16 · FR-B6/C6：TV 上屏回执——成功：草稿清空 + 提示「已上屏」（决策 10 / R-4）；
+         失败：草稿保留，提示可重试（TV 端无焦点输入框等写入失败场景） */
+      if (msg.type === 'committed') {
+        if (msg.ok) {
+          text = '';
+          inputEl.value = '';
+          render();
+          showHint('已上屏');
+        } else {
+          showHint('上屏失败，请重试');
+        }
+        return;
+      }
+      if (msg.type !== 'state') { return; }
       gotState = true;
       if (msg.connected) {
         var limit = Number(msg.charLimit);

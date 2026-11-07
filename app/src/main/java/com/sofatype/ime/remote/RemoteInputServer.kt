@@ -12,6 +12,9 @@
 // T15 增量：会话工厂（每连接独立委托实例，业务消息只分发给已配对连接）；
 // GET / 主页字节由注入的 mainPageProvider 提供（决策 20：APK assets 内 H5 页，默认占位页）；
 // awaitPeerClose 等待期加临时 soTimeout（T14 评审建议：半帧停滞不得越过 1s 截止）。
+// T16 增量（FR-B6 commit 回执）：每连接单线程写通道 ConnectionWriter——全部帧写（读线程应答 +
+// 任意线程回执）投递到 writer 线程串行执行：帧不交错，且网络 IO 恒离主线程（StrictMode 主线程
+// 网络 IO 会使 IME 进程崩溃，见 issue T16 坑 1）；attachSender 提供连接级主动回发通道。
 package com.sofatype.ime.remote
 
 import java.io.BufferedInputStream
@@ -25,8 +28,16 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** 发起 WS 关闭后等待对端 CLOSE 帧的最长等待（ms，RFC 6455 §7.1.1 服务器关闭握手）。 */
+/**
+ * 发起 WS 关闭后等待对端 CLOSE 帧的最长等待（ms，RFC 6455 §7.1.1 服务器关闭握手）。
+ */
 private const val PEER_CLOSE_WAIT_MS = 1_000L
+
+/**
+ * 主动回发单帧写的最长等待（ms，ConnectionWriter.writeTextMessage 同步等待上限）：
+ * writer 线程停滞（对端不读、连接僵死）时回发方按超时放弃，不无限阻塞调用线程。
+ */
+private const val WRITE_ACK_TIMEOUT_MS = 2_000L
 
 /**
  * 关闭等待期单次阻塞读的套接字读超时（ms，T14 评审建议落实）：
@@ -42,6 +53,22 @@ private const val PEER_CLOSE_READ_TIMEOUT_MS = 100
 interface WsSessionDelegate {
     /** 收到一条完整文本消息（已校验合法 UTF-8）；返回应答动作。 */
     fun onTextMessage(text: String): WsReply
+
+    /**
+     * 会话主动回发通道注入（T16 · FR-B6 commit 回执）：WS 升级完成后服务把本连接的
+     * 回发器交给委托；委托保存后可在任意线程回发消息（如 commit 处理完成后的
+     * committed 回执）。默认空实现：T13/T14 既有委托与测试基线不受影响。
+     */
+    fun attachSender(sender: WsMessageSender) {}
+}
+
+/**
+ * 会话主动回发器（T16）：向本连接对端写一条文本帧（与请求-应答式 [WsReply] 相对）。
+ * 线程安全：实现须与该连接的帧写入互斥（防帧交错）；连接已断返回 false。
+ */
+fun interface WsMessageSender {
+    /** 写一条文本消息帧；写入成功返回 true，连接断开 / 写失败返回 false。 */
+    fun send(text: String): Boolean
 }
 
 /** 文本消息的应答动作（T14）。 */
@@ -204,8 +231,54 @@ class RemoteInputServer(
             RouteResult.UpgradeWebSocket -> {
                 output.write(WsHandshake.upgradeResponse(request.headers["sec-websocket-key"].orEmpty()))
                 output.flush()
-                wsLoop(input, output, delegate, socket)
+                // T16：每连接写通道（单线程 writer，帧写串行化 + 网络 IO 不落主线程），
+                // 并把主动回发器交给委托（commit 回执经 writer 线程回发）
+                val writer = ConnectionWriter(output)
+                try {
+                    delegate?.attachSender { text -> writer.writeTextMessage(text) }
+                    wsLoop(input, output, delegate, socket, writer)
+                } finally {
+                    writer.shutdown()
+                }
             }
+        }
+    }
+
+    /**
+     * 单连接帧写通道（T16）：该连接全部 WS 帧写（读线程应答 + 主线程主动回执）统一投递到
+     * 单线程 writer 执行——一、帧级串行化（并发写不交错）；二、实际网络 IO 恒在 writer 线程，
+     * 主线程回执不再触碰 socket（debug 构建 StrictMode NetworkOnMainThreadException 实测崩溃，
+     * 见 issue T16 坑 1；可靠性红线：IME 崩溃不得阻塞宿主）。
+     * writeRaw / writeTextMessage 均同步等待写完成后返回：调用方时序不变
+     *（TextThenClose 路径「写 CLOSE 再等对端回执」、commit 路径「回执 flush 完再 stop 关连接」均依赖）。
+     */
+    private class ConnectionWriter(private val output: java.io.OutputStream) {
+        private val executor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "sofatype-remote-writer").apply { isDaemon = true }
+        }
+
+        /** 写原始字节（已编码帧），写完成后返回；写失败以异常传播（与直写 socket 行为等价）。 */
+        fun writeRaw(bytes: ByteArray) {
+            executor.submit {
+                output.write(bytes)
+                output.flush()
+            }.get()
+        }
+
+        /** 写一条文本消息帧（主动回发通道）；写成功返回 true，失败 / 超时返回 false，不抛异常。 */
+        fun writeTextMessage(text: String): Boolean = try {
+            executor.submit {
+                output.write(WsFrameCodec.encode(WsOpcode.TEXT, text.toByteArray(StandardCharsets.UTF_8)))
+                output.flush()
+            }.get(WRITE_ACK_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            true
+        } catch (_: Exception) {
+            false
+        }
+
+        /** 关闭写通道（连接结束时调用）：丢弃排队写，writer 线程随 daemon 退出，不留残留线程。 */
+        fun shutdown() {
+            executor.shutdownNow()
         }
     }
 
@@ -214,39 +287,42 @@ class RemoteInputServer(
      * 骨架缺省与既有单测回归基线）；非空 = 生产会话（T14 [PairingSession] 握手）：
      * 文本消息交委托应答，二进制消息忽略（协议第 7 章全部为 JSON 文本）。
      * PING 回 PONG；CLOSE 回显状态码；协议错误回对应关闭码后断开。
+     * 帧写一律经 [writer]（T16：与主动回发互斥）。
      */
     private fun wsLoop(
         input: BufferedInputStream,
         output: java.io.OutputStream,
         delegate: WsSessionDelegate?,
         socket: Socket,
+        writer: ConnectionWriter,
     ) {
         val assembler = WsMessageAssembler()
         try {
             while (true) {
                 val frame = WsFrameCodec.readFrom(input) ?: break // 对端关闭
                 when (frame.opcode) {
-                    WsOpcode.PING -> output.write(WsFrameCodec.encode(WsOpcode.PONG, frame.payload))
+                    WsOpcode.PING -> writer.writeRaw(WsFrameCodec.encode(WsOpcode.PONG, frame.payload))
                     WsOpcode.PONG -> Unit // 收到 PONG 无动作
                     WsOpcode.CLOSE -> {
-                        output.write(WsFrameCodec.encode(WsOpcode.CLOSE, closeReplyPayload(frame.payload)))
-                        output.flush()
+                        writer.writeRaw(WsFrameCodec.encode(WsOpcode.CLOSE, closeReplyPayload(frame.payload)))
                         return
                     }
                     else -> assembler.feed(frame)?.let { message ->
                         when {
                             delegate == null ->
-                                output.write(WsFrameCodec.encode(message.opcode, validatedPayload(message)))
+                                writer.writeRaw(WsFrameCodec.encode(message.opcode, validatedPayload(message)))
                             message.opcode == WsOpcode.TEXT -> {
                                 val reply = delegate.onTextMessage(validatedText(message))
                                 if (reply is WsReply.Text || reply is WsReply.TextThenClose) {
-                                    output.write(
-                                        WsFrameCodec.encode(WsOpcode.TEXT, replyText(reply).toByteArray(StandardCharsets.UTF_8)),
+                                    writer.writeRaw(
+                                        WsFrameCodec.encode(
+                                            WsOpcode.TEXT,
+                                            replyText(reply).toByteArray(StandardCharsets.UTF_8),
+                                        ),
                                     )
                                 }
                                 if (reply is WsReply.TextThenClose) {
-                                    output.write(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(reply.closeCode)))
-                                    output.flush()
+                                    writer.writeRaw(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(reply.closeCode)))
                                     // RFC 6455 §7.1.1：发起关闭方应等待对端 CLOSE 帧再断 TCP；
                                     // 立即断开会让浏览器端关闭握手被中断（页面 loading 不结束）。
                                     awaitPeerClose(input, socket)
@@ -258,13 +334,11 @@ class RemoteInputServer(
                         }
                     }
                 }
-                output.flush()
             }
         } catch (e: WsProtocolException) {
             // 协议错误：回发对应关闭码后断开（best-effort，写失败不影响进程）
             runCatching {
-                output.write(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(e.closeCode)))
-                output.flush()
+                writer.writeRaw(WsFrameCodec.encode(WsOpcode.CLOSE, closeCodeBytes(e.closeCode)))
             }
         }
     }
