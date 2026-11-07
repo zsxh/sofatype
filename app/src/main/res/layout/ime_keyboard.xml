@@ -72,50 +72,35 @@
                 android:orientation="horizontal"
                 android:visibility="gone" />
 
-            <!-- 远程输入实时文本区（T15 · FR-B3 显示部分，画板⑤）：手机 input 消息驱动服务层装载，
-                 超宽滚动展示末尾 + 末尾青色光标；收到文本时显示（候选栏/键区隐藏），清空 / 服务停止
-                 后隐藏回键盘态；完整远程模式状态机（状态行 / 退出远程）随 T17。默认 GONE。 -->
+            <!-- 远程输入实时文本区（T33 · 决策 31）：40px 大字自动折行显示、不做横向滚动；
+                 折行内容超出显示区高度时纵向滚动保持末尾与青色光标可见（光标由 RemoteCursorSpan
+                 随文本流自绘，服务层装载后滚动到底）。收到文本时显示（候选栏/键区隐藏），
+                 清空 / 服务停止后隐藏回键盘态；完整远程模式状态机（状态行 / 退出远程）随 T17。默认 GONE。 -->
             <LinearLayout
                 android:id="@+id/remote_area"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:layout_marginTop="@dimen/ime_remote_area_margin_top"
                 android:orientation="horizontal"
                 android:visibility="gone">
 
-                <!-- 超宽滚动（FR-B5「滚动展示末尾内容」）：文本更新后服务层滚动到末尾（真实字体度量），
-                     TV 无触控故不显滚动条 -->
-                <HorizontalScrollView
+                <!-- 纵向滚动（决策 31「超出显示区高度纵向滚动保持末尾」）：TV 无触控故不显滚动条 -->
+                <ScrollView
                     android:id="@+id/remote_text_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:scrollbars="none">
 
-                    <LinearLayout
-                        android:layout_width="wrap_content"
+                    <!-- 折行文本（宽度 = 卡内容区宽，无 maxLines 自动折行；末尾光标为文本尾 Span） -->
+                    <TextView
+                        android:id="@+id/remote_text"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <!-- 40px 大字（1080p ÷2 = 20sp Token）；letter-spacing 1px@40px ≈ 0.025em（画板⑤） -->
-                        <TextView
-                            android:id="@+id/remote_text"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:maxLines="1"
-                            android:textColor="@color/text_primary"
-                            android:textSize="@dimen/ime_remote_text_size"
-                            android:letterSpacing="0.025" />
-
-                        <!-- 末尾青色光标（画板⑤：3×44px → 1.5×22dp，圆角 2px → 1dp） -->
-                        <View
-                            android:id="@+id/remote_cursor"
-                            android:layout_width="@dimen/ime_remote_cursor_width"
-                            android:layout_height="@dimen/ime_remote_cursor_height"
-                            android:layout_gravity="center_vertical"
-                            android:layout_marginStart="@dimen/ime_remote_cursor_gap"
-                            android:background="@drawable/bg_remote_cursor" />
-                    </LinearLayout>
-                </HorizontalScrollView>
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/ime_remote_text_size"
+                        android:letterSpacing="0.025" />
+                </ScrollView>
             </LinearLayout>
 
             <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->

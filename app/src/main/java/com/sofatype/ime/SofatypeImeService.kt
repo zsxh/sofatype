@@ -19,6 +19,8 @@
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -29,7 +31,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -53,6 +55,9 @@ class SofatypeImeService : InputMethodService() {
 
         /** assets 内置拼音词库产物路径（T9 接线，决策 28/29）。 */
         const val DICT_ASSET_PATH = "dict/pinyin_dict.bin"
+
+        /** 远程大字区末尾光标 Span 的锚点字符（\u00A0 不换行空格：不与末字折行拆开；宽度/绘制由 RemoteCursorSpan 提供，T33）。 */
+        const val CURSOR_ANCHOR = "\u00A0"
 
         /**
          * 候选查询上限（T11 提至 24）：多于可见数查询；首行 + 展开行需多页候选支撑
@@ -180,10 +185,10 @@ class SofatypeImeService : InputMethodService() {
     /** 远程输入实时文本区（T15 · FR-B3 显示部分）：显示时隐藏候选栏与键区，清空/停止后隐藏回键盘。 */
     private var remoteArea: LinearLayout? = null
 
-    /** 远程文本滚动容器（超宽滚动展示末尾：每次装载后滚动到末尾，FR-B5）。 */
-    private var remoteTextScroll: HorizontalScrollView? = null
+    /** 远程文本滚动容器（决策 31：折行内容超出显示区高度时纵向滚动保持末尾）。 */
+    private var remoteTextScroll: ScrollView? = null
 
-    /** 远程文本视图（40px 大字，内容 = 手机 input 全量文本）。 */
+    /** 远程文本视图（40px 大字折行显示，内容 = 手机 input 全量文本 + 末尾光标 Span）。 */
     private var remoteTextView: TextView? = null
 
     /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
@@ -262,8 +267,9 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 远程输入实时显示（T15 · FR-B3 显示部分 / FR-B5）：text 非空 → 显示 40px 大字区
-     * （候选栏 / 展开行 / 键盘区隐藏），滚动展示末尾 + 末尾青色光标；null / 空 → 隐藏大字区
+     * 远程输入实时显示（T33 · 决策 31 折行口径 / FR-B3）：text 非空 → 显示 40px 大字区
+     * （候选栏 / 展开行 / 键盘区隐藏），自动折行显示；折行内容超出显示区高度时纵向滚动保持
+     * 末尾与青色光标可见（光标为文本尾 Span，随最后一行行尾）；null / 空 → 隐藏大字区
      * 回键盘态（候选栏可见性按当前模式重算，焦点回初始键）。
      * 显示触发 = 收到手机 input / clear / 服务停止（数据驱动显隐）；完整远程模式状态机
      *（状态行 / 退出远程 / 模式切换）随 T17。回调由 Manager 保证在主线程；内容不入日志。
@@ -284,10 +290,26 @@ class SofatypeImeService : InputMethodService() {
         candidatesBar?.visibility = View.GONE
         moreBar?.visibility = View.GONE
         keyArea?.visibility = View.GONE
-        textView.text = text
-        // 超宽滚动展示末尾（FR-B5）：装载后滚动到最右（真实字体度量，光标恒可见）
+        // 决策 31：折行显示 + 末尾青色光标（Span 锚定占位字符，随最后一行行尾；T15 横向滚动口径废止）
+        val spannable = SpannableStringBuilder.valueOf(text)
+        spannable.append(CURSOR_ANCHOR)
+        spannable.setSpan(
+            RemoteCursorSpan(
+                widthPx = resources.getDimensionPixelSize(R.dimen.ime_remote_cursor_width),
+                heightPx = resources.getDimensionPixelSize(R.dimen.ime_remote_cursor_height),
+                color = getColor(R.color.accent),
+                // 圆角半径复用 ime_remote_cursor_gap（1dp）：值同原 bg_remote_cursor 圆角（T33 评审确认无视觉偏差）；
+                // 该 Token 名义语义是「光标与文字间隙」，此处按值复用作圆角——后续单独调 gap 不会破坏视觉（半径仅影响光标条两端圆润度）
+                radiusPx = resources.getDimension(R.dimen.ime_remote_cursor_gap),
+            ),
+            spannable.length - 1,
+            spannable.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        textView.text = spannable
+        // 折行内容超出显示区高度时纵向滚动保持末尾（决策 31）：装载后滚动到底（光标恒可见）
         val scroll = remoteTextScroll
-        scroll?.post { scroll.fullScroll(View.FOCUS_RIGHT) }
+        scroll?.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     /**
