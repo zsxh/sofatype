@@ -45,6 +45,8 @@
     <color name="text_hint_faint">#59E8EEF5</color>
     <!-- 状态点未连接色（T17 · PRD 6.3「未连接 rgba(232,239,246,.35)」：text_body 35% 透明度） -->
     <color name="dot_idle">#59E8EEF5</color>
+    <!-- 检查更新失败态红点（T21 · FR-D4「检查失败 → 红点」；与 accent/success 同 400 梯度色族） -->
+    <color name="dot_error">#F87171</color>
     <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
     <color name="border_accent">#8038BDF8</color>
     <!-- 主色描边文字态，rgba(56,189,248,.45) -->

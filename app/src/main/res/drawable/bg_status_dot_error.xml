@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态点 · 失败红点（T21 · FR-D4「检查失败 → 红点」；PRD 6.3 状态点直径 8px） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/dot_error" />
+    <size android:width="@dimen/set_status_dot_size" android:height="@dimen/set_status_dot_size" />
+</shape>

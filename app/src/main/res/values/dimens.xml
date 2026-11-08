@@ -154,10 +154,12 @@
          规格以 PRD 第 6 章为准；1080p px ÷ 2 = dp/sp） ═══
          品牌区：logo 行顶 300px、logo 88×88（圆角 24px）、「S」44px、字标 72px（间距 26px）、
          副标题顶 424px（距 logo 行 36px）、字 18px；
-         版本卡：顶 488px、620×240、内边距 12px/36px、行 1 高 96px（标签 19px / 版本 20px）、
+         版本卡：顶 488px、内边距 12px/36px、行 1 高 96px（标签 19px / 版本 20px）、
          分隔线 1px、行 2 高 118px（状态点 8px = PRD 6.3 状态点直径、间隙 8px、文字 16px；
          按钮走 PRD 6.3「检查更新按钮」既有 btn_* Token）；
-         底部提示：顶 812px、字 15px。 -->
+         底部提示：顶 812px、字 15px。
+         T21 起版本卡高度改 wrap_content（更新说明/进度条按三态展开，行结构不变），
+         原 version_card_height Token 移除。 -->
     <dimen name="brand_block_margin_top">150dp</dimen>
     <dimen name="brand_logo_size">44dp</dimen>
     <dimen name="brand_logo_corner">12dp</dimen>
@@ -168,7 +170,6 @@
     <dimen name="brand_subtitle_text">9sp</dimen>
     <dimen name="version_card_margin_top">244dp</dimen>
     <dimen name="version_card_width">310dp</dimen>
-    <dimen name="version_card_height">120dp</dimen>
     <dimen name="version_card_padding_h">18dp</dimen>
     <dimen name="version_card_padding_v">6dp</dimen>
     <dimen name="version_row_height">48dp</dimen>
@@ -183,4 +184,11 @@
     <dimen name="bottom_hint_text">7.5sp</dimen>
     <!-- debug 测试输入区锚点（T20 起）：移至面包屑下方避让品牌区与版本卡；debug 专用定位，非设计稿尺寸 -->
     <dimen name="test_area_top_margin">48dp</dimen>
+
+    <!-- ═══ 检查更新三态（T21 · FR-D4；1080p px ÷ 2 = dp/sp） ═══
+         更新说明文字 16px、距按钮行 10px；下载进度条高 6px、距说明 12px（进度条宽随卡内边距内满宽）。 -->
+    <dimen name="update_notes_text">8sp</dimen>
+    <dimen name="update_notes_margin_top">5dp</dimen>
+    <dimen name="update_progress_height">3dp</dimen>
+    <dimen name="update_progress_margin_top">6dp</dimen>
 </resources>

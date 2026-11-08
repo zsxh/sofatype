@@ -13,6 +13,30 @@
     <string name="cd_btn_check_update">检查更新</string>
     <string name="status_up_to_date">已是最新版本</string>
     <string name="bottom_hint">按遥控器 OK 键检查更新</string>
+    <!-- 检查更新三态（T21：FR-D4 / 决策 17/18） -->
+    <string name="status_checking">正在检查更新…</string>
+    <string name="status_new_version">发现新版本 %1$s</string>
+    <string name="status_downloading">下载中 %1$d%%</string>
+    <string name="status_downloading_indeterminate">下载中…</string>
+    <string name="status_preparing_install">安装准备中…</string>
+    <string name="status_install_submitted">已提交系统安装</string>
+    <string name="failed_prefix_check">检查失败：</string>
+    <string name="failed_prefix_download">下载失败：</string>
+    <string name="failed_prefix_install">安装失败：</string>
+    <string name="reason_endpoint_empty">更新源未配置</string>
+    <string name="reason_network">网络连接失败</string>
+    <string name="reason_http">服务返回 HTTP %1$d</string>
+    <string name="reason_parse">更新数据格式异常</string>
+    <string name="reason_no_apk">更新包缺失</string>
+    <string name="reason_download_io">本地存储读写失败</string>
+    <string name="reason_install_prepare">安装准备失败</string>
+    <string name="btn_download_update">下载更新</string>
+    <string name="btn_retry">重试</string>
+    <string name="update_endpoint_url"></string>
+    <string name="install_dialog_title">安装更新 %1$s</string>
+    <string name="install_dialog_message">已下载 %1$s，是否立即安装？</string>
+    <string name="install_dialog_positive">安装</string>
+    <string name="install_dialog_negative">取消</string>
     <!-- 测试输入区（仅 debug 构建显示，PRD 决策 21） -->
     <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
     <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>
