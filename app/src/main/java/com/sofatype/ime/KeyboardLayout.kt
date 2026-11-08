@@ -191,6 +191,14 @@ object KeyboardLayout {
         listOf(3 to hideCol, 4 to hideCol)
     }
 
+    /**
+     * 键盘显示时的初始焦点格位（T40 户主拍板 2026-11-08，FR-A11）：字母区首键 [a]。
+     * 格位 (1, 4) = 行 1 数字列 1-3（col1-3）+ 列间隔后的字母区首键；弹出初始焦点
+     * 直落字母便于直接开始打字。符号键盘初始键维持键区左上角 digit_1（SymbolsLayout.initialCell，
+     * T40 范围口径：符号键盘无字母键，不联动）。与 [rows] 的键位结构一致性由 FocusNavigatorTest 锁定。
+     */
+    val initialCell: Pair<Int, Int> = 1 to 4
+
     /** 全部键位（含完成键）；单测与遍历辅助。 */
     fun allKeys(): List<Key> =
         rows.flatMap { row -> row.cells.filterIsInstance<Cell.KeyCell>().map { it.key } } + doneKey

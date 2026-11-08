@@ -120,8 +120,12 @@ class SofatypeImeService : InputMethodService() {
     /** 键位视图注册表：key id → 视图（焦点导航定位用），onCreateInputView 重建时清空重建。 */
     private val keyViews = mutableMapOf<String, View>()
 
-    /** 焦点导航模型（纯 Kotlin，路径正确性由 FocusNavigatorTest/SymbolsLayoutTest 锁定）。 */
-    private var navigator = FocusNavigator()
+    /**
+     * 焦点导航模型（纯 Kotlin，路径正确性由 FocusNavigatorTest/SymbolsLayoutTest 锁定）。
+     * 初始键口径（T40）：字母键盘 = 字母区首键 [a]（KeyboardLayout.initialCell）；
+     * 符号键盘 = 键区左上角 digit_1（SymbolsLayout.initialCell，rebuildKeys 显式传入，维持现状）。
+     */
+    private var navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
 
     /** 自建键盘视图引用（初始焦点 post 用；不依赖框架 getInputView 的可见性差异）。 */
     private var keyboardView: View? = null
@@ -272,7 +276,7 @@ class SofatypeImeService : InputMethodService() {
         symbolsWidth = SymbolsWidth.FULL_WIDTH
         languageMode = LanguageMode.CHINESE
         composer.reset()
-        navigator = FocusNavigator()
+        navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
         // T11 展开行状态复位
         moreExpanded = false
         morePage = 0
@@ -563,7 +567,8 @@ class SofatypeImeService : InputMethodService() {
      */
     private fun rebuildKeys(root: View, requestInitialFocus: Boolean) {
         navigator = when (keyboardMode) {
-            KeyboardMode.LETTERS -> FocusNavigator()
+            // 初始键口径（T40）：字母键盘 = 字母区首键 [a]；符号键盘 = 键区左上角 digit_1（维持现状）
+            KeyboardMode.LETTERS -> FocusNavigator(initialCell = KeyboardLayout.initialCell)
             KeyboardMode.SYMBOLS -> FocusNavigator(
                 SymbolsLayout.rows(symbolsWidth),
                 SymbolsLayout.overlayCells(),
@@ -584,7 +589,8 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 键盘显示：初始焦点落到键区左上角第一键（FR-A11 焦点导航起点）。
+     * 键盘显示：初始焦点落到当前布局初始键（FR-A11 焦点导航起点；T40：字母键盘 = 字母区首键 [a]，
+     * 含收起后唤起重弹路径；符号键盘 = 键区左上角 digit_1，维持现状）。
      * post 到 attach 完成后执行；focusableInTouchMode 保证触摸模式下焦点机制同样可用
      * （模拟器 `input tap` 唤起后紧跟 `input keyevent` 走查的场景）。
      * 新输入框重置组合态（T10）：组合串属上一输入框，候选栏随之隐藏。

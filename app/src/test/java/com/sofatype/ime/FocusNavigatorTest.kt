@@ -1,6 +1,8 @@
 // T6 · 遥控器焦点导航模型单元测试（JUnit 4，纯 Kotlin，不依赖 Android UI 与模拟器）。
 // 锁定 FR-A11 焦点导航口径：网格完整（12 列 × 4 行每格一键）、移动路径符合视觉行列关系（不跳变）、
 // 表缘不动、完成键跨行导航行为、初始焦点、以及从初始键出发全键可达（遥控器无操作死角）。
+// T40（户主拍板 2026-11-08）：弹出初始焦点 = 字母区首键 [a]（KeyboardLayout.initialCell，
+// 含弹出与收起后唤起重弹路径的初始键口径；符号键盘维持 digit_1 不在本模型缺省口径内）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
@@ -10,7 +12,8 @@ import org.junit.Test
 
 class FocusNavigatorTest {
 
-    private val navigator = FocusNavigator()
+    // 运行时字母键盘实例口径（T40）：初始格位 = KeyboardLayout.initialCell（字母区首键 [a]）
+    private val navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
     private val allKeyIds: List<String> = KeyboardLayout.allKeys().map { it.id }
 
     // ---- 网格完整性（画板① = 12 列 × 4 行完整网格） ----
@@ -35,9 +38,13 @@ class FocusNavigatorTest {
     }
 
     @Test
-    fun initialFocusIsTopLeftDigitKey() {
-        assertEquals("digit_1", navigator.initialKey())
-        assertEquals(1 to 1, navigator.positionsOf("digit_1").single())
+    fun initialFocusIsLetterAKey() {
+        // T40（户主拍板 2026-11-08，FR-A11）：弹出初始焦点 = 字母区首键 [a]，
+        // 格位 = KeyboardLayout.initialCell（行 1 数字列 1-3 + 列间隔后即字母区首键）
+        assertEquals("a", navigator.initialKey())
+        assertEquals(1 to 4, navigator.positionsOf("a").single())
+        // KeyboardLayout.initialCell 与键位结构一致性：初始格位上的键就是 [a]
+        assertEquals("a", navigator.keyAt(KeyboardLayout.initialCell.first, KeyboardLayout.initialCell.second))
     }
 
     // ---- 移动路径符合视觉行列关系（FR-A11 不跳变） ----
