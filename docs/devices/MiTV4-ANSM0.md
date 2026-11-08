@@ -108,3 +108,33 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：在该状态下做输入法对照实验会缺基线（T12 问题 1 对照因此不可测）；判定 IME 实际显示态不能只看 `mInputShown`，须并核窗口 surface / SurfaceFlinger 合成层。
 
+### 坑 9：屏保启动时平台强杀持有 IME 窗口的进程，连带 default_input_method 被夺回（2026-11-08，T19）
+
+**现象**：空闲 480s（`checkScreenSaverTimeoutLocked come 480000`，18:03:46 实证）屏保启动时，平台 Force stopping 本应用并杀进程（logcat：`it's time to start screen saver` → `Force stopping com.sofatype.ime` → `MitvWindowManager: com.sofatype.ime has system window,so kill it`）。进程被杀后 `default_input_method` 被系统夺回搜狗（坑 5 同族后果，诱因为平台行为而非测试动作），远程会话随进程死亡断开。
+
+**处置**：走查期间防 >8 分钟空闲，注入任意键（如 DPAD）可重置屏保计时（PowerManagerService userActivity 日志可证）；每次弹键盘前按坑 3 口径核对 `default_input_method`；恢复按坑 3/5。
+
+### 坑 10：TvMgr-MemoryAutoClean 静默强杀后台/前台应用，无应用侧日志（2026-11-08，T19）
+
+**现象**：`TvMgr-MemoryAut`（pid 3371）周期性 Force stopping 第三方应用（18:22:52 实证连发 `Force stopping com.newtv.cboxtv ... from pid 3371` 等，自身 126 行被 chatty 吞掉）；本应用后台化（HOME 回桌面）约 10 秒后被清杀，前台静默死亡一次（~18:19，疑似同源）。SIGKILL 无应用侧异常，ActivityManager 痕迹常被 chatty 汇总吞掉。
+
+**处置**：配对/远程会话期间保持应用前台，不要 HOME/切后台；判「进程不存在」不可只凭 `ps`（坑 12），用 `dumpsys activity processes` 交叉验证；进程死后恢复按坑 3（ime set）+ 重新进远程模式。
+
+### 坑 11：shell 无法真实切换 Wi-Fi——svc 无权限、airplane 广播被 MiTV 栈忽略（2026-11-08，T19）
+
+**现象**：三通道全堵：① `svc wifi disable` → `SecurityException: WifiService: Neither user 2000 nor current process has android.permission.CHANGE_WIFI_STATE`（logcat 18:41:41.918），Wi-Fi 不下线；② Android 6 `svc` 无 airplane 子命令（仅 power）；③ `settings put global airplane_mode_on 1` + `am broadcast AIRPLANE_MODE_CHANGED` 设置位生效（读回 1）但 MiTV Wi-Fi 栈不响应，wlan0 不掉线（广播 result=0，18:43:41 实证）。
+
+**处置**：真实网络变化场景只能由户主在电视设置 UI 手动开关 Wi-Fi；adb UI 注入自行开关不可行——Wi-Fi 断则无线 adb 断，re-enable 半程无链路可注入（注入式开关只能完成 OFF 半程）。T19 的 O-6 真机触发因此免除（户主拍板模拟器口径）。
+
+### 坑 12：无线链路劣化期工具输出假象——ps 空表、grep 原生崩溃（2026-11-08，T19）
+
+**现象**：链路慢速期，设备端 `ps -A` 可回仅表头的空列表（进程实际存活）；toybox `grep` 自身可原生崩溃产生 tombstone（18:07:42 `/system/bin/grep` F/DEBUG 栈）。据此误判「进程死亡」「无匹配」会造成假结论（T19 实际踩中：误判应用进程死亡，实际存活）。
+
+**处置**：「进程不存在/无输出」类结论必须换通道交叉验证（`dumpsys activity processes`）；计数/匹配类操作拉回本地处理（`adb shell ps -A` 重定向到本地文件再 grep）；logcat 全缓冲 FATAL 核查时排除 grep/svc/uiautomator 工具自身崩溃（坑 7 同族扩展）。
+
+### 坑 13：uiautomator dump 坐标系是窗口缩放系，直接用于 input tap 会偏移（2026-11-08，T19）
+
+**现象**：本机 `uiautomator dump` 的 bounds 处于应用窗口坐标空间（根节点高度 1001px），与 `input tap` 的屏幕像素空间（1080px）比例 ≈0.927；把 dump 坐标直接搬去 tap 会整体偏上约 7%（实测点击 EditText 无响应，换 screencap 目测像素坐标立即命中）。
+
+**处置**：`input tap` 坐标一律以 `screencap` 截图目测像素为准（DEV-GUIDE「走查通道备注」的设备侧实锤与量化）；dump 仅用于读控件结构/文本，不用于产坐标。
+
