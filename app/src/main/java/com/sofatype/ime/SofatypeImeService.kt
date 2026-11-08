@@ -25,6 +25,11 @@
 // 引导卡「远程输入」主按钮启动服务进入远程模式（FR-B2），主卡切远程模式框架（FR-B3：
 // 状态行三态 灰/青/绿 + 来自·设备名 + 大字折行区 + 底部提示 + 「退出远程」按钮接既有 stop 链路，
 // FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达（行 3/4 表缘 RIGHT 进入，LEFT 返回，FR-A10/A11）。
+// T36 接线：候选装载完成 debug 专用 trace（决策 22 · FR-A8 ≤200ms 直测）——onKeyDown 入口落
+// 计时起点，bindCandidates 完成处出耗时 trace（trace 内 BuildConfig.DEBUG 门控，release 静默，
+// 只记耗时与结构计数不含输入内容）。
+// T37 接线：候选行可用宽度口径改为刷新当轮（T12 坑 3）——candidatesAvailablePx 按主卡内容区宽
+// 计算（固定 Token 同源），不再读候选栏上一次布局遗留宽 bar.width，首行 chips 数不随上轮行内容漂移。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -141,6 +146,14 @@ class SofatypeImeService : InputMethodService() {
      * 以 onWindowShown/onWindowHidden 维护跳变沿判定，服务内守卫只在真实显示沿触发。
      */
     private var windowShown = false
+
+    /**
+     * T36 · 候选刷新计时起点（onKeyDown 到达主线程时刻，SystemClock.uptimeMillis）：
+     * 候选装载完成处（bindCandidates）读差值得「键到达 → 候选装载完成」耗时；
+     * onKeyDown finally 归位 -1，计时只在本键事件栈内有效，非键事件触发的装载不计时。
+     * 仅 debug 构建消费（trace 内 BuildConfig.DEBUG 门控，release 静默）。
+     */
+    private var candidateLoadStartMs = -1L
 
     /** 大小写状态（FR-A3）；键盘视图重建时复位小写（键盘记忆属 FR-A13 P2，不做）。 */
     private var caseState = CaseState.LOWER
@@ -620,9 +633,21 @@ class SofatypeImeService : InputMethodService() {
      * 因此方向键导航在本层处理。
      * BACK 收起键盘（FR-A1）：已上屏文本保留在宿主输入连接中，收起不丢失；
      * 显式实现（与框架默认行为一致），不依赖各 API 级别的默认口径差异。
+     * T36：入口落候选刷新计时起点（[candidateLoadStartMs]），正文抽至 [dispatchKeyDown]，
+     * finally 归位计时字段——导航等不产生候选装载的键事件不留陈旧起点。
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val ev = event ?: return super.onKeyDown(keyCode, event)
+        candidateLoadStartMs = SystemClock.uptimeMillis()
+        try {
+            return dispatchKeyDown(keyCode, ev)
+        } finally {
+            candidateLoadStartMs = -1L
+        }
+    }
+
+    /** 键事件正文（T36 抽取：计时起点与归位在 [onKeyDown]，本方法处理逻辑不变）。 */
+    private fun dispatchKeyDown(keyCode: Int, ev: KeyEvent): Boolean {
         // T6 评审遗留跟进：偶发焦点卡死诊断（T7 已定位为注入层事件丢失）。只记键码/焦点 key id
         // 结构信息，不输出用户输入内容（隐私红线）
         trace("onKeyDown keyCode=$keyCode action=${ev.action} focus=${(keyboardView?.findFocus() as? View)?.tag}")
@@ -1204,6 +1229,27 @@ class SofatypeImeService : InputMethodService() {
             )
         }
         if (toggleVisible) bindMoreToggle(bar, gap)
+        // T36 · 候选装载完成埋点（debug 专用 trace，release 静默）：只记耗时与结构计数，
+        // 不含任何输入内容（隐私红线，AGENTS 禁止事项 2）
+        traceCandidateLoadCompleted(candidates.size, toggleVisible)
+    }
+
+    /**
+     * T36 · 候选装载完成 trace（debug 专用，trace 内 BuildConfig.DEBUG 门控，release 静默）。
+     * 口径：fromKey=true 时 elapsedMs = onKeyDown 到达主线程 → 候选 chips 与「更多⌄」入口装载完成，
+     * 全程同步同栈（含引擎查询、组合串写入宿主、fitCount 计算），不含后续布局/渲染帧；
+     * elapsedMs=-1 = 非键事件触发的装载（键盘重建 / 会话启动 / 远程上屏回写等），不计时。
+     * 只记耗时与结构计数（可用宽、首行数、总数、入口可见），不含输入内容（隐私红线）。
+     */
+    private fun traceCandidateLoadCompleted(totalCount: Int, toggleVisible: Boolean) {
+        val startMs = candidateLoadStartMs
+        candidateLoadStartMs = -1L
+        val elapsedMs = if (startMs > 0) SystemClock.uptimeMillis() - startMs else -1L
+        trace(
+            "candidates loaded fromKey=${startMs > 0} elapsedMs=$elapsedMs" +
+                " availablePx=${candidatesAvailablePx()} firstRow=$firstRowCount" +
+                " total=$totalCount toggle=$toggleVisible",
+        )
     }
 
     /**
@@ -1250,11 +1296,21 @@ class SofatypeImeService : InputMethodService() {
         return measurer
     }
 
-    /** 候选行可用宽度（候选栏实宽，未挂载时按主卡 Token 推算，T10 口径）。 */
-    private fun candidatesAvailablePx(): Int =
-        candidatesBar?.takeIf { it.width > 0 }?.width
-            ?: resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
-                2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+    /**
+     * 候选行可用宽度（T37 · 刷新当轮口径）：按主卡（候选栏父容器）内容区宽计算——主卡已布局
+     * 取其当轮实宽减水平 padding；未布局（键盘重建后首次装载）按主卡 Token 推算，数值与布局后一致。
+     * 主卡宽为固定 Token、与候选行内容无关，同一轮内首行截断与展开行分页取同一来源；
+     * 不再读候选栏上一次布局遗留宽（bar.width，T12 坑 3 的状态依赖源）——
+     * 同一组合串任意轮次 fitCount 输入同源稳定，首行 chips 数不随上轮行内容漂移。
+     */
+    private fun candidatesAvailablePx(): Int {
+        val parent = candidatesBar?.parent as? ViewGroup
+        if (parent != null && parent.width > 0) {
+            return parent.width - parent.paddingStart - parent.paddingEnd
+        }
+        return resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
+            2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+    }
 
     /**
      * 「更多⌄」入口实际占位宽度（首行可用宽度收缩量）：
