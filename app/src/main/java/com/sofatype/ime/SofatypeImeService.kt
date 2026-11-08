@@ -30,9 +30,18 @@
 // 只记耗时与结构计数不含输入内容）。
 // T37 接线：候选行可用宽度口径改为刷新当轮（T12 坑 3）——candidatesAvailablePx 按主卡内容区宽
 // 计算（固定 Token 同源），不再读候选栏上一次布局遗留宽 bar.width，首行 chips 数不随上轮行内容漂移。
+// T22 接线：删除键长按连删（FR-A12「先慢后快」）——确认键按下命中删除键（主键盘 backspace /
+// 符号键盘 delete，两处同源 KeyAction.Delete）即武装连删排程：首删后 400ms 出第二删，其后间隔
+// 自 200ms 分级加速至 50ms 下限（节奏单一事实源 DeleteRepeatRhythm 纯模型，单测锁定；
+// 框架键重复事件不消费——系统重复率不可控、不满足先慢后快口径）。键抬起 / 任一新按下 /
+// 键盘隐藏 / 服务销毁解除（会话重开不解除：连删绑定仍在按下的物理键，见 onStartInputView 注释）；
+// 连删逐次复用单击删除路径 performDelete（中文组合态先删组合串、
+// 再删已上屏文本，与单击语义一致）。仅删除键获得长按重复，光标移动等其他键维持原单击语义。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -154,6 +163,20 @@ class SofatypeImeService : InputMethodService() {
      * 仅 debug 构建消费（trace 内 BuildConfig.DEBUG 门控，release 静默）。
      */
     private var candidateLoadStartMs = -1L
+
+    // ---- T22 · 删除键长按连删（FR-A12） ----
+
+    /** T22 连删节奏模型（出厂节奏 = 默认参数；节奏值由 DeleteRepeatRhythmTest 锁定）。 */
+    private val deleteRepeatRhythm = DeleteRepeatRhythm()
+
+    /** T22 连删排程 Handler（主线程；回调生命周期由 cancelDeleteRepeat 显式管理）。 */
+    private val deleteRepeatHandler = Handler(Looper.getMainLooper())
+
+    /** T22 在途连删任务；null = 无连删在途（解除/重武装置空，游离回调靠身份比对作废）。 */
+    private var deleteRepeatJob: Runnable? = null
+
+    /** T22 已发出的重复删除计数（不含单击首删；仅 trace 结构信息用，不含输入内容）。 */
+    private var deleteRepeatIndex = 0
 
     /** 大小写状态（FR-A3）；键盘视图重建时复位小写（键盘记忆属 FR-A13 P2，不做）。 */
     private var caseState = CaseState.LOWER
@@ -342,8 +365,9 @@ class SofatypeImeService : InputMethodService() {
         return root
     }
 
-    /** 服务销毁：解除配对状态回调（Manager 为进程级单例，防悬挂引用）。 */
+    /** 服务销毁：解除配对状态回调（Manager 为进程级单例，防悬挂引用）；清连删排程（T22）。 */
     override fun onDestroy() {
+        deleteRepeatHandler.removeCallbacksAndMessages(null)
         RemoteInputServerManager.onPairingStateChanged = null
         RemoteInputServerManager.onRemoteTextChanged = null
         RemoteInputServerManager.onCommitRequested = null
@@ -615,6 +639,11 @@ class SofatypeImeService : InputMethodService() {
         super.onStartInputView(info, restarting)
         composer.reset()
         candidateReturnKey = null
+        // T22：此处不解除在途连删——实测（模拟器 API 34）应用侧注入类文本变更（如硬件键直录）
+        // 会使 TextView 在下一次 IC 变更时重开输入会话（onStartInputView restarting=false），
+        // 按住删除键期间首删可能命中该一次性标记；连删绑定的是仍在按下的物理键
+        //（解除点 = 键抬起 / 任一新按下 / 键盘隐藏 / 服务销毁，见 cancelDeleteRepeat 各接线处），
+        // 会话重开不改变「键仍被按住」的事实，解除会误杀长按连删（FR-A12）。
         // T38 诊断：输入会话起点（restarting 标记只记结构信息）
         trace("onStartInputView restarting=$restarting")
         if (RemoteInputServerManager.isRunning()) {
@@ -651,6 +680,11 @@ class SofatypeImeService : InputMethodService() {
         // T6 评审遗留跟进：偶发焦点卡死诊断（T7 已定位为注入层事件丢失）。只记键码/焦点 key id
         // 结构信息，不输出用户输入内容（隐私红线）
         trace("onKeyDown keyCode=$keyCode action=${ev.action} focus=${(keyboardView?.findFocus() as? View)?.tag}")
+        // T22：任一新按下（repeatCount=0，含非确认键）即解除在途连删——键抬起事件偶发丢失
+        //（DEV-GUIDE 注入通道坑 4）时不留游离删除任务；删除键长按在本方法确认键分支随后重新武装。
+        if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
+            cancelDeleteRepeat()
+        }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // T18 · FR-B7（决策 33 划归本任务）：远程模式下系统返回键 = 退出远程模式
             //（通知手机 + 关 HTTP/WS 监听 + 清缓冲，回键盘态）；键盘态 BACK 维持 FR-A1 收起键盘
@@ -704,10 +738,24 @@ class SofatypeImeService : InputMethodService() {
                     return true
                 }
                 keyboardView?.findFocus()?.performClick()
+                // T22（FR-A12）：焦点键为删除键时武装长按连删（首删已在本次 performClick 完成）
+                armDeleteRepeatForFocusedKey()
             }
             return true
         }
         return super.onKeyDown(keyCode, ev)
+    }
+
+    /**
+     * T22：确认键抬起解除在途连删（长按松开即停，连删只覆盖按住期间）。其余键抬起维持框架默认
+     *（方向键抬起无焦点行为，onKeyDown 注释口径不变）。
+     */
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && keyCode.isConfirmKey() && deleteRepeatJob != null) {
+            trace("onKeyUp keyCode=$keyCode（连删解除）")
+            cancelDeleteRepeat()
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     /** 遥控器 OK / 回车键集合（FR-A11「OK 确认」）。 */
@@ -1057,16 +1105,9 @@ class SofatypeImeService : InputMethodService() {
                     commitText(" ")
                 }
             }
-            // FR-A9 删除：组合态内删组合串末位并刷新候选；组合态外删宿主文本（选区优先）
-            KeyAction.Delete -> {
-                if (composer.composition.isNotEmpty()) {
-                    composer.deleteLastLetter()
-                    updateComposingText()
-                    refreshCandidatesBar()
-                } else {
-                    deleteBackward()
-                }
-            }
+            // FR-A9 删除：组合态内删组合串末位并刷新候选；组合态外删宿主文本（选区优先）。
+            // T22：单击与长按连删共用本路径（performDelete），语义一致。
+            KeyAction.Delete -> performDelete()
             // FR-A9：光标在输入框内移动（插入点随移动生效，走查覆盖）
             KeyAction.CursorLeft -> moveCursor(-1)
             KeyAction.CursorRight -> moveCursor(1)
@@ -1549,6 +1590,58 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
+     * 删除一步（FR-A9 单击 / T22 长按连删共用路径）：组合态内删组合串末位并刷新候选；
+     * 组合态外删宿主文本（选区优先）。连删逐次复用本路径——组合串删空后自动接删已上屏文本，
+     * 与单击语义一致（FR-A12 中文组合态口径）。
+     */
+    private fun performDelete() {
+        if (composer.composition.isNotEmpty()) {
+            composer.deleteLastLetter()
+            updateComposingText()
+            refreshCandidatesBar()
+        } else {
+            deleteBackward()
+        }
+    }
+
+    // ---- T22 · 删除键长按连删排程（FR-A12） ----
+
+    /**
+     * 焦点键为删除键时武装长按连删（FR-A12；主键盘 backspace 与符号键盘 delete 同为
+     * KeyAction.Delete，两处均生效）：单击已在此前 performClick 完成首删，本方法只排程后续
+     * 重复删除——延迟节奏全部取自 [deleteRepeatRhythm]（先慢后快单一事实源）。系统键重复事件
+     * （ACTION_DOWN repeatCount>0，节奏由系统重复率决定）不消费、不参与本排程。
+     * 焦点键非删除键时为无操作：光标移动等其他键不获得长按重复（FR-A12 范围边界）。
+     */
+    private fun armDeleteRepeatForFocusedKey() {
+        val focusId = (keyboardView?.findFocus() as? View)?.tag as? String ?: return
+        val focusedKey = when (keyboardMode) {
+            KeyboardMode.LETTERS -> KeyboardLayout.keyById[focusId]
+            KeyboardMode.SYMBOLS -> SymbolsLayout.allKeys(symbolsWidth).firstOrNull { it.id == focusId }
+        }
+        if (focusedKey?.action != KeyAction.Delete) return
+        deleteRepeatIndex = 0
+        val job = object : Runnable {
+            override fun run() {
+                if (deleteRepeatJob !== this) return // 已解除或被新武装替换，本次回调作废
+                performDelete()
+                deleteRepeatIndex += 1
+                trace("delete repeat #$deleteRepeatIndex")
+                deleteRepeatHandler.postDelayed(this, deleteRepeatRhythm.delayBefore(deleteRepeatIndex))
+            }
+        }
+        deleteRepeatJob = job
+        deleteRepeatHandler.postDelayed(job, deleteRepeatRhythm.delayBefore(0))
+    }
+
+    /** 解除在途连删（幂等）：取消已排程回调并复位计数；无在途时为无操作。接线点见各调用处注释。 */
+    private fun cancelDeleteRepeat() {
+        deleteRepeatJob?.let { deleteRepeatHandler.removeCallbacks(it) }
+        deleteRepeatJob = null
+        deleteRepeatIndex = 0
+    }
+
+    /**
      * 光标在输入框内移动（FR-A9）。经 InputConnection 直接 setSelection，
      * 不产生按键事件（避免与焦点导航的方向键拦截相互干扰）。
      */
@@ -1643,6 +1736,7 @@ class SofatypeImeService : InputMethodService() {
     override fun onWindowHidden() {
         super.onWindowHidden()
         windowShown = false
+        cancelDeleteRepeat() // T22：键盘隐藏即解除连删（含收起路径，防游离删除）
     }
 
     // ---- 键面样式映射（全部走 Token，不在此散落值） ----
