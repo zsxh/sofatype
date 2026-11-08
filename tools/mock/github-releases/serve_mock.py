@@ -7,8 +7,8 @@ assets[].browser_download_url）+ APK 资产。JSON 内下载地址写成 __HOST
 同一份 JSON 通吃，无需改文件（决策 17：更新源可配置不硬编码）。
 
 用法：
-  python3 mock/github-releases/serve_mock.py                  # 默认 127.0.0.1:8000，模拟器经 10.0.2.2 访问
-  python3 mock/github-releases/serve_mock.py --bind 0.0.0.0   # 真机批次：电视访问 Mac 局域网 IP
+  python3 tools/mock/github-releases/serve_mock.py                  # 默认 127.0.0.1:8000，模拟器经 10.0.2.2 访问
+  python3 tools/mock/github-releases/serve_mock.py --bind 0.0.0.0   # 真机批次：电视访问 Mac 局域网 IP
   可选 --port <P>（默认 8000）。
 
 APK 响应限速 ~0.35 MB/s，供下载进度 UI 走查截图；JSON 即时返回。走完 Ctrl-C（或
@@ -41,7 +41,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0].lstrip("/")
         target = os.path.normpath(os.path.join(ROOT, path))
-        if not target.startswith(ROOT) or not os.path.isfile(target):
+        # 判定补路径分隔符：防同前缀兄弟目录（如 github-releases-evil/）借穿越路径混淆（T43，T41 评审 S2）
+        if not target.startswith(ROOT + os.sep) or not os.path.isfile(target):
             self.send_error(404, "Not Found")
             return
         if target.endswith(JSON_EXT):

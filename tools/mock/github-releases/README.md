@@ -1,4 +1,4 @@
-# mock/github-releases · 检查更新 mock 源（T41）
+# tools/mock/github-releases · 检查更新 mock 源（T41）
 
 T21 评审建议③落地（户主 2026-11-08 拍板入库）：本地 HTTP 服务器模拟 GitHub Releases
 （决策 17 mock 口径），供模拟器 / 真机批次联调「检查更新」三态，不依赖外网。
@@ -18,8 +18,8 @@ app 侧检查请求、解析、下载、安装链全是真实实现，本目录�
 里的资产名命名：
 
 ```bash
-cp app/build/outputs/apk/debug/app-debug.apk mock/github-releases/sofatype-0.2.0.apk
-cp app/build/outputs/apk/debug/app-debug.apk mock/github-releases/sofatype-0.1.0.apk
+cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.2.0.apk
+cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.1.0.apk
 ```
 
 同一 debug 包即可：三态由 JSON 的 `tag_name` 决定，不靠 APK 版本号。
@@ -28,10 +28,10 @@ cp app/build/outputs/apk/debug/app-debug.apk mock/github-releases/sofatype-0.1.0
 
 ```bash
 # 模拟器（默认监听 127.0.0.1:8000；模拟器经 10.0.2.2 访问宿主回环）
-python3 mock/github-releases/serve_mock.py
+python3 tools/mock/github-releases/serve_mock.py
 
-# 真机批次（电视访问 Mac 局域网 IP，见 local/DEV-GUIDE 1.2：192.168.1.136）
-python3 mock/github-releases/serve_mock.py --bind 0.0.0.0
+# 真机批次（电视访问 Mac 实际局域网 IP）
+python3 tools/mock/github-releases/serve_mock.py --bind 0.0.0.0
 ```
 
 停止：Ctrl-C（或 `pkill -f serve_mock.py`）。走完即停，不常驻；
