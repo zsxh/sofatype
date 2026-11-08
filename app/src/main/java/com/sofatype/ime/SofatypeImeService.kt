@@ -28,6 +28,7 @@
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
+import android.os.SystemClock
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.util.Log
@@ -53,6 +54,23 @@ class SofatypeImeService : InputMethodService() {
     private companion object {
         /** CENTER 键宿主侧 showSoftInput 与 IME 收起的时序间隔（ms，实测取值见 hideSelfAfterKeyDispatch）。 */
         const val HIDE_DELAY_MS = 120L
+
+        /**
+         * T38 · 收起后显示抑制窗长（ms，Bug A）：「完成/下屏」收起后，宿主侧同一确认键触发的
+         * showSoftInput 迟到到达会重新弹出键盘（T12 Round 1 户主复验 fail；真机实测竞争窗口
+         * 大于 HIDE_DELAY_MS=120ms，量级未定，取 800ms 覆盖余量）。窗内显示请求被拒绝
+         *（API 34 裁决回调）或落窗即复位（API 23 兜底层，见 onWindowShown）。
+         * 注意：该窗会连带抑制窗内的一切唤起（含注入），走查注入间隔需大于本值。
+         */
+        const val SHOW_GUARD_MS = 800L
+
+        /**
+         * T38 · 唤起后确认键抑制窗长（ms，Bug B）：键盘收起后 OK 唤起，同一按键的转发副本
+         * 在重弹完成后送达 IME，落在初始焦点键直出字符（T12 坑 1 / 设备档案坑 6，3 次复现）。
+         * 窗内首个确认键按转发副本吞掉、吞一次即解除（见 ImeShowGuard），窗长需覆盖
+         * 「重弹完成 → 副本送达」的管线间隔；方向键与打字键不在抑制范围。
+         */
+        const val WAKE_GUARD_MS = 500L
 
         /**
          * 键事件诊断日志 tag（T6 评审遗留跟进：跟踪偶发焦点卡死，单次未复现）。
@@ -107,6 +125,18 @@ class SofatypeImeService : InputMethodService() {
 
     /** 自建键盘视图引用（初始焦点 post 用；不依赖框架 getInputView 的可见性差异）。 */
     private var keyboardView: View? = null
+
+    /**
+     * T38 · 收起-唤起时序守卫（Bug A 收起后显示抑制 / Bug B 唤起确认键抑制；
+     * 窗口状态判定抽为纯 Kotlin 类，边界语义由 ImeShowGuardTest 锁定）。
+     */
+    private val showGuard = ImeShowGuard(SHOW_GUARD_MS, WAKE_GUARD_MS)
+
+    /**
+     * T38 · 输入窗可见性自跟踪：onWindowShown 在 API 34 会话更新时重复回调（非跳变沿），
+     * 以 onWindowShown/onWindowHidden 维护跳变沿判定，服务内守卫只在真实显示沿触发。
+     */
+    private var windowShown = false
 
     /** 大小写状态（FR-A3）；键盘视图重建时复位小写（键盘记忆属 FR-A13 P2，不做）。 */
     private var caseState = CaseState.LOWER
@@ -566,6 +596,8 @@ class SofatypeImeService : InputMethodService() {
         super.onStartInputView(info, restarting)
         composer.reset()
         candidateReturnKey = null
+        // T38 诊断：输入会话起点（restarting 标记只记结构信息）
+        trace("onStartInputView restarting=$restarting")
         if (RemoteInputServerManager.isRunning()) {
             keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
             return
@@ -625,6 +657,21 @@ class SofatypeImeService : InputMethodService() {
             // OK/回车触发焦点键（FR-A11）：框架转发路径不经过 view 树，焦点视图默认 click
             // 不可用，在此显式派发 performClick
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
+                // T38：输入窗隐藏期间确认键不落键面。模拟器 API 34 实测隐藏态键事件仍路由进
+                // IME（真机 API 23 隐藏态收不到，T12 问题 3 口径），焦点残留收起前键位——
+                // 隐形点击会在错误键位直出字符或重开收起链路。吞掉后唤起由宿主侧同键
+                // showSoftInput 正常完成（其转发副本随后到达，由唤起抑制窗吞，见下）。
+                if (!isInputViewShown()) {
+                    trace("onKeyDown keyCode=$keyCode swallowed（输入窗隐藏态）")
+                    return true
+                }
+                // T38（Bug B · T12 坑 1 / 设备档案坑 6）：键盘收起后 OK 唤起时，同一按键的转发
+                // 副本在重弹完成后送达 IME，落在初始焦点键直出字符。唤起抑制窗内首个确认键按
+                // 副本吞掉，吞一次即解除——其后确认键（快速连按 / 候选选词）照常触发。
+                if (showGuard.shouldSwallowConfirmKey(SystemClock.uptimeMillis())) {
+                    trace("onKeyDown keyCode=$keyCode swallowed（唤起转发副本抑制）")
+                    return true
+                }
                 keyboardView?.findFocus()?.performClick()
             }
             return true
@@ -1489,9 +1536,51 @@ class SofatypeImeService : InputMethodService() {
      * 收起键盘（FR-A1 / FR-A10）。CENTER 键的转发广播会让宿主 EditText 同拍触发
      * showSoftInput（模拟器 API 34 实测覆盖同步收起），延迟一拍保证收起在其后生效；
      * 系统返回键路径不经此逻辑（policy 层直接收起，无竞态）。
+     * T38（Bug A）：延迟一拍只赢过模拟器时序，T12 真机实测竞争窗口 >120ms——收起同时开启
+     * [SHOW_GUARD_MS] 显示抑制窗（窗内宿主迟到的显示请求被拒绝 / 落窗即复位，
+     * 见 onShowInputRequested / onWindowShown）。BACK 路径不开抑制窗：
+     * 真机 BACK 收起已验证无此竞争，且 BACK 后快速 OK 唤起是正常使用流。
      */
     private fun hideSelfAfterKeyDispatch() {
+        showGuard.onHideRequested(SystemClock.uptimeMillis())
         keyboardView?.postDelayed({ requestHideSelf(0) }, HIDE_DELAY_MS)
+    }
+
+    /**
+     * T38（Bug A 第一层 · API 34）：宿主 showSoftInput 请求的裁决回调。收起抑制窗内
+     * 直接拒绝（不落窗，无闪现）。双参签名是 compileSdk 34 口径；API 23 真机无此覆写点，
+     * 由 onWindowShown 兜底层覆盖。
+     */
+    override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
+        if (showGuard.shouldVetoShowRequest(SystemClock.uptimeMillis())) {
+            trace("show request vetoed flags=$flags（收起后显示抑制窗内）")
+            return false
+        }
+        return super.onShowInputRequested(flags, configChange)
+    }
+
+    /**
+     * T38（Bug A 第二层 · 全 API 兜底 / Bug B 唤起抑制窗开启点）。
+     * API 34 实测：会话更新（如键面提交后的 show 流程重跑）会重复回调本方法，
+     * 并非只在「隐藏 → 显示」跳变沿——服务层自跟踪可见性（[windowShown]，onWindowHidden 复位），
+     * 只在真实跳变沿触发守卫：开唤起确认键抑制窗 / 迟到显示兜底复位。
+     */
+    override fun onWindowShown() {
+        super.onWindowShown()
+        val now = SystemClock.uptimeMillis()
+        val firstShow = !windowShown
+        windowShown = true
+        if (!firstShow) return
+        val rehide = showGuard.shouldRehideOnShown(now)
+        if (rehide) trace("onWindowShown within hide guard -> re-hide（收起后迟到显示兜底）")
+        else trace("onWindowShown（arm wake guard）")
+        showGuard.onWindowShown(now)
+        if (rehide) requestHideSelf(0)
+    }
+
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        windowShown = false
     }
 
     // ---- 键面样式映射（全部走 Token，不在此散落值） ----
