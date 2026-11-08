@@ -149,4 +149,38 @@
     <dimen name="ime_remote_exit_height">26dp</dimen>
     <dimen name="ime_remote_exit_text">11sp</dimen>
     <dimen name="ime_remote_hint_text">9sp</dimen>
+
+    <!-- ═══ 设置页补全（T20 · FR-D2/D3/D5，画板「设置页 · 方案 A 品牌暗夜」仅视觉参考，
+         规格以 PRD 第 6 章为准；1080p px ÷ 2 = dp/sp） ═══
+         品牌区：logo 行顶 300px、logo 88×88（圆角 24px）、「S」44px、字标 72px（间距 26px）、
+         副标题顶 424px（距 logo 行 36px）、字 18px；
+         版本卡：顶 488px、620×240、内边距 12px/36px、行 1 高 96px（标签 19px / 版本 20px）、
+         分隔线 1px、行 2 高 118px（状态点 8px = PRD 6.3 状态点直径、间隙 8px、文字 16px；
+         按钮走 PRD 6.3「检查更新按钮」既有 btn_* Token）；
+         底部提示：顶 812px、字 15px。 -->
+    <dimen name="brand_block_margin_top">150dp</dimen>
+    <dimen name="brand_logo_size">44dp</dimen>
+    <dimen name="brand_logo_corner">12dp</dimen>
+    <dimen name="brand_logo_text">22sp</dimen>
+    <dimen name="brand_wordmark_text">36sp</dimen>
+    <dimen name="brand_gap">13dp</dimen>
+    <dimen name="brand_subtitle_margin_top">18dp</dimen>
+    <dimen name="brand_subtitle_text">9sp</dimen>
+    <dimen name="version_card_margin_top">244dp</dimen>
+    <dimen name="version_card_width">310dp</dimen>
+    <dimen name="version_card_height">120dp</dimen>
+    <dimen name="version_card_padding_h">18dp</dimen>
+    <dimen name="version_card_padding_v">6dp</dimen>
+    <dimen name="version_row_height">48dp</dimen>
+    <dimen name="version_label_text">9.5sp</dimen>
+    <dimen name="version_value_text">10sp</dimen>
+    <dimen name="version_divider_h">0.5dp</dimen>
+    <dimen name="version_action_row_height">59dp</dimen>
+    <dimen name="set_status_dot_size">4dp</dimen>
+    <dimen name="set_status_gap">4dp</dimen>
+    <dimen name="set_status_text">8sp</dimen>
+    <dimen name="bottom_hint_margin_top">406dp</dimen>
+    <dimen name="bottom_hint_text">7.5sp</dimen>
+    <!-- debug 测试输入区锚点（T20 起）：移至面包屑下方避让品牌区与版本卡；debug 专用定位，非设计稿尺寸 -->
+    <dimen name="test_area_top_margin">48dp</dimen>
 </resources>

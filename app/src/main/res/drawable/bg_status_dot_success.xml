@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态点 · success（T20 · FR-D3 静态结构；PRD 6.1/6.3 状态点：成功态绿点 = success，直径 8px） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/success" />
+    <size android:width="@dimen/set_status_dot_size" android:height="@dimen/set_status_dot_size" />
+</shape>

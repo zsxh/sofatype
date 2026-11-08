@@ -4,6 +4,15 @@
     <string name="settings_label">sofatype 输入法设置</string>
     <string name="breadcrumb_app">sofatype 输入法</string>
     <string name="breadcrumb_settings">设置</string>
+    <!-- 设置页补全（T20：FR-D2 品牌区 / FR-D3 版本卡静态结构 / FR-D5 底部提示） -->
+    <string name="brand_logo_glyph">S</string>
+    <string name="brand_wordmark">sofatype</string>
+    <string name="brand_subtitle">输入法 · 设置</string>
+    <string name="version_label">当前版本</string>
+    <string name="btn_check_update">检查更新</string>
+    <string name="cd_btn_check_update">检查更新</string>
+    <string name="status_up_to_date">已是最新版本</string>
+    <string name="bottom_hint">按遥控器 OK 键检查更新</string>
     <!-- 测试输入区（仅 debug 构建显示，PRD 决策 21） -->
     <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
     <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>

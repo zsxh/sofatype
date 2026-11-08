@@ -1,115 +1,257 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  T2 · 设置页壳子：面包屑 + debug 测试输入区（PRD 决策 21 / FR-D1 最小集）。
-  范围边界：品牌区、版本信息卡、底部操作提示属 T20，此处不实现。
-  测试输入区 release 构建隐藏（visibility 由 SettingsActivity 按 BuildConfig.DEBUG 置定）。
+  T20 · 设置页补全：面包屑 + 品牌区 + 版本信息卡 + 底部操作提示（FR-D1~D3、D5，决策 19/21）。
+  版本值由 SettingsActivity 读真实 PackageInfo 写入（FR-D3）；「检查更新」按钮与检查结果状态位
+  仅静态结构，三态逻辑属 T21（FR-D4）。测试输入区仅 debug 构建显示（决策 21，visibility 由
+  SettingsActivity 按 BuildConfig.DEBUG 置定），锚点移至面包屑下方避让品牌区与版本卡。
+  纵向坐标按画板设置页 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位；色值/规格走 Token。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
 
+    <!-- 面包屑「sofatype 输入法 ｜ 设置」（FR-D1，T2 既有） -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:paddingStart="@dimen/page_padding_start"
         android:paddingTop="@dimen/page_padding_top">
 
-        <!-- 面包屑「sofatype 输入法 ｜ 设置」（FR-D1） -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_app"
+            android:textColor="@color/text_muted"
+            android:textSize="@dimen/breadcrumb_text_size" />
+
+        <View
+            android:layout_width="@dimen/breadcrumb_divider_w"
+            android:layout_height="@dimen/breadcrumb_divider_h"
+            android:layout_marginStart="@dimen/breadcrumb_gap"
+            android:layout_marginEnd="@dimen/breadcrumb_gap"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_settings"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/breadcrumb_text_size" />
+    </LinearLayout>
+
+    <!-- debug 测试输入区（决策 21：仅 debug 构建；T20 起锚点移至面包屑下方避让品牌区与版本卡） -->
+    <LinearLayout
+        android:id="@+id/test_input_area"
+        android:layout_width="@dimen/test_area_width"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/test_area_top_margin"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/test_input"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/test_input_height"
+            android:background="@drawable/bg_test_input"
+            android:contentDescription="@string/cd_test_input"
+            android:hint="@string/test_input_hint"
+            android:importantForAccessibility="yes"
+            android:paddingStart="@dimen/test_input_padding"
+            android:paddingEnd="@dimen/test_input_padding"
+            android:singleLine="true"
+            android:textColor="@color/text_body"
+            android:textColorHint="@color/text_muted"
+            android:textCursorDrawable="@null"
+            android:textSize="@dimen/test_input_text" />
+
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/btn_gap"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_fill_sample"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_fill_sample"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_fill_sample"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_select_all"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:layout_marginStart="@dimen/btn_gap"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_select_all"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_select_all"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 品牌区（FR-D2）：Logo 88×88 圆角方块（accent 底 + on_accent「S」）+ 字标，下方副标题 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/brand_block_margin_top"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/brand_logo_size"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/brand_logo"
+                android:layout_width="@dimen/brand_logo_size"
+                android:layout_height="@dimen/brand_logo_size"
+                android:background="@drawable/bg_brand_logo"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:text="@string/brand_logo_glyph"
+                android:textColor="@color/on_accent"
+                android:textSize="@dimen/brand_logo_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/brand_wordmark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/brand_gap"
+                android:letterSpacing="0.014"
+                android:text="@string/brand_wordmark"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/brand_wordmark_text"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/brand_subtitle_margin_top"
+            android:text="@string/brand_subtitle"
+            android:textColor="@color/text_faint"
+            android:textSize="@dimen/brand_subtitle_text" />
+    </LinearLayout>
+
+    <!-- 版本信息卡（FR-D3 / 决策 19）：版本行 + 分隔线 + 检查更新按钮与检查结果状态位（静态结构，T21 接三态逻辑） -->
+    <LinearLayout
+        android:id="@+id/version_card"
+        android:layout_width="@dimen/version_card_width"
+        android:layout_height="@dimen/version_card_height"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/version_card_margin_top"
+        android:background="@drawable/bg_card"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/version_card_padding_h"
+        android:paddingTop="@dimen/version_card_padding_v"
+        android:paddingEnd="@dimen/version_card_padding_h"
+        android:paddingBottom="@dimen/version_card_padding_v">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_row_height"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/breadcrumb_app"
-                android:textColor="@color/text_muted"
-                android:textSize="@dimen/breadcrumb_text_size" />
+                android:text="@string/version_label"
+                android:textColor="@color/text_card_label"
+                android:textSize="@dimen/version_label_text" />
 
-            <View
-                android:layout_width="@dimen/breadcrumb_divider_w"
-                android:layout_height="@dimen/breadcrumb_divider_h"
-                android:layout_marginStart="@dimen/breadcrumb_gap"
-                android:layout_marginEnd="@dimen/breadcrumb_gap"
-                android:background="@color/divider" />
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <TextView
+                android:id="@+id/version_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/breadcrumb_settings"
                 android:textColor="@color/text_primary"
-                android:textSize="@dimen/breadcrumb_text_size" />
+                android:textSize="@dimen/version_value_text"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- 中央区：release 仅有面包屑与背景；测试输入区随 T20 的品牌区/版本卡一同归位 -->
-        <FrameLayout
+        <View
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_height="@dimen/version_divider_h"
+            android:background="@color/divider_soft" />
 
-            <!-- debug 测试输入区（决策 21：仅 debug 构建；release 与设计稿一致） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_action_row_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_check_update"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_check_update"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_check_update"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
             <LinearLayout
-                android:id="@+id/test_input_area"
-                android:layout_width="@dimen/test_area_width"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:orientation="vertical"
-                android:visibility="gone">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <EditText
-                    android:id="@+id/test_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/test_input_height"
-                    android:background="@drawable/bg_test_input"
-                    android:contentDescription="@string/cd_test_input"
-                    android:hint="@string/test_input_hint"
-                    android:importantForAccessibility="yes"
-                    android:paddingStart="@dimen/test_input_padding"
-                    android:paddingEnd="@dimen/test_input_padding"
-                    android:singleLine="true"
-                    android:textColor="@color/text_body"
-                    android:textColorHint="@color/text_muted"
-                    android:textCursorDrawable="@null"
-                    android:textSize="@dimen/test_input_text" />
+                <View
+                    android:layout_width="@dimen/set_status_dot_size"
+                    android:layout_height="@dimen/set_status_dot_size"
+                    android:background="@drawable/bg_status_dot_success" />
 
-                <LinearLayout
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/btn_gap"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/btn_fill_sample"
-                        android:layout_width="@dimen/btn_width"
-                        android:layout_height="@dimen/btn_height"
-                        android:background="@drawable/bg_btn_accent"
-                        android:contentDescription="@string/cd_btn_fill_sample"
-                        android:minWidth="0dp"
-                        android:minHeight="0dp"
-                        android:text="@string/btn_fill_sample"
-                        android:textColor="@color/accent_text"
-                        android:textSize="@dimen/btn_text"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/btn_select_all"
-                        android:layout_width="@dimen/btn_width"
-                        android:layout_height="@dimen/btn_height"
-                        android:layout_marginStart="@dimen/btn_gap"
-                        android:background="@drawable/bg_btn_accent"
-                        android:contentDescription="@string/cd_btn_select_all"
-                        android:minWidth="0dp"
-                        android:minHeight="0dp"
-                        android:text="@string/btn_select_all"
-                        android:textColor="@color/accent_text"
-                        android:textSize="@dimen/btn_text"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                    android:layout_marginStart="@dimen/set_status_gap"
+                    android:text="@string/status_up_to_date"
+                    android:textColor="@color/text_dim"
+                    android:textSize="@dimen/set_status_text" />
             </LinearLayout>
-        </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
+
+    <!-- 底部操作提示（FR-D5 P0：静态文案；焦点动态切换属 P1，不在本轮） -->
+    <TextView
+        android:id="@+id/bottom_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/bottom_hint_margin_top"
+        android:text="@string/bottom_hint"
+        android:textColor="@color/text_hint_faint"
+        android:textSize="@dimen/bottom_hint_text" />
+
 </FrameLayout>

@@ -39,6 +39,10 @@
     <color name="text_step">#BFE8EEF5</color>
     <!-- 提示文案（T17 · 画板① 按钮下提示 / 画板⑤ 来自·设备名与底部提示：text_body 45% 透明度） -->
     <color name="text_hint">#73E8EEF5</color>
+    <!-- 版本卡「当前版本」标签（T20 · 画板设置页 rgba(232,239,246,.6)：text_body 60% 透明度） -->
+    <color name="text_card_label">#99E8EEF5</color>
+    <!-- 底部操作提示（T20 · 画板设置页 rgba(232,239,246,.35)：text_body 35% 透明度） -->
+    <color name="text_hint_faint">#59E8EEF5</color>
     <!-- 状态点未连接色（T17 · PRD 6.3「未连接 rgba(232,239,246,.35)」：text_body 35% 透明度） -->
     <color name="dot_idle">#59E8EEF5</color>
     <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
