@@ -24,8 +24,8 @@
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研；一切工具由 `flake.nix` 声明，新工具先进 flake 再用。`flake.lock` 锁 `github:NixOS/nixpkgs/nixpkgs-unstable`（unstable 快照分支，单 channel 口径；update 时碰 GitHub API，限流期更新失败属预期）、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试通道：`obscura serve`，见 T34）；支持 aarch64-darwin / aarch64-linux / x86_64-linux，镜像 ABI 跟随宿主（TV arm64 镜像 API 31 起才有）；不装 NDK/CMake（flake 相关坑见坑清单构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，非里程碑评审通过即自动归档（TASKS 6.2-7/9）；交接以消息经 lead 中转，仓库不落交接文件（6.2-10）。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T5、T28；已实现（真机验证随 T12）T6~T11、T29~T32；（真机验证随 T19）T13~T18、T33、T35；T34（工具链，无真机维度）。
-- 待办焦点：**T12** M1 真机验收、**T19** M2 真机验收（里程碑，须户主配合；M2 实现已随 T18 收口，T19 含 T18 真机项：真实 Wi-Fi 扫码刷新重连、微信内核、ConnectivityManager 真实回调与换网段重建）。遗留观察：行 4 键帽顶缘 +2px（坑清单词库与数据 2）；H5 矮视口垂直溢出、微信真实内核实测（随 T19）。
+- 任务进度（逐任务明细以 TASKS 为准）：真机已验证 T1~T12、T28、T29~T32、T38（T6~T11/T29~T32 于 2026-11-08 随 T12 真机验收回溯标注，决策 26）；真机验证随 T19：T13~T18、T33、T35；T34（工具链，无真机维度）；未开工 T20~T27、T36、T37、T39、T40。
+- 待办焦点：**T19** M2 真机验收（里程碑，须户主配合；M2 实现已随 T18 收口，T19 含 T18 真机项：真实 Wi-Fi 扫码刷新重连、微信内核、ConnectivityManager 真实回调与换网段重建）。挂账未开工：T20~T27（M3）、T36（候选刷新补埋点复测）、T37（候选首行漂移修复）、T39（同进程架构评估，含空闲期默认输入法回退机制）、T40（键盘初始焦点改字母 a）。遗留观察：行 4 键帽顶缘 +2px（坑清单词库与数据 2）；H5 矮视口垂直溢出、微信真实内核实测（随 T19）。
 
 ## 关键决策速查（全文以 PRD 第 12 章为准）
 
@@ -71,7 +71,7 @@
 2. `uiautomator dump` 不含 IME 窗口，键位坐标截图目测；dump XML 属性顺序 text 在 resource-id/class 之前（T3）。
 3. 键帽 `focusableInTouchMode` 首击聚焦不点击：用 `input keyevent` 或双击 tap（T7/T8）。
 4. 注入通道偶发丢事件：`ImeKeyTrace` 无记录 = 注入层丢失，重启模拟器实例恢复（T6/T7/T8）。
-5. CENTER 键收起延迟 120ms 防宿主 showSoftInput 覆盖（时序常量真机待复核）；BACK 在宿主文本选择手柄激活时首下被宿主消费（T6/T7）。
+5. 收起-唤起时序竞争已由 T38 双抑制窗加固：收起后显示抑制窗 veto 迟到 show 请求、唤起首确认键吞一次即解除（真机 veto/吞键 trace 实证；原「120ms 延迟防覆盖」口径作废，真机竞争窗口实测 >120ms）；BACK 在宿主文本选择手柄激活时首下被宿主消费（T6/T7）。
 6. 勿 `force-stop` IME 包（会把默认输入法打回 Gboard）：恢复 `ime set` + BACK + 重 tap 输入框（T29）。
 7. 新增键盘布局必须同 `columnRhythmMatchesArtboard` 口径加列节奏 x 原点断言：格网列号断言拦不住视觉错位（T28/T29）。
 8. 未挂载的测量先设 `LayoutParams` 再 `setText`，否则 NPE（系统自动重启 IME 恢复，不阻塞宿主）（T10）。
