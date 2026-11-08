@@ -528,4 +528,64 @@ class PairingSessionTest {
         val token = store.peek()
         assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
     }
+
+    // ---- T24 · FR-C9 未连接引导页触发契约（token 失效/超时 → H5 引导页数据源） ----
+    // H5 未连接引导页（FR-C9）唯一触发源：hello 被拒 → state { connected:false } + 4001 关闭。
+    // 本节锁定 H5 消费的 rejected 载荷契约。「超时/失效」在本工程 token 模型下的服务端路径：
+    // token 无独立 TTL（决策 35 滚动签发、逐 token 一次性，服务停止即清空），服务会话结束后
+    // 遗留的旧 token 与「已消费 / 错误」token 同走校验失败 → rejected 路径。
+
+    @Test
+    fun directUrlAccessWithoutTokenReturnsGuidePageTriggerState() {
+        // 验收口径「直接访问 URL（不带有效 token）」：state connected:false 是 H5 引导页触发源；
+        // 被拒连接不携带配对地址 url（FR-B10 防套取，T18 既有口径）；charLimit/tvName 字段不缺
+        val store = PairingTokenStore()
+        store.issue()
+        val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
+        val reply = session.onTextMessage(helloJson(""))
+        assertTrue(reply is WsReply.TextThenClose)
+        reply as WsReply.TextThenClose
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, reply.closeCode)
+        val fields = MinimalJson.parseTopLevelObject(reply.text)
+        assertEquals("state", fields["type"])
+        assertEquals("false", fields["connected"])
+        assertFalse(reply.text.contains(""""url""""))
+        assertTrue(fields.containsKey("charLimit"))
+        assertTrue(fields.containsKey("tvName"))
+    }
+
+    @Test
+    fun tokenLeftOverFromEndedSessionIsRejectedLikeExpired() {
+        // 「超时/失效」语义：token 与服务会话同生命周期，会话结束（clear）后旧 token 校验失败；
+        // 不误伤当前会话新 token（同 wrongTokenIsRejectedWithoutConsumingValidToken 口径）
+        val store = PairingTokenStore()
+        val staleToken = store.issue()
+        store.clear() // 服务会话结束（stopNow 同款清理路径）
+        val fresh = store.issue()
+        val session = newSession(store)
+        val reply = session.onTextMessage(helloJson(staleToken))
+        assertTrue(reply is WsReply.TextThenClose)
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, (reply as WsReply.TextThenClose).closeCode)
+        assertTrue((reply as WsReply.TextThenClose).text.contains(""""connected":false"""))
+        assertEquals(fresh, store.peek())
+        assertTrue("当前会话新 token 不受旧 token 失败影响", session.onTextMessage(helloJson(fresh)) is WsReply.Text)
+    }
+
+    @Test
+    fun consumedTokenIsRejectedWhileRolledTokenStillPairs() {
+        // 已消费 token（配对成功后的重放 / 滚动替换后的旧码）→ rejected（FR-B10 逐 token 一次性）；
+        // 决策 35 滚动新签发 token 不受影响，新连接持新码仍可配对（引导页只拦旧码，不拦正常扫码）
+        val store = PairingTokenStore()
+        val first = store.issue()
+        val session = newSession(store)
+        assertTrue(session.onTextMessage(helloJson(first)) is WsReply.Text) // 配对成功，token 已消费
+        assertFalse(store.isActive)
+        val rolled = store.issue() // 决策 35：配对成功即滚动签发新 token
+        val replay = session.onTextMessage(helloJson(first))
+        assertTrue(replay is WsReply.TextThenClose)
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, (replay as WsReply.TextThenClose).closeCode)
+        assertTrue((replay as WsReply.TextThenClose).text.contains(""""connected":false"""))
+        val nextSession = newSession(store)
+        assertTrue("滚动新码可正常配对", nextSession.onTextMessage(helloJson(rolled)) is WsReply.Text)
+    }
 }

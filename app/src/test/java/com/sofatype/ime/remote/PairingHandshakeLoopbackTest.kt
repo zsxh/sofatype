@@ -168,6 +168,24 @@ class PairingHandshakeLoopbackTest {
         client.closeSocket()
     }
 
+    // ---- T24 · FR-C9 未连接引导页触发链路（直接访问 URL 无有效 token） ----
+
+    @Test
+    fun directUrlAccessWithoutTokenGetsRejectedStateThenClose4001() {
+        // FR-C9 验收路径的服务端全链路：页面可正常下发（GET / 无 token 校验），WS hello
+        // 携空 token → state connected:false（H5 引导页触发源）→ 4001 关闭
+        val store = PairingTokenStore()
+        store.issue()
+        val (_, port) = newServer(store)
+        val client = openWs(port)
+        client.sendText("""{"type":"hello","token":"","deviceName":"browser"}""")
+        val state = client.readText()
+        assertTrue(state, state.contains(""""type":"state""""))
+        assertTrue(state, state.contains(""""connected":false"""))
+        assertEquals(PairingSession.CLOSE_POLICY_REJECTED, client.closeCode())
+        client.closeSocket()
+    }
+
     private inline fun WsClient.useClient(block: (WsClient) -> Unit) {
         try {
             block(this)

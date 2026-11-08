@@ -6,6 +6,10 @@
      T16 · 上屏闭环（FR-C6 · 决策 10）：内容非空「上屏」可点，空内容置灰不可点；点击发 commit { text }，
      收到 TV 回执 committed { ok:true } 后草稿清空并轻提示「已上屏」；ok:false 提示失败可重试。
      T35 · 被顶替（FR-B11 / 决策 35）：收 replaced 后状态行「连接已被替换」，关闭后不被覆盖。
+     T24 · 未连接引导页（FR-C9）：hello 被拒（state connected:false + 4001，token 缺失 / 无效 /
+     已使用 / 会话超期遗留）→ 整页未连接引导呈现，提示重新扫码；输入面禁用（引导页为唯一内容面）。
+     FR-C8 断连 / 重连 / 被顶替 / 电视退出路径（T18/T35 既有口径）不改动；token 无独立 TTL
+     （决策 35 滚动签发、逐 token 一次性，服务停止即清空），「超时」即校验失败走同一被拒路径。
      T18 · 断连与退出清理（FR-B7/B8/C8 · PRD 5.3 · lead 拍板 2026-11-07）：
      ① state { url } 为配对成功后滚动新码地址（lead 拍板 A）：收到即 history.replaceState 更新
        地址栏（不落 localStorage / sessionStorage 等任何存储，隐私红线从严），刷新页面即持有效
@@ -33,6 +37,7 @@
     :root {
       --bg: #06080C;
       --card: #12161E;
+      --card-border: rgba(255, 255, 255, .08);
       --key: #1D242F;
       --key-hover: #242C39;
       --accent: #38BDF8;
@@ -282,6 +287,80 @@
       font-size: 12px;
       color: var(--text-muted-35);
     }
+
+    /* T24 · FR-C9 未连接引导页：配对被拒后整页呈现（覆盖编辑界面），提示重新扫码。
+       色值全取 PRD 6.1 Token：页面底 --bg、卡片 --card + 描边 rgba(255,255,255,.08)（6.1 卡片规格）、
+       未连接灰点 --dot-idle（6.4 状态色）；非交互页面（无按钮，无新增交互元素）。 */
+    .guide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 390px;
+      height: 844px;
+      background: var(--bg);
+      z-index: 10;
+      display: none;
+    }
+    .guide.show { display: block; }
+    .guide-status {
+      position: absolute;
+      top: 164px;
+      left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 342px;
+    }
+    .guide-status-text {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .guide-title {
+      position: absolute;
+      top: 196px;
+      left: 24px;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+    }
+    .guide-card {
+      position: absolute;
+      top: 264px;
+      left: 24px;
+      width: 342px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px 20px;
+    }
+    .guide-headline {
+      margin: 0 0 10px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .guide-body {
+      margin: 0 0 18px;
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--text-muted-55);
+    }
+    .guide-step {
+      margin: 0;
+      font-size: 15px;
+      line-height: 30px;
+      color: var(--text-secondary);
+    }
+    .guide-footer {
+      position: absolute;
+      top: 724px;
+      left: 0;
+      width: 390px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted-35);
+    }
   </style>
 </head>
 <body>
@@ -320,6 +399,23 @@
     <button class="primary-btn" id="btn-commit" aria-label="上屏" disabled>上 屏</button>
 
     <div class="footer">同一 Wi-Fi 下与电视保持连接</div>
+
+    <!-- T24 · FR-C9 未连接引导页：token 失效/超时（配对被拒）整页呈现，提示重新扫码。
+         非交互页面（无按钮）；灰点 = 6.4 未连接态；aria-live 播报引导文案 -->
+    <div class="guide" id="guide-page">
+      <div class="guide-status">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="guide-status-text" id="guide-status-text" aria-live="polite">未连接</span>
+      </div>
+      <div class="guide-title">远程输入</div>
+      <div class="guide-card">
+        <p class="guide-headline">配对已失效或超时</p>
+        <p class="guide-body">当前地址没有携带有效的扫码配对：配对码已使用、已被新码替换或已超时失效。</p>
+        <p class="guide-step">① 在电视上进入「远程输入」，出示最新二维码</p>
+        <p class="guide-step">② 用手机重新扫码，打开新的远程输入页</p>
+      </div>
+      <div class="guide-footer">同一 Wi-Fi 下与电视保持连接</div>
+    </div>
   </div>
 
   <script>
@@ -350,6 +446,8 @@
     var statusEl = byId('status-text');
     var extraEl = byId('status-extra');
     var cardEl = byId('editor-card');
+    var guideEl = byId('guide-page'); // T24 · FR-C9 未连接引导页
+    var guideStatusEl = byId('guide-status-text');
 
     /* 按 Unicode 码点拆分（emoji 等增补字符不拆散；Array.from 缺失时退回正则） */
     function toChars(s) {
@@ -463,12 +561,20 @@
       hintEl.classList.remove('show'); // 清除常驻重连引导（R2）
     }
     function setRejected() {
-      /* T14/T15 口径：配对被拒引导重新扫码；R2 修复——rejected 标记使该文案在 onclose 后保持 */
+      /* T14/T15 口径：配对被拒引导重新扫码；R2 修复——rejected 标记使该文案在 onclose 后保持。
+         T24 · FR-C9：整页未连接引导呈现（提示重新扫码），输入面禁用（token 已不可用，本页
+         无恢复路径，须重新扫码打开新页）；文本更新经 aria-live 播报 */
       rejected = true;
       dotEl.classList.remove('connected');
       statusEl.textContent = '配对失败：token 无效或已使用，请重新扫码';
       extraEl.style.display = 'none';
       reconnectBtn.classList.remove('show');
+      guideEl.classList.add('show');
+      guideStatusEl.textContent = '未连接 · 请重新扫码';
+      inputEl.disabled = true;
+      deleteBtn.disabled = true;
+      clearBtn.disabled = true;
+      commitBtn.disabled = true;
     }
     /* T35 · FR-B11 / 决策 35：连接被新设备顶替——旧手机端提示并进入未连接态（重连随 T18） */
     function setReplaced() {
