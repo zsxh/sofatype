@@ -33,6 +33,14 @@
 //  服务运行期注册 ConnectivityManager 回调——默认网络丢失后恢复，或默认网络 IPv4 与绑定地址
 //  不一致（不同网段）时，自动 stop（尽力通知）+ start 重建服务并刷新二维码；仅 debug 构建
 //  路径内注册（start 即 debug 门控），重建走与手动退出同一通知链路。
+// T25 增量（第 8 章电量与资源 P1）：远程模式空闲自动退出——空闲口径按 PRD 括注 = 无手机连接。
+//  服务启动成功（进入远程模式）与已配对连接断开（回到等待扫码）时起算空闲窗口；手机已连接
+//  期间与停服后解除跟踪。窗口满阈值（判定单一事实源 RemoteIdlePolicy，正式 30 分钟）经
+//  onIdleDeadlineReached 复核运行态后走 [stop] 既有完整清理链路（通知手机 / 关监听 /
+//  清 token / 缓冲 / 设备名），并经 onRemoteIdleExpired 主线程通知 IME 收起键盘。
+//  排程在主线程（mainHandler.postDelayed），任何线程的进入/解除统一 post 到主线程串行化；
+//  到期回调以任务身份比对作废陈旧排程（同 T22 连删 job 模式），并以运行态 + 已配对会话
+//  复核竞态（连接与到期同刻竞争时不误退）。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -180,6 +188,14 @@ object RemoteInputServerManager {
     @Volatile
     var onCommitRequested: ((String) -> Boolean)? = null
 
+    /**
+     * 空闲自动退出回调（T25 · 第 8 章电量资源）：空闲到期自动停服（既有完整清理链路）后
+     * 经主线程通知 IME 收起键盘（远程模式框架已随停服回键盘态，此处收起整个键盘窗口）。
+     * 由 [SofatypeImeService] 注册，生命周期同其他回调（onCreateInputView 注册 / onDestroy 解除）。
+     */
+    @Volatile
+    var onRemoteIdleExpired: (() -> Unit)? = null
+
     /** 当前服务是否在监听。 */
     fun isRunning(): Boolean = server?.isRunning == true
 
@@ -284,6 +300,8 @@ object RemoteInputServerManager {
                     pairingUrlText = "http://${address.hostAddress}:${result.port}/?token=${tokens.peek()}"
                     watcherContext = context.applicationContext
                     registerNetworkWatcher(context.applicationContext) // T18：网络变化自动重建（运行期生效）
+                    // T25：进入远程模式即处于「无手机连接」态，空闲窗口自此起算
+                    armIdleExit(System.currentTimeMillis())
                     // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
                     Log.i(TAG, "远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
                     // T18：start 可经网络重建在 teardown 线程进入，UI 回调统一主线程派发
@@ -348,6 +366,7 @@ object RemoteInputServerManager {
             pairedSessions.clear() // T35：已配对会话登记随服务会话结束（各连接由 stop 关闭后迟到的清除回调幂等）
             sessionControls.clear()
             pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
+            cancelIdleExit() // T25：远程模式结束，撤销空闲退出排程（手动退出 / 上屏停服 / 空闲到期自退共用）
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
             // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态。
@@ -390,6 +409,7 @@ object RemoteInputServerManager {
                 Log.i(TAG, "配对 token 已滚动签发，二维码内容更新")
             }
             pairedDeviceName = deviceName
+            cancelIdleExit() // T25：手机已连接即退出空闲（空闲口径 = 无手机连接，连接期间不判空闲）
         }
         mainHandler.post { onPairingStateChanged?.invoke() }
     }
@@ -422,6 +442,8 @@ object RemoteInputServerManager {
             pairedDeviceName = null
             remoteBuffer.clear() // 输入会话结束即清缓冲（第 8 章隐私；刷新重连后由手机端 input 重建显示）
             Log.i(TAG, "已配对连接断开，回等待扫码态（配对码仍有效）")
+            // T25：回到「无手机连接」态，空闲窗口自断开时刻重新起算
+            armIdleExit(System.currentTimeMillis())
             mainHandler.post {
                 // R2（评审建议 3 采纳）：延迟任务带时效快照——停服 / 新提示已覆盖该截止值时，
                 // 到期任务不再重复清零与重渲染（快速断连-重连-再断连窗口不误清新提示）
@@ -490,6 +512,66 @@ object RemoteInputServerManager {
             Log.w(TAG, "H5 页读取失败（${e.javaClass.simpleName}），回退占位页")
             PlaceholderPage.HTML.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         }
+    }
+
+    // ---- T25 · 远程空闲自动退出（第 8 章电量与资源 P1） ----
+
+    /**
+     * 空闲判定模型（单一事实源）：空闲口径按 PRD 括注 = 无手机连接；正式阈值 30 分钟
+     * （RemoteIdlePolicy.DEFAULT_IDLE_TIMEOUT_MS，验证允许临时缩短、验后恢复）。
+     * 状态变更仅发生在主线程（见 armIdleExit / cancelIdleExit 的 post 收口），无锁。
+     */
+    private val idlePolicy = RemoteIdlePolicy()
+
+    /**
+     * 在途空闲退出任务（仅主线程读写；null = 无排程）。到期回调经身份比对作废
+     * （同 T22 连删 job 模式）：新窗口排程 / 解除都会替换或清空本引用。
+     */
+    private var idleJob: Runnable? = null
+
+    /**
+     * 进入无手机连接态（T25）：服务启动成功（进入远程模式）或已配对连接断开（回等待扫码）时
+     * 调用，空闲自 [idleSinceMs]（调用方时刻，事件时刻而非 post 执行时刻）起算，并排程到期检查。
+     * 任意线程可调用，统一 post 到主线程；服务已停的迟到调用不排程（stopNow 与本排程并发防御）。
+     */
+    private fun armIdleExit(idleSinceMs: Long) {
+        mainHandler.post {
+            if (!isRunning()) return@post
+            idlePolicy.onIdleStarted(idleSinceMs)
+            idleJob?.let { mainHandler.removeCallbacks(it) }
+            val job = object : Runnable {
+                override fun run() {
+                    onIdleDeadlineReached(this)
+                }
+            }
+            idleJob = job
+            mainHandler.postDelayed(job, idlePolicy.idleTimeoutMs)
+        }
+    }
+
+    /** 退出空闲跟踪（T25）：手机已连接（onPaired）或远程模式结束（stopNow）时调用；幂等。 */
+    private fun cancelIdleExit() {
+        mainHandler.post {
+            idlePolicy.onIdleEnded()
+            idleJob?.let { mainHandler.removeCallbacks(it) }
+            idleJob = null
+        }
+    }
+
+    /**
+     * 空闲到期检查（T25，主线程）：任务身份比对不在途 → 忽略；空闲窗口判定未满阈值 → 忽略
+     * （窗口状态与排程不一致的防御）；复核运行态与已配对会话（连接与到期同刻竞争时不得误退，
+     * 空闲口径 = 无手机连接）→ 命中则走 [stop] 既有完整清理链路，并经主线程通知 IME 收起键盘。
+     */
+    private fun onIdleDeadlineReached(job: Runnable) {
+        if (idleJob !== job) return
+        idleJob = null
+        if (!idlePolicy.shouldExit(System.currentTimeMillis())) return
+        val paired = synchronized(this) { pairedSessions.hasPairedSession }
+        if (!isRunning() || paired) return
+        Log.i(TAG, "远程模式空闲超时（无手机连接），自动退出并收起键盘")
+        stop()
+        mainHandler.post { onRemoteIdleExpired?.invoke() }
     }
 
     // ---- T18 · 网络变化自动重建（Q2 lead 拍板 A · PRD 5.3「二维码 IP 失效时自动重建服务并刷新二维码」） ----

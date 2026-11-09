@@ -37,6 +37,10 @@
 // 键盘隐藏 / 服务销毁解除（会话重开不解除：连删绑定仍在按下的物理键，见 onStartInputView 注释）；
 // 连删逐次复用单击删除路径 performDelete（中文组合态先删组合串、
 // 再删已上屏文本，与单击语义一致）。仅删除键获得长按重复，光标移动等其他键维持原单击语义。
+// T25 接线：远程空闲自动退出（第 8 章电量资源 P1）——远程模式空闲（无手机连接）满阈值
+//（判定在 Manager/RemoteIdlePolicy，正式 30 分钟）自动停服（既有完整清理链路）后，经
+// Manager.onRemoteIdleExpired 主线程回调 requestHideSelf 收起整个键盘窗口（主卡回键盘态
+// 由停服回调驱动，见 renderMainCardMode）。回调在 onCreateInputView 注册 / onDestroy 解除。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -362,6 +366,14 @@ class SofatypeImeService : InputMethodService() {
         // T16 上屏写入（FR-B6）：commit 经 Manager 主线程派发，写入结果决定回执与停服；
         // 键盘重建后旧闭包随引用失效，此处重新绑定（与 onRemoteTextChanged 同口径）
         RemoteInputServerManager.onCommitRequested = { text -> commitRemoteText(text) }
+        // T25 空闲自动退出（第 8 章电量资源）：远程模式空闲（无手机连接）满阈值时 Manager 走
+        // stop() 既有完整清理链路（通知手机 / 关监听 / 清 token·缓冲·设备名，主卡随停服回调
+        // 回键盘态），随后经本回调（主线程契约）收起整个键盘窗口（requestHideSelf）；
+        // 窗口未显示时为无害调用。键盘重建后旧闭包随引用失效，此处重新绑定（同上口径）。
+        RemoteInputServerManager.onRemoteIdleExpired = {
+            trace("remote idle expired -> hide keyboard")
+            requestHideSelf(0)
+        }
         return root
     }
 
@@ -371,6 +383,7 @@ class SofatypeImeService : InputMethodService() {
         RemoteInputServerManager.onPairingStateChanged = null
         RemoteInputServerManager.onRemoteTextChanged = null
         RemoteInputServerManager.onCommitRequested = null
+        RemoteInputServerManager.onRemoteIdleExpired = null // T25：空闲退出收起键盘回调一并解除
         super.onDestroy()
     }
 
