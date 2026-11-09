@@ -3,17 +3,22 @@
 // 安装确认框 / 失败红点可重试）；纯手动触发；更新源接口地址可配置（决策 17，正式地址后补）；
 // 下载走 cacheDir，安装确认后经 PackageInstaller 提交系统安装器，装后清理；
 // 全部网络与安装准备在后台线程执行，失败不阻塞设置页与 IME 服务。
+// T47 · 决策 36：API 23 基线安装链路改走 UI 渠道——应用内确认后转交系统安装器（install Intent），
+// 回前台 onResume 比对自身 versionCode 判定（升=成功 / 未升=安装器取消或失败→失败可重试）；
+// in-flight 标记持久化（SharedPreferences，消费即清）：升级成功替换包必杀进程，内存标记活不到判定。
 // 范围边界：测试输入区沿 T2，仅 debug 显示。
 package com.sofatype.ime
 
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -24,6 +29,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
+import com.sofatype.ime.update.InstallChannel
+import com.sofatype.ime.update.InstallChannels
 import com.sofatype.ime.update.InstallReceipt
 import com.sofatype.ime.update.InstallReceiptDecision
 import com.sofatype.ime.update.UpdateCheck
@@ -31,8 +38,12 @@ import com.sofatype.ime.update.UpdateCheckResult
 import com.sofatype.ime.update.UpdateEndpoint
 import com.sofatype.ime.update.UpdateFailureReason
 import com.sofatype.ime.update.UpdateHttp
+import com.sofatype.ime.update.UiInstallDecision
+import com.sofatype.ime.update.UiInstallMarker
+import com.sofatype.ime.update.UiInstallReceipt
 import com.sofatype.ime.update.UpdateRelease
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.Executors
 
 class SettingsActivity : Activity() {
@@ -51,6 +62,8 @@ class SettingsActivity : Activity() {
         PREPARING_INSTALL,
         FAILED,
         INSTALL_SUBMITTED,
+        /** UI 渠道（T47）回前台判定：versionCode 已升，更新成功。 */
+        INSTALL_SUCCESS,
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -173,6 +186,57 @@ class SettingsActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        evaluateUiChannelInstallResult()
+    }
+
+    // ═══ T47 · UI 渠道结果判定（决策 36：回设置页比对自身 versionCode）═══
+
+    /**
+     * 存在 UI 渠道 in-flight 标记时判定一次：升 = 成功（绿点安装成功）；未升 = 安装器取消或
+     * 失败（红点 + 原因文案 + 重试，T21 口径）。判定即清标记并清理下载 cache 文件（装后 /
+     * 取消共用清理口径，AGENTS 禁止事项 3）。无标记即普通回前台，不动 UI。
+     * API 24+ 会话分支不写标记，不受本判定影响（验收④行为不回归）。
+     */
+    private fun evaluateUiChannelInstallResult() {
+        val beforeCode = readUiInstallMarker() ?: return
+        clearUiInstallMarker()
+        val afterCode = readVersionCode()
+        val decision = UiInstallReceipt.decisionFor(beforeCode, afterCode)
+        Log.i(UPDATE_LOG_TAG, "UI 渠道结果判定 before=$beforeCode after=$afterCode decision=$decision")
+        updateApkFile().delete()
+        when (decision) {
+            UiInstallDecision.UPDATED -> applyState(UiState.INSTALL_SUCCESS)
+            UiInstallDecision.NOT_UPDATED ->
+                showFailed(
+                    R.string.failed_prefix_install,
+                    UpdateCheckResult.Failed(UpdateFailureReason.UI_INSTALL_NOT_UPDATED),
+                )
+        }
+    }
+
+    /** UI 渠道 in-flight 标记读取；无标记 / 载荷非法返回 null。 */
+    private fun readUiInstallMarker(): Int? =
+        UiInstallMarker.decode(
+            getSharedPreferences(PREFS_UI_INSTALL, MODE_PRIVATE)
+                .getString(KEY_UI_INSTALL_BEFORE_CODE, null),
+        )
+
+    /** 标记写入（转交安装器前落盘：升级成功替换包必杀进程，须跨进程存活）。 */
+    private fun writeUiInstallMarker(versionCodeBefore: Int) {
+        getSharedPreferences(PREFS_UI_INSTALL, MODE_PRIVATE).edit()
+            .putString(KEY_UI_INSTALL_BEFORE_CODE, UiInstallMarker.encode(versionCodeBefore))
+            .apply()
+    }
+
+    /** 标记清除（判定消费即清，零残留）。 */
+    private fun clearUiInstallMarker() {
+        getSharedPreferences(PREFS_UI_INSTALL, MODE_PRIVATE).edit()
+            .remove(KEY_UI_INSTALL_BEFORE_CODE)
+            .apply()
+    }
+
     // ═══ FR-D4 交互入口 ═══
 
     /** 「检查更新」按钮：按当前态分发（检查 / 下载更新 / 重试），过程态按钮禁用不响应。 */
@@ -181,6 +245,7 @@ class SettingsActivity : Activity() {
             UiState.IDLE,
             UiState.UP_TO_DATE,
             UiState.INSTALL_SUBMITTED,
+            UiState.INSTALL_SUCCESS,
             -> startCheck()
             UiState.NEWER -> startDownload()
             UiState.FAILED -> startCheck() // 重试 = 重跑检查
@@ -264,8 +329,16 @@ class SettingsActivity : Activity() {
             .show()
     }
 
-    /** 安装确认框 OK：写 PackageInstaller 会话并提交系统安装器；装后删 cache 文件。 */
+    /** 安装确认框 OK：按决策 36 渠道门控分发——API 24+ 会话分支 / API 23 基线 UI 渠道。 */
     private fun submitInstall(release: UpdateRelease, file: File) {
+        when (InstallChannels.channelFor(Build.VERSION.SDK_INT)) {
+            InstallChannel.SESSION -> submitSessionInstall(release, file)
+            InstallChannel.UI_INTENT -> launchUiChannelInstall(release, file)
+        }
+    }
+
+    /** 会话分支（API 24+，决策 36 保留）：写 PackageInstaller 会话并提交系统安装器；装后删 cache 文件。 */
+    private fun submitSessionInstall(release: UpdateRelease, file: File) {
         val generation = ++ioGeneration
         applyState(UiState.PREPARING_INSTALL)
         ioExecutor.execute {
@@ -313,6 +386,61 @@ class SettingsActivity : Activity() {
             }
         }
     }
+
+    /**
+     * UI 渠道（API 23 基线，决策 36 / issue T47）：确认后转交系统安装器完成安装，安全检测
+     * 与继续/取消都在系统安装器界面；无会话回执，回前台 onResume 按 versionCode 比对判定
+     * （evaluateUiChannelInstallResult）。APK 放开读权限供安装器独立 uid 读取（targetSdk 24+
+     * 下 MODE_WORLD_READABLE 抛 SecurityException，setReadable(true, false) 是本分支唯一
+     * 可行的放开方式）；文件保留至判定后清理——安装器异步读取，不能转交即删（会话分支口径
+     * 为提交即删，分支行为不同属预期）。启动前登记持久化 in-flight 标记。
+     */
+    private fun launchUiChannelInstall(release: UpdateRelease, file: File) {
+        val generation = ++ioGeneration
+        val beforeCode = readVersionCode()
+        applyState(UiState.PREPARING_INSTALL)
+        ioExecutor.execute {
+            try {
+                if (!file.setReadable(true, false)) {
+                    throw IOException("安装器读权限放开失败")
+                }
+                Log.i(
+                    UPDATE_LOG_TAG,
+                    "UI 渠道转交系统安装器 tag=${release.tag} bytes=${file.length()} beforeCode=$beforeCode",
+                )
+                postIfCurrent(generation) {
+                    // 标记先落盘再转交：无论后续进程存活与否，回前台判定均有据（决策 36 口径）。
+                    writeUiInstallMarker(beforeCode)
+                    try {
+                        startActivity(uiChannelInstallIntent(file))
+                    } catch (e: ActivityNotFoundException) {
+                        clearUiInstallMarker()
+                        Log.i(UPDATE_LOG_TAG, "系统安装器缺失：${e.message}")
+                        showFailed(
+                            R.string.failed_prefix_install,
+                            UpdateCheckResult.Failed(UpdateFailureReason.UI_INSTALL_NOT_UPDATED),
+                        )
+                        return@postIfCurrent
+                    }
+                    applyState(UiState.INSTALL_SUBMITTED)
+                }
+            } catch (e: Exception) {
+                Log.i(UPDATE_LOG_TAG, "UI 渠道安装准备失败：${e.javaClass.simpleName} ${e.message}")
+                postIfCurrent(generation) {
+                    showFailed(
+                        R.string.failed_prefix_install,
+                        UpdateCheckResult.Failed(UpdateFailureReason.INSTALL_PREPARE),
+                    )
+                }
+            }
+        }
+    }
+
+    /** UI 渠道 install Intent：API 23 基线直用 file://（FileUriExposed 检查仅存在于 API 24+ 设备）。 */
+    private fun uiChannelInstallIntent(file: File): Intent =
+        Intent(Intent.ACTION_INSTALL_PACKAGE)
+            .setData(Uri.fromFile(file))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     // ═══ 状态渲染 ═══
 
@@ -378,6 +506,11 @@ class SettingsActivity : Activity() {
                 statusText.text = getString(R.string.status_install_submitted)
                 setButton(R.string.btn_check_update, enabled = true)
             }
+            UiState.INSTALL_SUCCESS -> {
+                dot(R.drawable.bg_status_dot_success)
+                statusText.text = getString(R.string.status_install_success)
+                setButton(R.string.btn_check_update, enabled = true)
+            }
         }
     }
 
@@ -416,6 +549,8 @@ class SettingsActivity : Activity() {
             UpdateFailureReason.INSTALL_PREPARE -> getString(R.string.reason_install_prepare)
             UpdateFailureReason.INSTALL_COMMIT ->
                 getString(R.string.reason_install_commit, result.httpStatus ?: -1)
+            UpdateFailureReason.UI_INSTALL_NOT_UPDATED ->
+                getString(R.string.reason_ui_install_not_updated)
         }
 
     private fun wrap(e: UpdateHttp.HttpException): UpdateCheckResult.Failed =
@@ -453,9 +588,18 @@ class SettingsActivity : Activity() {
     private fun currentVersionName(): String =
         packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
 
+    /** 当前 versionCode（T47 UI 渠道结果判定：决策 36 按版本号变化判定）。 */
+    @Suppress("DEPRECATION")
+    private fun readVersionCode(): Int =
+        packageManager.getPackageInfo(packageName, 0).versionCode
+
     private companion object {
         const val UPDATE_LOG_TAG = "UpdateCheck"
         const val UPDATE_APK_NAME = "update_download.apk"
+
+        /** UI 渠道 in-flight 标记存储（T47：跨进程存活、消费即清，零残留）。 */
+        const val PREFS_UI_INSTALL = "update_ui_install"
+        const val KEY_UI_INSTALL_BEFORE_CODE = "before_code"
 
         /** 安装结果回执 action（系统安装器回调广播，installStatusReceiver 注册接收，onCreate 接线）。 */
         const val ACTION_INSTALL_STATUS = "com.sofatype.ime.action.INSTALL_STATUS"

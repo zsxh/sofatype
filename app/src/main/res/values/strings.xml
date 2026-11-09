@@ -31,6 +31,8 @@
     <string name="reason_download_io">本地存储读写失败</string>
     <string name="reason_install_prepare">安装准备失败</string>
     <string name="reason_install_commit">系统安装未完成（状态 %1$d）</string>
+    <string name="reason_ui_install_not_updated">未完成安装（安装器取消或失败，版本未变化）</string>
+    <string name="status_install_success">更新安装成功</string>
     <string name="btn_download_update">下载更新</string>
     <string name="btn_retry">重试</string>
     <string name="update_endpoint_url"></string>

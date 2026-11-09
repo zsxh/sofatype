@@ -9,20 +9,40 @@ app 侧检查请求、解析、下载、安装链全是真实实现，本目录�
 | 文件 | 用途 |
 | --- | --- |
 | `serve_mock.py` | HTTP 服务器；JSON 内 `__HOSTPORT__` 占位符按请求 Host 头动态改写 |
+| `build-incremented-apk.gradle` | Gradle init 脚本：构建 versionCode 真递增的 mock APK（用法见下方「APK 资产」） |
 | `releases-newer.json` | 发现新版态：tag v0.2.0 + 更新说明 + APK 资产 |
 | `releases-up-to-date.json` | 已是最新态：tag v0.1.0（= 当前版本） |
 
 ## APK 资产（不入库，用前放置）
 
 服务器只 serve 本目录内的文件。APK 是构建产物不入 git，用前从构建输出拷入并按 JSON
-里的资产名命名：
+里的资产名命名。
+
+**versionCode 口径（T46/T47 修订，2026-11-09）**：`releases-newer.json` 指向的
+`sofatype-0.2.0.apk` 必须 **versionCode 真递增**（0.2.0(2)）——两包同版本会构成
+「同版本复装回执 SUCCESS」假阳性（设备档案坑 15 修订，T27 Round 2 根因）。
+`sofatype-0.1.0.apk` 用基线包 0.1.0(1)。工程 versionCode 保持 0.1.0(1) 不动（决策 19）。
+
+递增包用本目录 `build-incremented-apk.gradle`（Gradle init 脚本，已入库）构建：
+在 AGP 读取前经 afterEvaluate 改写 defaultConfig。注意 `-Pandroid.injected.version.code`
+方式在 AGP 8.2.2 **实测无效**（clean 重建后清单版本仍 1，dev 与 review-qa 双向复现），勿用。
 
 ```bash
+# 递增包（versionCode 2 / versionName 0.2.0；环境重定向四件套见 local/DEV-GUIDE.md 1.5）
+nix develop -c ./gradlew --no-daemon clean assembleDebug \
+  -I tools/mock/github-releases/build-incremented-apk.gradle \
+  -PmockVersionCode=2 -PmockVersionName=0.2.0
 cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.2.0.apk
+
+# 基线包：不带 -I 与 -P 重新 clean 构建（注入非构建输入，不 clean 会残留 0.2.0(2) 产物）
+nix develop -c ./gradlew --no-daemon clean assembleDebug
 cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.1.0.apk
+
+# 放置后用 SDK 工具实测取证清单版本（两包分别执行，versionCode 须为 2 / 1）
+aapt dump badging tools/mock/github-releases/sofatype-0.2.0.apk | grep package:
 ```
 
-同一 debug 包即可：三态由 JSON 的 `tag_name` 决定，不靠 APK 版本号。
+三态由 JSON 的 `tag_name` 决定，但「发现新版 → 安装升级」链路必须靠递增包实证。
 
 ## 启动 / 停止
 

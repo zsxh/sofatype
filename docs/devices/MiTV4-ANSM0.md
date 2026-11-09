@@ -152,7 +152,7 @@ adb shell getprop ro.product.cpu.abilist
 
 ### 坑 15：应用发起安装的授权判定读 global 位，UI「未知来源」开关写 secure 位（2026-11-09，T27）
 
-**现象**：应用 PackageInstaller 会话 commit 被平台拒 `INSTALL_FAILED_USER_RESTRICTED`，当时 `secure install_non_market_apps=1` 且设置 UI「安装未知来源应用」常开（户主核对一直开着）；`settings put global install_non_market_apps 1` 补写后，mock 会话静默直装成功（14:07:30 落地）——平台判定源=global 位，UI 开关写 secure 位，两处不一致。另实测：系统安装窗/会话活跃期间，`adb install -r` 复装亦被拒 `USER_RESTRICTED`（195s 失败回执，机制未查）——复装失败先排除会话残留与前台安装窗，不盲试。
+**现象**：应用 PackageInstaller 会话 commit 被平台拒 `INSTALL_FAILED_USER_RESTRICTED`，当时 `secure install_non_market_apps=1` 且设置 UI「安装未知来源应用」常开（户主核对一直开着）；`settings put global install_non_market_apps 1` 补写后，mock 会话提交返回回执 SUCCESS（14:07:30 落地）——平台判定源=global 位，UI 开关写 secure 位，两处不一致。**修订（2026-11-09 户主核对证伪）**：mock 包清单版本同为 0.1.0、versionCode 未递增，上句 SUCCESS 是同版本复装，不是升级；Round 2/3 走查全程设置页版本恒 `v0.1.0 (1)`（10 份 dump 为证），原「静默直装成功」表述作废。versionCode 真递增的会话提交在本机未验证过。另实测：系统安装窗/会话活跃期间，`adb install -r` 复装亦被拒 `USER_RESTRICTED`（195s 失败回执，机制未查）——复装失败先排除会话残留与前台安装窗，不盲试。
 
-**处置**：户主拍板（2026-11-09）：`global install_non_market_apps=1` 长期保持置位，为该机安装授权标准态。涉及真机安装链验证时，先核对 `settings get global install_non_market_apps`。
+**处置**：户主拍板（2026-11-09）：`global install_non_market_apps=1` 长期保持置位，为该机安装授权标准态。涉及真机安装链验证时，先核对 `settings get global install_non_market_apps`。同日拍板：检查更新链路改走 UI 渠道（系统安装器），会话通道不再作本机更新主链路——PRD 决策 36，落地任务 T47。
 

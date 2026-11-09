@@ -30,4 +30,10 @@ enum class UpdateFailureReason {
 
     /** 安装回执失败（系统安装器拒绝/中断，状态码经 httpStatus 携带；T46 附加，T21「失败可重试」口径）。 */
     INSTALL_COMMIT,
+
+    /**
+     * UI 渠道（API 23 基线，决策 36）安装未完成：安装器取消或安装失败，回设置页 versionCode
+     * 未升（T47；无会话回执，按版本比对口径归失败可重试）。
+     */
+    UI_INSTALL_NOT_UPDATED,
 }
