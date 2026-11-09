@@ -80,7 +80,7 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：杀进程测试后每次弹键盘前按坑 3 口径核对 `default_input_method`；「防夺回」加固需户主拍板（详见 issue T12 坑 2）。
 
-**补充（2026-11-08 午后）**：T12 终验待验空闲期再次发生回退（sofatype → 搜狗），当时无杀进程、无同进程前台 Activity 死亡伴随（前台 orchard，机制未查明）；同日累计 2 次空闲期回退。空闲期回退机制归 T39 同进程架构评估范围。
+**补充（2026-11-08 午后）**：T12 终验待验空闲期再次发生回退（sofatype → 搜狗），当时无杀进程、无同进程前台 Activity 死亡伴随（前台 orchard，机制未查明）；同日累计 2 次空闲期回退。**机制评估归档（2026-11-09，T39 / PRD 决策 37）**：回退定性 = 平台 force-stop 类动作触发 AOSP 6 原生重置（当前 IME 包被 force-stop → 清空选中并重选系统默认输入法，源码实证）；本坑空闲期回退的机制假设 = 坑 9 屏保强杀同链——下次复现抓全窗 logcat 查 `Force stopping com.sofatype.ime` 指纹即可归并（取证纪律挂账，不立项实施，见 issue T39）。
 
 ### 坑 6：键盘收起后发 CENTER 唤起，CENTER 直落 IME 初始焦点键（2026-11-08，T12）
 
