@@ -757,6 +757,30 @@ class SofatypeImeService : InputMethodService() {
             }
             return true
         }
+        // T48（组合删除复活根因修复）· FR-A9 删除统一口径：中文 × 字母键盘下，硬件删除键码
+        // （含 adb 注入通道）与网格 backspace 同路走 performDelete。默认链路对删除键码不消费
+        // （本方法此前只处理 BACK/方向/确认键/字母键码），事件经框架转发宿主由 EditText 直删
+        // 平台组合区文本，IME composer 不知情（组合串残留已删字母）——下次字母入组经
+        // setComposingText 把残留字母拼回组合串，正文复活累积（2026-11-09 模拟器二分实证：
+        // 硬件 DEL 删 g 后重按 e，候选装载与选词上屏都按「ge」词族出「个」；网格 backspace
+        // 同序列按「e」词族出「额」，见 issue T48 与 screenshots/T48/）。组合态内外都拦、
+        // 与网格 backspace 语义完全同路（组合串内删组合串，删空后接删宿主文本）；含系统长按
+        // 重复（repeatCount>0 逐次 performDelete，节奏归系统重复率；网格长按节奏归 T22 排程）。
+        // 英文模式 / 符号键盘 / 远程模式 / 输入窗隐藏维持框架直删（无组合串可失同步，直删语义
+        // 与 deleteBackward 等价，口径不变）。ACTION_UP 不改：删除键抬起无文本语义（T44/T45 的
+        // 确认键/字母键 UP 直写病理对删除键不存在），保持最小改动。
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            if (ev.action == KeyEvent.ACTION_DOWN &&
+                keyboardMode == KeyboardMode.LETTERS &&
+                languageMode == LanguageMode.CHINESE &&
+                !RemoteInputServerManager.isRunning() &&
+                isInputViewShown()
+            ) {
+                performDelete()
+                return true
+            }
+            return super.onKeyDown(keyCode, ev)
+        }
         // T45（T27 缺陷 B 根因修复）· FR-A8 统一口径：中文 × 字母键盘下，硬件字母键码（含 adb
         // 注入通道）与网格 OK 同路进入拼音组合。默认链路对打印键码不消费（本方法此前只处理
         // BACK/方向/确认键），事件经框架直写宿主文本，绕过组合态与候选——中文模式表现为字母
@@ -1267,6 +1291,18 @@ class SofatypeImeService : InputMethodService() {
             candidateViews.clear()
             moreToggleView = null
             collapseMoreRow()
+            firstRowCount = 0
+            // T45（T27 缺陷 B · R3 残留症状定位）：组合串非空但引擎无候选（如声母独用 f/ff/fff）
+            // 时，候选栏留空且全链此前无任何埋点行——黑盒走查只能观测到「OK 落字母、无装载行、
+            // 字母出现在输入框」，无法区分「组合态无候选」与「字母直出未入组」（T27 R1 缺陷 B
+            // 误判与 R3「直落 f×3」复观测的共同签名；模拟器网格通道复现实证：组合串实际带下划线
+            // 存活，状态机无损坏）。此处补齐装载行 total=0，与有候选装载同一埋点口径（只记耗时与
+            // 结构计数，不含输入内容）：键事件路径带 T36 计时起点（fromKey=true），非键事件路径
+            // （会话启动 / 键盘重建 / 选词复位）candidateLoadStartMs 已归位，fromKey=false 既有
+            // 口径自动成立。组合串为空（无组合态）维持静默，避免选词复位等高频路径新增噪音行。
+            if (composer.composition.isNotEmpty()) {
+                traceCandidateLoadCompleted(totalCount = 0, toggleVisible = false)
+            }
         }
     }
 

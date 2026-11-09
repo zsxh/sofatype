@@ -127,4 +127,49 @@ class ChineseComposerTest {
         assertEquals("e", c.composition)
         assertEquals("复位后同字母重按应重新查询单字母组合", listOf("e", "e"), fake.calls)
     }
+
+    // ---- T45 · 删除键删空组合后字母重新入组（T27 缺陷 B 原始路径锁定） ----
+
+    @Test
+    fun `删空组合后字母重新入组回到组合态`() {
+        // 缺陷 B 验收序列模型侧锁定:组合若干字母 → 删除键逐位删空 → 再按字母必须产生
+        // 全新单字母组合并重新查询候选（无需任何语言切换等恢复操作）。
+        // 服务层路径 = performDelete 逐位删至空后再 appendLetter，模拟器网格通道走查随 T45。
+        val (c, fake) = composer(
+            mapOf(
+                "ke" to listOf("客", "课"),
+                "k" to emptyList(), // 声母独用无候选（真机缺陷 B 误判签名对应的引擎口径）
+                "e" to listOf("额", "饿", "恶"),
+            ),
+        )
+        c.appendLetter('k')
+        c.appendLetter('e')
+        assertEquals("ke", c.composition)
+        assertEquals(listOf("客", "课"), c.candidates)
+        // 删除键删空组合串：两次退格均命中组合态（返回 true）
+        assertTrue(c.deleteLastLetter())
+        assertTrue(c.deleteLastLetter())
+        assertEquals("", c.composition)
+        assertFalse(c.hasCandidates)
+        // 删空后再按字母：回到组合态，产生全新单字母组合
+        c.appendLetter('e')
+        assertEquals("e", c.composition)
+        assertEquals(listOf("额", "饿", "恶"), c.candidates)
+        assertTrue(c.hasCandidates)
+        assertEquals("删空后重按字母应重新查询单字母组合", listOf("k", "ke", "k", "e"), fake.calls)
+    }
+
+    @Test
+    fun `删空后无候选字母仍入组不阻塞后续组合`() {
+        // T45 残留症状场景:删空后先按声母独用字母（引擎无候选，组合态黑盒不可辨），
+        // 再按有效音节字母必须正常叠加入组——组合态不因无候选序列损坏。
+        val (c, fake) = composer(mapOf("f" to emptyList(), "fa" to listOf("发")))
+        c.appendLetter('f')
+        assertEquals("f", c.composition)
+        assertFalse(c.hasCandidates)
+        c.appendLetter('a')
+        assertEquals("fa", c.composition)
+        assertEquals(listOf("发"), c.candidates)
+        assertEquals(listOf("f", "fa"), fake.calls)
+    }
 }
