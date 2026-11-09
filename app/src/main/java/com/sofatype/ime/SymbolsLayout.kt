@@ -47,6 +47,7 @@ object SymbolsLayout {
         action = KeyAction.Space,
         label = "空格",
         textSize = KeyTextSize.SMALL,
+        contentDescription = "空格",
     )
 
     /** 完成键（FR-A10 语义不变：确认当前输入并收起）。 */
@@ -55,6 +56,7 @@ object SymbolsLayout {
         action = KeyAction.Done,
         variant = KeyVariant.ACCENT,
         label = "完成",
+        contentDescription = "完成",
     )
 
     /** 全/半切换键（FR-A5：符号键盘仅有此切换键，无大写键与中/英键）。 */
@@ -113,7 +115,7 @@ object SymbolsLayout {
         }
         val prefix = if (width == SymbolsWidth.FULL_WIDTH) "fw_" else "hw_"
         fun symbolCells(symbols: List<String>): List<Cell> =
-            symbols.map { sym -> Cell.KeyCell(Key(id = prefix + sym, action = KeyAction.Text(sym), label = sym)) }
+            symbols.map { sym -> Cell.KeyCell(Key(id = prefix + sym, action = KeyAction.Text(sym), label = sym, contentDescription = sym)) }
 
         return listOf(
             // 行 1：数字 1-3 ｜ 符号 7 ｜ 全/半 ｜ 下屏
@@ -154,7 +156,7 @@ object SymbolsLayout {
             listOf(spaceKey, doneKey)
 
     /** 数字「0」键（行 4 col1，数字列 1-4-7-0 贯通；FR-A9）。 */
-    private fun digitZeroKey(): Key = Key(id = "digit_0", action = KeyAction.Text("0"), label = "0")
+    private fun digitZeroKey(): Key = Key(id = "digit_0", action = KeyAction.Text("0"), label = "0", contentDescription = "0")
 
     // ---- 键位构建辅助（同 KeyboardLayout 口径） ----
 
@@ -162,9 +164,9 @@ object SymbolsLayout {
     private fun digitCells(from: Char, to: Char): List<Cell> =
         (from..to).map { charCell("digit_$it", it.toString()) }
 
-    /** 字符键（普通变体）。 */
+    /** 字符键（普通变体）：无障碍标注 = 键面文字（T26 全键位口径，同 KeyboardLayout）。 */
     private fun charCell(id: String, label: String): Cell =
-        Cell.KeyCell(Key(id = id, action = KeyAction.Text(label), label = label))
+        Cell.KeyCell(Key(id = id, action = KeyAction.Text(label), label = label, contentDescription = label))
 
     /** 图标键（功能变体，必带无障碍标注）。 */
     private fun iconKey(id: String, icon: KeyIcon, description: String): Cell = Cell.KeyCell(

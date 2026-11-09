@@ -3,7 +3,6 @@
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -129,12 +128,12 @@ class KeyboardLayoutTest {
 
     @Test
     fun iconKeysAllHaveAccessibilityLabels() {
-        // PRD 第 8 章：全部可交互元素具备无障碍标注（图标键无文字，必须显式标注）
+        // PRD 第 8 章：全部可交互元素具备无障碍标注（T26 起 contentDescription 全键位必填，
+        // 类型层面已保证非空；本测试保留图标键标注逐键复核）
         val iconKeys = keys.filter { it.icon != null }
         assertTrue("图标键不应为空", iconKeys.isNotEmpty())
         for (key in iconKeys) {
-            assertNotNull("图标键 ${key.id} 缺少无障碍标注", key.contentDescription)
-            assertTrue("图标键 ${key.id} 无障碍标注不能为空白", key.contentDescription!!.isNotBlank())
+            assertTrue("图标键 ${key.id} 无障碍标注不能为空白", key.contentDescription.isNotBlank())
         }
     }
 

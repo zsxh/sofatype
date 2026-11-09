@@ -67,6 +67,11 @@ import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.pinyin.PinyinEngine
 
+// 「更多⌄」入口无障碍标注（PRD 第 8 章，T26）：文件顶层常量（companion 成员为 private 时
+// 对同包测试不可见，移到顶层供无障碍标注清单单测锁定；值与 T11 原常量一致）。
+const val MORE_DESC_COLLAPSED = "更多候选，点按展开"
+const val MORE_DESC_EXPANDED = "更多候选，点按收起"
+
 class SofatypeImeService : InputMethodService() {
 
     private companion object {
@@ -123,10 +128,6 @@ class SofatypeImeService : InputMethodService() {
         /** 「更多⌄」入口键面：收起态（画板① 原文）与展开态（chevron 翻转，FR-A15「再次点按收起」）。 */
         const val MORE_LABEL_COLLAPSED = "更多 ⌄"
         const val MORE_LABEL_EXPANDED = "更多 ⌃"
-
-        /** 「更多⌄」入口无障碍标注（PRD 第 8 章）。 */
-        const val MORE_DESC_COLLAPSED = "更多候选，点按展开"
-        const val MORE_DESC_EXPANDED = "更多候选，点按收起"
     }
 
     /**
@@ -1037,10 +1038,10 @@ class SofatypeImeService : InputMethodService() {
         return view
     }
 
-    /** 键帽内容视图：文字键 = TextView；图标键 = ImageView（图标尺寸按画板① Token）。 */
+    /** 键帽内容视图：文字键 = TextView；图标键 = ImageView（图标尺寸按画板① Token）。无障碍标注全键位必设（T26）。 */
     private fun createKeyContentView(key: Key): View {
         val view: View = if (key.icon != null) createIconKey(key) else createTextKey(key)
-        key.contentDescription?.let { view.contentDescription = it }
+        view.contentDescription = key.contentDescription
         return view
     }
 
@@ -1313,6 +1314,8 @@ class SofatypeImeService : InputMethodService() {
     private fun createChipView(word: String, tag: String): TextView {
         val view = TextView(this).apply {
             text = word
+            // 无障碍标注 = 候选词（T26 全可交互元素口径；与键面同文，TalkBack 朗读一致）
+            contentDescription = word
             gravity = Gravity.CENTER
             maxLines = 1
             // dimens 中以 sp 声明，getDimension 已换算为 px，按 px 设置避免二次缩放
@@ -1680,7 +1683,8 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 刷新大小写相关键面（FR-A3）：字母区键面大小写、上档键激活视觉
+     * 刷新大小写相关键面（FR-A3）：字母区键面大小写与无障碍标注同步刷新（T26：
+     * contentDescription 与键面同文，大写态朗读不回退小写）、上档键激活视觉
      * （画板②：accent_wash 底 + accent_text 图标色，复用强调键 drawable）与态提示。
      */
     private fun applyCaseState() {
@@ -1688,7 +1692,9 @@ class SofatypeImeService : InputMethodService() {
         for ((id, view) in keyViews) {
             val key = KeyboardLayout.keyById[id] ?: continue
             if (id in KeyboardLayout.letterKeyIds) {
-                (view as? TextView)?.text = KeyboardLayout.displayLabel(key, caseState)
+                val label = KeyboardLayout.displayLabel(key, caseState)
+                (view as? TextView)?.text = label
+                view.contentDescription = label
             }
             if (id == "shift") {
                 view.contentDescription = KeyboardLayout.shiftContentDescription(caseState)

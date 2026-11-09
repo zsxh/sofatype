@@ -90,10 +90,12 @@ data class Key(
     /** 键面文字规格。 */
     val textSize: KeyTextSize = KeyTextSize.NORMAL,
     /**
-     * 无障碍标注（PRD 第 8 章，设计稿 aria-label）。
-     * 图标键必填；文字键为 null（TalkBack 朗读键面文字）。
+     * 无障碍标注（PRD 第 8 章，T26 全键位口径）。
+     * 全部键位必填：图标键与功能键为动作语义描述（画板 aria-label）；
+     * 字符键 = 键面文字（TalkBack 朗读同文）。字母键大写态由视图层随键面同步刷新
+     * （SofatypeImeService.applyCaseState）。
      */
-    val contentDescription: String? = null,
+    val contentDescription: String,
 )
 
 /** 行内格子：键位或列间隔占位（画板① kspacer 42px）。 */
@@ -131,20 +133,20 @@ object KeyboardLayout {
         KeyRow(
             digitCells('4', '6') + Cell.Spacer + letterCells('h', 'n') + Cell.Spacer +
                 listOf(
-                    fnCell("lang", "中/英", KeyAction.ToggleLanguage),
+                    fnCell("lang", "中/英", KeyAction.ToggleLanguage, "中英文切换"),
                     iconCell("backspace", KeyIcon.BACKSPACE, "删除"),
                 ),
         ),
         // 行 3：数字 7-9 ｜ o-u ｜ 123_!（右侧为完成键上半段）
         KeyRow(
             digitCells('7', '9') + Cell.Spacer + letterCells('o', 'u') + Cell.Spacer +
-                listOf(fnCell("symbols", "123_!", KeyAction.OpenSymbols)),
+                listOf(fnCell("symbols", "123_!", KeyAction.OpenSymbols, "进入符号键盘")),
         ),
         // 行 4：.com、0、@ ｜ v-z、光标左右 ｜ 空格（右侧为完成键下半段）
         // `.com` 为功能键样式（画板① .bkey-fn：22px / 功能键文字色，PRD 6.3）
         KeyRow(
             listOf(
-                fnCell("dot_com", ".com", KeyAction.Text(".com")),
+                fnCell("dot_com", ".com", KeyAction.Text(".com"), ".com"),
                 charCell("digit_0", "0"),
                 charCell("at", "@"),
                 Cell.Spacer,
@@ -160,6 +162,7 @@ object KeyboardLayout {
                             // 画板① 空格：普通键帽底色 + 功能键字号
                             label = "空格",
                             textSize = KeyTextSize.SMALL,
+                            contentDescription = "空格",
                         ),
                     ),
                 ),
@@ -172,6 +175,7 @@ object KeyboardLayout {
         action = KeyAction.Done,
         variant = KeyVariant.ACCENT,
         label = "完成",
+        contentDescription = "完成",
     )
 
     /**
@@ -244,9 +248,12 @@ object KeyboardLayout {
         return value.length == 1 && value[0] in 'a'..'z'
     }
 
-    /** 字符键（普通变体）。 */
-    private fun charCell(id: String, label: String): Cell =
-        Cell.KeyCell(Key(id = id, action = KeyAction.Text(label), label = label))
+    /**
+     * 字符键（普通变体）：无障碍标注默认 = 键面文字（T26 全键位口径；
+     * 字母键大写态由视图层随键面同步，模型侧存小写基准）。
+     */
+    private fun charCell(id: String, label: String, description: String = label): Cell =
+        Cell.KeyCell(Key(id = id, action = KeyAction.Text(label), label = label, contentDescription = description))
 
     /** 数字列连续段（'1'..'3' 等）。 */
     private fun digitCells(from: Char, to: Char): List<Cell> = (from..to).map { charCell("digit_$it", it.toString()) }
@@ -254,14 +261,15 @@ object KeyboardLayout {
     /** 字母区连续段。 */
     private fun letterCells(from: Char, to: Char): List<Cell> = (from..to).map { charCell(it.toString(), it.toString()) }
 
-    /** 功能键（文字键面，小字号规格）。 */
-    private fun fnCell(id: String, label: String, action: KeyAction): Cell = Cell.KeyCell(
+    /** 功能键（文字键面，小字号规格）；[description] = 无障碍动作语义描述。 */
+    private fun fnCell(id: String, label: String, action: KeyAction, description: String): Cell = Cell.KeyCell(
         Key(
             id = id,
             action = action,
             variant = KeyVariant.FUNCTION,
             label = label,
             textSize = KeyTextSize.SMALL,
+            contentDescription = description,
         ),
     )
 
