@@ -215,6 +215,19 @@ object KeyboardLayout {
         allKeys().filter { key -> isSingleLetter(key.action) }.map { it.id }.toSet()
 
     /**
+     * 硬件字母键码 → 字母键 id（T45 · FR-A8 统一口径）：KEYCODE_A(29)..KEYCODE_Z(54) 映射
+     * "a".."z"，与 [letterKeyIds] 的单字母 id 同名；非字母键码返回 null（数字/符号/功能键码
+     * 不在此映射，行为不变）。键码用字面量保持本模型无 Android 依赖（KEYCODE_A=29 / KEYCODE_Z=54
+     * 为 android.view.KeyEvent 自 API 1 起的稳定常量）。服务层据此把硬件字母键事件接入与
+     * 网格 OK 相同的组合路径——框架默认直写会绕过组合态，表现为中文模式字母直落不进组
+     * （真机 2026-11-09 实证，T27 缺陷 B）。
+     */
+    fun letterIdForKeyCode(keyCode: Int): String? {
+        if (keyCode < 29 || keyCode > 54) return null
+        return ('a' + (keyCode - 29)).toString()
+    }
+
+    /**
      * 大写态键面（FR-A3）：字母键显示大写，其余键面不变。
      * 画板②「字母键盘·大写」口径。
      */

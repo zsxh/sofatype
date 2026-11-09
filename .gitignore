@@ -29,3 +29,6 @@ local.properties
 # 历史散目录（.shots-t2/.shots-t3/.shots-t4/.shots-t5/.verify-tmp）已于 2026-11-05 清理并废弃
 /.screenshots/
 /screenshots/
+
+# mock 源测试装载物(本地生成,不入库;T21 挂账重验用,见 docs/issues/open/T46.md)
+tools/mock/github-releases/*.apk

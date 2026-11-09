@@ -111,4 +111,20 @@ class ChineseComposerTest {
         assertFalse(c.hasCandidates)
         assertNull(c.firstCandidate())
     }
+
+    // ---- T44 · 选词复位后重按同字母不叠加（T27 缺陷 A 语义锁定） ----
+
+    @Test
+    fun `选词复位后重按同字母产生单字母组合`() {
+        // 缺陷 A 观测语义:选词上屏后 composer 残留致再按同字母装载「ee」混入正文。
+        // 本用例锁定模型侧语义:复位后的同字母重按必须产生全新单字母组合。
+        // 服务层根因(迟到确认键 UP 幽灵点击)由服务层消费修复,真机回归随 T27 Round 2。
+        val (c, fake) = composer(mapOf("e" to listOf("额", "饿", "恶")))
+        c.appendLetter('e')
+        assertEquals(listOf("e"), fake.calls)
+        c.reset() // = 服务层 selectCandidate 的复位语义
+        c.appendLetter('e')
+        assertEquals("e", c.composition)
+        assertEquals("复位后同字母重按应重新查询单字母组合", listOf("e", "e"), fake.calls)
+    }
 }

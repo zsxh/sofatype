@@ -3,6 +3,7 @@
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -225,5 +226,38 @@ class KeyboardLayoutTest {
         // 完成键画板① 定位（键区内 1120px）= 图标列原点：与下屏/删除列左缘对齐（T28 回归点）
         assertEquals("完成键与图标列左缘对齐", 1120, row1[13])
         assertEquals("空格列到完成键列间距 = 1120 − 1028 − 80 = 12px 键距", 1120 - (1028 + 80), 12)
+    }
+
+    // ---- T45 · 硬件字母键码映射（FR-A8 统一口径） ----
+
+    @Test
+    fun letterIdForKeyCodeMapsKeycodeAThruZ() {
+        // KEYCODE_A=29 .. KEYCODE_Z=54（android.view.KeyEvent 自 API 1 起稳定常量）
+        assertEquals("a", KeyboardLayout.letterIdForKeyCode(29))
+        assertEquals("e", KeyboardLayout.letterIdForKeyCode(33))
+        assertEquals("k", KeyboardLayout.letterIdForKeyCode(39))
+        assertEquals("t", KeyboardLayout.letterIdForKeyCode(48))
+        assertEquals("z", KeyboardLayout.letterIdForKeyCode(54))
+    }
+
+    @Test
+    fun letterIdForKeyCodeRejectsNonLetterCodes() {
+        // 字母区间外（边界）与常见非字母键码：数字（直出口径不变）/空格/确认键/删除
+        assertNull(KeyboardLayout.letterIdForKeyCode(28))
+        assertNull(KeyboardLayout.letterIdForKeyCode(55))
+        assertNull(KeyboardLayout.letterIdForKeyCode(7))   // KEYCODE_0
+        assertNull(KeyboardLayout.letterIdForKeyCode(62))  // KEYCODE_SPACE
+        assertNull(KeyboardLayout.letterIdForKeyCode(66))  // KEYCODE_ENTER
+        assertNull(KeyboardLayout.letterIdForKeyCode(67))  // KEYCODE_DEL
+    }
+
+    @Test
+    fun letterIdForKeyCodeIdsAreAllRealLetterKeys() {
+        // 26 个映射 id 全部命中字母键盘模型的单字母 Text 键（服务层据此经 execute 与网格 OK 同路组合）
+        for (keyCode in 29..54) {
+            val id = KeyboardLayout.letterIdForKeyCode(keyCode)
+            assertTrue("id=$id 应在键位模型中", KeyboardLayout.keyById.containsKey(id))
+            assertTrue("id=$id 应为字母键", id in KeyboardLayout.letterKeyIds)
+        }
     }
 }

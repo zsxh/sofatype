@@ -102,6 +102,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：①注入走查用「单键一条命令 + 设备端 `logcat -d -s ImeKeyTrace | tail` 确认」模式，勿依赖本地文件做实时判定；②批量键发送后必须核对焦点再继续，偏航按 trace 实况纠偏；③`logcat -d` 全缓冲 FATAL 核查时区分系统进程/工具噪音与应用崩溃（坑 7）。
 
+**补充（2026-11-09，T27）——注入病理窗口**：同日实测会话内出现：幻影 DEL×2、单 BACK 迟到 80s 二次送达、keycode 4 无中生有入 trace、事件沉入 T38 抑制浮层（MitvPhoneWindowManager「prepare dispatch key … Unhandled key」在案）。注入类走查的「直落/双写」类观测（trace 缺行、输入框多字符）须先排除病理窗口污染；重要结论换时段复测，指纹字段（如 firstRow=被命中键字母）可做自检。
+
 ### 坑 8：搜狗输入法会话内 show 请求在、键盘窗口不渲染（2026-11-08，T12 对照定性）
 
 **现象**：某次会话中搜狗（`com.sohu.inputmethod.sogou.tv/.SogouIME`）全程 `mInputShown=true`（请求态）但 IME 窗口 surface `shown=false`、SurfaceFlinger 无其合成层；BACK/OK/CENTER toggle 均不能使其建立可见基线，收起控件在不可见窗口内无可注入坐标。机制未查明，属搜狗内部行为。
@@ -114,11 +116,15 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：走查期间防 >8 分钟空闲，注入任意键（如 DPAD）可重置屏保计时（PowerManagerService userActivity 日志可证）；每次弹键盘前按坑 3 口径核对 `default_input_method`；恢复按坑 3/5。
 
+**补充（2026-11-09，T27）**：屏保强杀同样波及**前台设置页 Activity**（设置页消失后系统 HOME 兜底可落到第三方应用，实测 tvbox 回前台，非该应用自启拉前台——logcat 无其 START 痕迹）；长等待期用保活循环（每 6 分钟注入 DPAD 重置计时，走查毕即清，T27 实测有效）。本轮坑 9 两次复现（480s 整点触发各一次），诱因均为走查等待期未注入。
+
 ### 坑 10：TvMgr-MemoryAutoClean 静默强杀后台/前台应用，无应用侧日志（2026-11-08，T19）
 
 **现象**：`TvMgr-MemoryAut`（pid 3371）周期性 Force stopping 第三方应用（18:22:52 实证连发 `Force stopping com.newtv.cboxtv ... from pid 3371` 等，自身 126 行被 chatty 吞掉）；本应用后台化（HOME 回桌面）约 10 秒后被清杀，前台静默死亡一次（~18:19，疑似同源）。SIGKILL 无应用侧异常，ActivityManager 痕迹常被 chatty 汇总吞掉。
 
 **处置**：配对/远程会话期间保持应用前台，不要 HOME/切后台；判「进程不存在」不可只凭 `ps`（坑 12），用 `dumpsys activity processes` 交叉验证；进程死后恢复按坑 3（ime set）+ 重新进远程模式。
+
+**补充（2026-11-09，T27）**：前台 Activity 并不豁免——sofatype 设置页前台亦被清杀一次（11:36:09，pid 11205，自杀型 killProcess 路径，直接诱因强嫌疑 TvMgr-MemoryAutoClean（pid 3387，死亡后 0.1s 有其 expire 痕迹，自身日志被 chatty 吞）；crash 栈未捕获）。走查脚本对前台 Activity 存活不可做持久假设，节点前 30s 内核对前台。
 
 ### 坑 11：shell 无法真实切换 Wi-Fi——svc 无权限、airplane 广播被 MiTV 栈忽略（2026-11-08，T19）
 
@@ -137,4 +143,16 @@ adb shell getprop ro.product.cpu.abilist
 **现象**：本机 `uiautomator dump` 的 bounds 处于应用窗口坐标空间（根节点高度 1001px），与 `input tap` 的屏幕像素空间（1080px）比例 ≈0.927；把 dump 坐标直接搬去 tap 会整体偏上约 7%（实测点击 EditText 无响应，换 screencap 目测像素坐标立即命中）。
 
 **处置**：`input tap` 坐标一律以 `screencap` 截图目测像素为准（DEV-GUIDE「走查通道备注」的设备侧实锤与量化）；dump 仅用于读控件结构/文本，不用于产坐标。
+
+### 坑 14：候选栏显隐驱动键盘区整体位移，同坐标两态命中不同键（2026-11-09，T27）
+
+**现象**：中文模式候选栏区域常驻（含空组合，键盘整体处于低位）；英文/符号态候选栏隐藏，键盘上移约 72px。同一屏幕坐标在两态命中不同键（实测 (1180,730)：低位=「中/英」，高位=`123_!`）。两态切换瞬间存在渲染中间态（A2 截图「数字列消失」，自愈，非缺陷）。
+
+**处置**：`input tap` 坐标以「当前态最新一次 screencap 目测」为准；候选栏显隐、中/英切换、进出符号键盘后必须重新截图目测再点（坑 13 的扩展：不只 dump 缩放系，还有布局两态位移）。
+
+### 坑 15：应用发起安装的授权判定读 global 位，UI「未知来源」开关写 secure 位（2026-11-09，T27）
+
+**现象**：应用 PackageInstaller 会话 commit 被平台拒 `INSTALL_FAILED_USER_RESTRICTED`，当时 `secure install_non_market_apps=1` 且设置 UI「安装未知来源应用」常开（户主核对一直开着）；`settings put global install_non_market_apps 1` 补写后，mock 会话静默直装成功（14:07:30 落地）——平台判定源=global 位，UI 开关写 secure 位，两处不一致。另实测：系统安装窗/会话活跃期间，`adb install -r` 复装亦被拒 `USER_RESTRICTED`（195s 失败回执，机制未查）——复装失败先排除会话残留与前台安装窗，不盲试。
+
+**处置**：户主拍板（2026-11-09）：`global install_non_market_apps=1` 长期保持置位，为该机安装授权标准态。涉及真机安装链验证时，先核对 `settings get global install_non_market_apps`。
 

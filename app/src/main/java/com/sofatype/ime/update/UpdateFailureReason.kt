@@ -27,4 +27,7 @@ enum class UpdateFailureReason {
 
     /** 下载完成后向系统安装器提交会话失败。 */
     INSTALL_PREPARE,
+
+    /** 安装回执失败（系统安装器拒绝/中断，状态码经 httpStatus 携带；T46 附加，T21「失败可重试」口径）。 */
+    INSTALL_COMMIT,
 }

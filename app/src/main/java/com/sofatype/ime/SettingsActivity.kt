@@ -24,6 +24,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
+import com.sofatype.ime.update.InstallReceipt
+import com.sofatype.ime.update.InstallReceiptDecision
 import com.sofatype.ime.update.UpdateCheck
 import com.sofatype.ime.update.UpdateCheckResult
 import com.sofatype.ime.update.UpdateEndpoint
@@ -59,9 +61,10 @@ class SettingsActivity : Activity() {
         override fun onReceive(context: Context, intent: Intent) {
             val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
             val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-            when (status) {
-                // PENDING_USER_ACTION：系统将确认框启动 Intent 放在 EXTRA_INTENT，由应用转交 startActivity
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+            // 决策映射走纯模型 InstallReceipt（InstallReceiptTest 锁定），本处按决策分派 UI/转交。
+            when (InstallReceipt.decisionFor(status)) {
+                InstallReceiptDecision.PENDING_USER_ACTION -> {
+                    // PENDING_USER_ACTION：系统将确认框启动 Intent 放在 EXTRA_INTENT，由应用转交 startActivity
                     val confirm = if (Build.VERSION.SDK_INT >= 33) {
                         intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     } else {
@@ -75,8 +78,21 @@ class SettingsActivity : Activity() {
                         Log.i(UPDATE_LOG_TAG, "安装确认 intent 缺失")
                     }
                 }
-                PackageInstaller.STATUS_SUCCESS -> Log.i(UPDATE_LOG_TAG, "安装成功回执")
-                else -> Log.i(UPDATE_LOG_TAG, "安装回执 status=$status message=$message")
+                InstallReceiptDecision.SUCCESS -> Log.i(UPDATE_LOG_TAG, "安装成功回执")
+                InstallReceiptDecision.FAILURE -> {
+                    // T46 附加（T21「失败可重试」口径）：安装回执失败必须切 UI 失败态——
+                    // 红点 + 原因文案（携带系统状态码）+ 按钮变「重试」。修复前仅写 log，
+                    // 界面滞留「已提交系统安装」成功态（真机 INSTALL_FAILED_USER_RESTRICTED
+                    // 实证，qa Round 2 r2-t46z.xml）。onReceive 在主线程，可直接刷新 UI。
+                    Log.i(UPDATE_LOG_TAG, "安装回执失败 status=$status message=$message")
+                    showFailed(
+                        R.string.failed_prefix_install,
+                        UpdateCheckResult.Failed(
+                            UpdateFailureReason.INSTALL_COMMIT,
+                            httpStatus = status,
+                        ),
+                    )
+                }
             }
         }
     }
@@ -398,6 +414,8 @@ class SettingsActivity : Activity() {
             UpdateFailureReason.NO_APK_ASSET -> getString(R.string.reason_no_apk)
             UpdateFailureReason.DOWNLOAD_IO -> getString(R.string.reason_download_io)
             UpdateFailureReason.INSTALL_PREPARE -> getString(R.string.reason_install_prepare)
+            UpdateFailureReason.INSTALL_COMMIT ->
+                getString(R.string.reason_install_commit, result.httpStatus ?: -1)
         }
 
     private fun wrap(e: UpdateHttp.HttpException): UpdateCheckResult.Failed =
@@ -439,7 +457,7 @@ class SettingsActivity : Activity() {
         const val UPDATE_LOG_TAG = "UpdateCheck"
         const val UPDATE_APK_NAME = "update_download.apk"
 
-        /** 安装结果回执 action（系统安装器回调广播；本应用未注册接收器，广播无人接收即丢弃）。 */
+        /** 安装结果回执 action（系统安装器回调广播，installStatusReceiver 注册接收，onCreate 接线）。 */
         const val ACTION_INSTALL_STATUS = "com.sofatype.ime.action.INSTALL_STATUS"
     }
 }

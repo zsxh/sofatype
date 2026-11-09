@@ -63,7 +63,11 @@ object UpdateHttp {
             if (status !in 200..299) {
                 throw HttpException(UpdateFailureReason.DOWNLOAD_NETWORK, status, "HTTP $status")
             }
-            val total = conn.contentLengthLong.takeIf { it >= 0 }
+            // T46 · minSdk 23 兼容：getContentLengthLong() 为 API 24+ 方法，基线设备（Android 6.0.1）
+            // 上必抛 NoSuchMethodError 且为 Error 不入本方法异常链（真机 2026-11-09 实证 100% 崩溃）。
+            // 改用 API 9+ 的 int 版 getContentLength()：2GB 内等价（本项目更新包为 MB 量级，远低于界），
+            // 超界/未知时返回 -1 → total=null → 进度回调按未知总长口径（onProgress 已支持 null）。
+            val total = conn.contentLength.takeIf { it >= 0 }?.toLong()
             var copied = 0L
             conn.inputStream.use { input ->
                 dest.outputStream().use { output ->

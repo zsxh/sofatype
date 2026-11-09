@@ -757,17 +757,53 @@ class SofatypeImeService : InputMethodService() {
             }
             return true
         }
+        // T45（T27 缺陷 B 根因修复）· FR-A8 统一口径：中文 × 字母键盘下，硬件字母键码（含 adb
+        // 注入通道）与网格 OK 同路进入拼音组合。默认链路对打印键码不消费（本方法此前只处理
+        // BACK/方向/确认键），事件经框架直写宿主文本，绕过组合态与候选——中文模式表现为字母
+        // 直落不进组（真机 2026-11-09 实证「kde」直落且无 candidates 装载行）。仅拦 ACTION_DOWN
+        // 首按；英文模式 / 符号键盘 / 远程模式 / 输入窗隐藏维持框架直写（英文直出与网格行为一致，
+        // 数字直出口径不变）。字母键动作经 execute 与网格 OK 完全同路——组合态外 appendLetter
+        // 即起新组合，删除键清空组合后无需任何恢复操作即回到组合态。
+        if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0 &&
+            keyboardMode == KeyboardMode.LETTERS &&
+            languageMode == LanguageMode.CHINESE &&
+            !RemoteInputServerManager.isRunning() &&
+            isInputViewShown()
+        ) {
+            val letterKey = KeyboardLayout.letterIdForKeyCode(keyCode)?.let { KeyboardLayout.keyById[it] }
+            if (letterKey != null) {
+                execute(letterKey)
+                return true
+            }
+        }
         return super.onKeyDown(keyCode, ev)
     }
 
     /**
-     * T22：确认键抬起解除在途连删（长按松开即停，连删只覆盖按住期间）。其余键抬起维持框架默认
-     *（方向键抬起无焦点行为，onKeyDown 注释口径不变）。
+     * T22：确认键抬起解除在途连删（长按松开即停，连删只覆盖按住期间）。
+     * T44（T27 缺陷 A 根因修复）：确认键 UP 一律消费、不下发视图树——DOWN 已由 [onKeyDown]
+     * 消费，迟到的 UP（真机无线链路实测落后主按下约 3.5s）落回视图树会按确认键点击语义触发
+     * 当前焦点键的 click：选词上屏后焦点刚回归字母键即被幽灵点击重新入组（composer 残留、
+     * 再按叠加「ee」并混入正文，真机 17/17 复现，t27-a2-fulltrace-raw.txt 的 fromKey=false
+     * 幽灵装载行即此）。确认键 UP 在 InputMethodService 默认链路无语义，消费无副作用；
+     * 连删解除判定先行，语义与 T22 口径一致。
+     * T45（T27 缺陷 B 同族）：字母键码 UP 同样一律消费——DOWN 已在 [dispatchKeyDown] 拦截入组，
+     * 孤儿 UP 经框架转发路径直写宿主文本会与组合串并存（真机实测组合「e」+直落「e」双写，
+     * qa r2-b.xml「额额e」）；UP 在按键语义上无独立文本效应，消费无副作用。
+     * 真机补充实证（Round 3 指纹实验，2026-11-09）：motion 触摸点击（input tap）命中字母键
+     * 同样经 click → execute 入组且无 onKeyDown 行（fromKey=false 装载行首行数可指纹区分被
+     * tap 的键：'a'=9 / 'e'=10），属触摸输入通道设计行为，非状态缺陷。
      */
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (event != null && keyCode.isConfirmKey() && deleteRepeatJob != null) {
-            trace("onKeyUp keyCode=$keyCode（连删解除）")
-            cancelDeleteRepeat()
+        if (event != null && keyCode.isConfirmKey()) {
+            if (deleteRepeatJob != null) {
+                trace("onKeyUp keyCode=$keyCode（连删解除）")
+                cancelDeleteRepeat()
+            }
+            return true
+        }
+        if (event != null && KeyboardLayout.letterIdForKeyCode(keyCode) != null) {
+            return true
         }
         return super.onKeyUp(keyCode, event)
     }
