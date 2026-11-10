@@ -36,10 +36,6 @@
     <string name="btn_download_update">下载更新</string>
     <string name="btn_retry">重试</string>
     <string name="update_endpoint_url"></string>
-    <string name="install_dialog_title">安装更新 %1$s</string>
-    <string name="install_dialog_message">已下载 %1$s，是否立即安装？</string>
-    <string name="install_dialog_positive">安装</string>
-    <string name="install_dialog_negative">取消</string>
     <!-- 测试输入区（仅 debug 构建显示，PRD 决策 21） -->
     <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
     <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>

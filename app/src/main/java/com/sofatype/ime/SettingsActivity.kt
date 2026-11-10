@@ -1,16 +1,18 @@
-// T20 · 设置页补全（FR-D1~D3、D5，决策 19/21）。
-// T21 · FR-D4 / 决策 17/18：「检查更新」接成真实三态（已是最新 / 发现新版 → 下载进度 →
-// 安装确认框 / 失败红点可重试）；纯手动触发；更新源接口地址可配置（决策 17，正式地址后补）；
-// 下载走 cacheDir，安装确认后经 PackageInstaller 提交系统安装器，装后清理；
+// T21 · FR-D4 / 决策 17/18：「检查更新」接成真实三态（已是最新 / 发现新版 → 下载进度 /
+// 失败红点可重试）；纯手动触发；更新源接口地址可配置（决策 17，正式地址后补）；
+// 下载走 cacheDir，安装提交经系统层完成，装后清理；
 // 全部网络与安装准备在后台线程执行，失败不阻塞设置页与 IME 服务。
-// T47 · 决策 36：API 23 基线安装链路改走 UI 渠道——应用内确认后转交系统安装器（install Intent），
+// T47 · 决策 36：API 23 基线安装链路改走 UI 渠道——转交系统安装器（install Intent），
 // 回前台 onResume 比对自身 versionCode 判定（升=成功 / 未升=安装器取消或失败→失败可重试）；
 // in-flight 标记持久化（SharedPreferences，消费即清）：升级成功替换包必杀进程，内存标记活不到判定。
+// T51 · FR-D4 安装确认去重（2026-11-10 户主拍板，docs/issues/open/T51.md）：下载完成不再弹
+// 应用内「是否立即安装？」确认框，直接提交安装；用户确认语义由系统层完整承载
+//（API 23 基线 = 系统安装器包确认 + 小米商店安全审核两道系统级确认，设备档案坑 16）。
+// 「失败可重试」与版本判定链不变。
 // 范围边界：测试输入区沿 T2，仅 debug 显示。
 package com.sofatype.ime
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -56,9 +58,7 @@ class SettingsActivity : Activity() {
         UP_TO_DATE,
         NEWER,
         DOWNLOADING,
-        /** 下载完成、安装确认框展示中；框取消则回 NEWER。 */
-        READY_TO_INSTALL,
-        /** 安装会话写入与提交进行中。 */
+        /** 安装提交准备与转交进行中（T51：下载完成即进入，无应用内确认环节）。 */
         PREPARING_INSTALL,
         FAILED,
         INSTALL_SUBMITTED,
@@ -119,7 +119,6 @@ class SettingsActivity : Activity() {
 
     private var uiState = UiState.IDLE
     private var latestRelease: UpdateRelease? = null
-    private var confirmDialog: AlertDialog? = null
     private var lastPostedPercent = -1
 
     private lateinit var btnCheckUpdate: Button
@@ -177,8 +176,6 @@ class SettingsActivity : Activity() {
     override fun onDestroy() {
         destroyed = true
         ioGeneration++
-        confirmDialog?.dismiss()
-        confirmDialog = null
         unregisterReceiver(installStatusReceiver)
         // 退出清理：后台任务中断 + cache 下载文件不残留（AGENTS.md 禁止事项 3）
         ioExecutor.shutdownNow()
@@ -251,7 +248,6 @@ class SettingsActivity : Activity() {
             UiState.FAILED -> startCheck() // 重试 = 重跑检查
             UiState.CHECKING,
             UiState.DOWNLOADING,
-            UiState.READY_TO_INSTALL,
             UiState.PREPARING_INSTALL,
             -> Unit
         }
@@ -302,7 +298,8 @@ class SettingsActivity : Activity() {
                     },
                     isCancelled = { generation != ioGeneration || destroyed },
                 )
-                postIfCurrent(generation) { onDownloadComplete(release, file) }
+                // T51：下载完成直接提交安装（无应用内确认环节，确认语义由系统层承载）
+                postIfCurrent(generation) { submitInstall(release, file) }
             } catch (e: UpdateHttp.CancelledException) {
                 // 取消：态保持（销毁中无须刷新），半成品文件已由 UpdateHttp 删除
             } catch (e: UpdateHttp.HttpException) {
@@ -313,23 +310,11 @@ class SettingsActivity : Activity() {
         }
     }
 
-    private fun onDownloadComplete(release: UpdateRelease, file: File) {
-        applyState(UiState.READY_TO_INSTALL)
-        confirmDialog = AlertDialog.Builder(this)
-            .setTitle(getString(R.string.install_dialog_title, release.tag))
-            .setMessage(
-                buildString {
-                    if (release.notes.isNotBlank()) append(release.notes).append("\n\n")
-                    append(getString(R.string.install_dialog_message, release.tag))
-                },
-            )
-            .setPositiveButton(R.string.install_dialog_positive) { _, _ -> submitInstall(release, file) }
-            .setNegativeButton(R.string.install_dialog_negative) { _, _ -> applyState(UiState.NEWER) }
-            .setOnCancelListener { if (uiState == UiState.READY_TO_INSTALL) applyState(UiState.NEWER) }
-            .show()
-    }
-
-    /** 安装确认框 OK：按决策 36 渠道门控分发——API 24+ 会话分支 / API 23 基线 UI 渠道。 */
+    /**
+     * 下载完成即提交（T51 去确认框）：按决策 36 渠道门控分发——
+     * API 24+ 会话分支 / API 23 基线 UI 渠道（系统安装器包确认 + 商店安全审核承载用户确认，
+     * 设备档案坑 16）。
+     */
     private fun submitInstall(release: UpdateRelease, file: File) {
         when (InstallChannels.channelFor(Build.VERSION.SDK_INT)) {
             InstallChannel.SESSION -> submitSessionInstall(release, file)
@@ -388,12 +373,13 @@ class SettingsActivity : Activity() {
     }
 
     /**
-     * UI 渠道（API 23 基线，决策 36 / issue T47）：确认后转交系统安装器完成安装，安全检测
-     * 与继续/取消都在系统安装器界面；无会话回执，回前台 onResume 按 versionCode 比对判定
-     * （evaluateUiChannelInstallResult）。APK 放开读权限供安装器独立 uid 读取（targetSdk 24+
-     * 下 MODE_WORLD_READABLE 抛 SecurityException，setReadable(true, false) 是本分支唯一
-     * 可行的放开方式）；文件保留至判定后清理——安装器异步读取，不能转交即删（会话分支口径
-     * 为提交即删，分支行为不同属预期）。启动前登记持久化 in-flight 标记。
+     * UI 渠道（API 23 基线，决策 36 / issue T47；T51 起下载完成后直接调本方法）：转交系统安装器
+     * 完成安装，包确认与安全检测、继续/取消都在系统安装器界面；无会话回执，回前台 onResume
+     * 按 versionCode 比对判定（evaluateUiChannelInstallResult）。APK 放开读权限供安装器独立
+     * uid 读取（targetSdk 24+ 下 MODE_WORLD_READABLE 抛 SecurityException，
+     * setReadable(true, false) 是本分支唯一可行的放开方式）；文件保留至判定后清理——
+     * 安装器异步读取，不能转交即删（会话分支口径为提交即删，分支行为不同属预期）。
+     * 启动前登记持久化 in-flight 标记。
      */
     private fun launchUiChannelInstall(release: UpdateRelease, file: File) {
         val generation = ++ioGeneration
@@ -451,7 +437,7 @@ class SettingsActivity : Activity() {
     ) {
         uiState = state
         latestRelease?.let { release ->
-            if (state == UiState.NEWER || state == UiState.DOWNLOADING || state == UiState.READY_TO_INSTALL) {
+            if (state == UiState.NEWER || state == UiState.DOWNLOADING) {
                 updateNotes.text = release.notes
                 updateNotes.visibility = View.VISIBLE
             } else {
@@ -462,7 +448,7 @@ class SettingsActivity : Activity() {
         statusRow.visibility =
             if (state == UiState.IDLE) View.GONE else View.VISIBLE
         downloadProgress.visibility =
-            if (state == UiState.DOWNLOADING || state == UiState.READY_TO_INSTALL) View.VISIBLE else View.GONE
+            if (state == UiState.DOWNLOADING) View.VISIBLE else View.GONE
 
         when (state) {
             UiState.IDLE -> Unit
@@ -486,13 +472,6 @@ class SettingsActivity : Activity() {
             UiState.DOWNLOADING -> {
                 dot(R.drawable.bg_status_dot_waiting)
                 showProgress(progressBytes ?: 0, progressTotal)
-                setButton(R.string.btn_download_update, enabled = false)
-            }
-            UiState.READY_TO_INSTALL -> {
-                dot(R.drawable.bg_status_dot_waiting)
-                statusText.text = getString(R.string.status_downloading, 100)
-                downloadProgress.isIndeterminate = false
-                downloadProgress.progress = 100
                 setButton(R.string.btn_download_update, enabled = false)
             }
             UiState.PREPARING_INSTALL -> {
