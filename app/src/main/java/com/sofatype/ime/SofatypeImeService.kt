@@ -1146,9 +1146,10 @@ class SofatypeImeService : InputMethodService() {
         when (val action = key.action) {
             KeyAction.HideSelf -> hideSelfAfterKeyDispatch()
             KeyAction.Done -> {
-                // FR-A10「确认当前输入并收起」：结束组合态（组合串原样上屏，无组合时为无操作），再收起
-                currentInputConnection?.finishComposingText()
-                composer.reset()
+                // FR-A10「确认当前输入并收起」：结束组合态（组合串原样上屏，无组合时为无操作），再收起。
+                // T49 评审建议 3（户主 2026-11-10 批准）：落定+复位收敛到 finishComposition 单一实现点，
+                // 全部落定路径同源，避免同族缺陷复发（某处落定未带复位）
+                finishComposition()
                 hideSelfAfterKeyDispatch()
             }
             // FR-A9 文本输出 × FR-A4 语言模式：中文模式字母键进入拼音组合（FR-A8，组合串恒小写，
@@ -1732,12 +1733,20 @@ class SofatypeImeService : InputMethodService() {
     /**
      * 光标在输入框内移动（FR-A9）。经 InputConnection 直接 setSelection，
      * 不产生按键事件（避免与焦点导航的方向键拦截相互干扰）。
+     * T49：移动前先同步终结组合态——组合态移动光标时，框架 finishComposingText 会把组合串
+     * 落为正文（组合区间消失），composer 若不同步复位则残留幻影组合串；其后删除键经 T48
+     * 拦截分支按幻影组合判定走 performDelete → setComposingText 把幻影末字母闪插进正文
+     * （正文 ke→kke），次针白按删插入字母，第三针起才真正删正文。落定与复位必须成对
+     * （finishComposition，与完成键 / 中英切换 / 符号切换同一口径），落定后候选栏同步清空。
      */
     private fun moveCursor(delta: Int) {
         val ic = currentInputConnection ?: return
+        if (composer.composition.isNotEmpty()) {
+            finishComposition()
+            refreshCandidatesBar()
+        }
         ic.beginBatchEdit()
         try {
-            ic.finishComposingText()
             val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
             if (extracted?.text != null) {
                 val length = extracted.text.length
