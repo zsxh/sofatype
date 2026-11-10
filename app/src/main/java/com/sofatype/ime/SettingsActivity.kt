@@ -9,6 +9,14 @@
 // 应用内「是否立即安装？」确认框，直接提交安装；用户确认语义由系统层完整承载
 //（API 23 基线 = 系统安装器包确认 + 小米商店安全审核两道系统级确认，设备档案坑 16）。
 // 「失败可重试」与版本判定链不变。
+// T50 · UI 渠道判定态入口自愈（docs/issues/open/T50.md）：升级替换包杀进程后 am start 重建的
+// 判定实例在本机（MiTV API 23）实测窗口输入派发整体失活——tap/OK/BACK 全不达，视图树与渲染
+// 正常（2026-11-10 T27 批次真机 B3 段观测）；FR-D4 手动触发语义下该实例「检查更新」必须可用。
+// 处置：判定终态落地后立即 recreate() 换新实例呈现（新实例 = 新窗口 = 新输入通道）；判定结果
+// 经 onSaveInstanceState/savedInstanceState 一次性传递恢复，恢复实例不再二次重建。
+// T50 Round 2 · 手动检查路径补日志点（2026-11-10 户主指令，review-qa Round 1 非阻塞建议 1）：
+// startCheck 发起一条、onCheckResult 落态一条（三态标识 + 失败原因），仅走查取证用，
+// 不改变任何行为逻辑；日志不含用户输入内容。
 // 范围边界：测试输入区沿 T2，仅 debug 显示。
 package com.sofatype.ime
 
@@ -121,6 +129,18 @@ class SettingsActivity : Activity() {
     private var latestRelease: UpdateRelease? = null
     private var lastPostedPercent = -1
 
+    /**
+     * T50 · 待恢复的 UI 渠道判定终态：本实例由「判定后自愈重建」链路创建时，经
+     * savedInstanceState 携带；onResume 应用终态后清空（一次性，不跨进程）。
+     */
+    private var pendingUiChannelDecision: UiInstallDecision? = null
+
+    /** T50 · 本实例已落定的 UI 渠道判定终态（供 onSaveInstanceState 向自愈重建实例传递）。 */
+    private var lastUiChannelDecision: UiInstallDecision? = null
+
+    /** T50 · 自愈重建排队标记：主线程 post 消费一次，防销毁后重复重建。 */
+    private var healRecreatePending = false
+
     private lateinit var btnCheckUpdate: Button
     private lateinit var statusRow: View
     private lateinit var statusDot: View
@@ -131,6 +151,12 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+
+        // T50 · 自愈重建链路：恢复实例从 savedInstanceState 读回判定终态（一次性传递；
+        // 载荷缺失或非法时保持 null，走普通启动路径，行为与修复前一致）。
+        pendingUiChannelDecision = savedInstanceState
+            ?.getString(KEY_SAVED_UI_CHANNEL_DECISION)
+            ?.let { raw -> runCatching { UiInstallDecision.valueOf(raw) }.getOrNull() }
 
         // FR-D3：版本信息卡读真实版本（决策 19：versionName/versionCode 以构建配置为准）
         findViewById<TextView>(R.id.version_value).text = readVersionText()
@@ -188,6 +214,12 @@ class SettingsActivity : Activity() {
         evaluateUiChannelInstallResult()
     }
 
+    /** T50 · 判定终态随实例状态保存，供自愈重建实例恢复（无判定终态时不写，零残留）。 */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        lastUiChannelDecision?.let { outState.putString(KEY_SAVED_UI_CHANNEL_DECISION, it.name) }
+    }
+
     // ═══ T47 · UI 渠道结果判定（决策 36：回设置页比对自身 versionCode）═══
 
     /**
@@ -195,14 +227,37 @@ class SettingsActivity : Activity() {
      * 失败（红点 + 原因文案 + 重试，T21 口径）。判定即清标记并清理下载 cache 文件（装后 /
      * 取消共用清理口径，AGENTS 禁止事项 3）。无标记即普通回前台，不动 UI。
      * API 24+ 会话分支不写标记，不受本判定影响（验收④行为不回归）。
+     * T50 · 自愈重建：包替换杀进程后 am start 重建的本实例窗口输入派发实测整体失活
+     * （docs/issues/open/T50.md，tap/OK/BACK 全不达），故判定终态先落地渲染，随即排队
+     * recreate() 换新实例呈现——新实例经 savedInstanceState 读回终态（见
+     * [restoreUiChannelDecision]），不再二次判定、不再二次重建。恢复实例走本方法
+     * 恢复分支，与无标记普通回前台（修复前行为）互不影响。
      */
     private fun evaluateUiChannelInstallResult() {
+        pendingUiChannelDecision?.let { saved ->
+            restoreUiChannelDecision(saved)
+            return
+        }
         val beforeCode = readUiInstallMarker() ?: return
         clearUiInstallMarker()
         val afterCode = readVersionCode()
         val decision = UiInstallReceipt.decisionFor(beforeCode, afterCode)
         Log.i(UPDATE_LOG_TAG, "UI 渠道结果判定 before=$beforeCode after=$afterCode decision=$decision")
         updateApkFile().delete()
+        applyDecision(decision)
+        scheduleHealRecreate()
+    }
+
+    /** T50 · 恢复分支：应用自愈重建实例带回的判定终态（一次性消费，不再排队重建）。 */
+    private fun restoreUiChannelDecision(decision: UiInstallDecision) {
+        pendingUiChannelDecision = null
+        Log.i(UPDATE_LOG_TAG, "UI 渠道判定终态自恢复 decision=$decision")
+        applyDecision(decision)
+    }
+
+    /** T50 · 判定终态统一落地（首启判定实例与自愈恢复实例共用渲染口径）。 */
+    private fun applyDecision(decision: UiInstallDecision) {
+        lastUiChannelDecision = decision
         when (decision) {
             UiInstallDecision.UPDATED -> applyState(UiState.INSTALL_SUCCESS)
             UiInstallDecision.NOT_UPDATED ->
@@ -210,6 +265,20 @@ class SettingsActivity : Activity() {
                     R.string.failed_prefix_install,
                     UpdateCheckResult.Failed(UpdateFailureReason.UI_INSTALL_NOT_UPDATED),
                 )
+        }
+    }
+
+    /**
+     * T50 · 自愈重建排队：post 一帧（让终态先渲染）后 recreate。一次性消费 + 销毁护栏；
+     * 恢复实例（[restoreUiChannelDecision] 路径）不排队，无重建循环。
+     */
+    private fun scheduleHealRecreate() {
+        healRecreatePending = true
+        mainHandler.post {
+            if (!healRecreatePending || destroyed) return@post
+            healRecreatePending = false
+            Log.i(UPDATE_LOG_TAG, "判定终态自愈：重建实例呈现（T50）")
+            recreate()
         }
     }
 
@@ -259,6 +328,8 @@ class SettingsActivity : Activity() {
         lastPostedPercent = -1
         applyState(UiState.CHECKING)
         val endpoint = UpdateEndpoint.endpoint(this)
+        // T50 Round 2 · 手动检查发起日志（走查取证用；endpoint 为配置的更新源地址，非用户输入内容）
+        Log.i(UPDATE_LOG_TAG, "手动检查发起 endpoint=$endpoint")
         ioExecutor.execute {
             val result = UpdateCheck.check(endpoint, currentVersionName()) { url ->
                 UpdateHttp.fetchText(url)
@@ -268,6 +339,8 @@ class SettingsActivity : Activity() {
     }
 
     private fun onCheckResult(result: UpdateCheckResult) {
+        // T50 Round 2 · 手动检查落态日志（走查取证用）：含三态标识与失败原因，仅写日志不改分派
+        Log.i(UPDATE_LOG_TAG, "手动检查结果 ${checkResultLabel(result)}")
         when (result) {
             is UpdateCheckResult.UpToDate -> applyState(UiState.UP_TO_DATE)
             is UpdateCheckResult.Newer -> {
@@ -278,6 +351,14 @@ class SettingsActivity : Activity() {
             is UpdateCheckResult.Failed -> showFailed(R.string.failed_prefix_check, result)
         }
     }
+
+    /** T50 Round 2 · 检查结果日志摘要（三态标识 + 失败原因 + 版本 tag；均非用户输入内容）。 */
+    private fun checkResultLabel(result: UpdateCheckResult): String =
+        when (result) {
+            is UpdateCheckResult.UpToDate -> "result=UP_TO_DATE"
+            is UpdateCheckResult.Newer -> "result=NEWER tag=${result.release.tag}"
+            is UpdateCheckResult.Failed -> "result=FAILED reason=${result.reason} http=${result.httpStatus ?: "-"}"
+        }
 
     private fun startDownload() {
         val release = latestRelease ?: return
@@ -579,6 +660,9 @@ class SettingsActivity : Activity() {
         /** UI 渠道 in-flight 标记存储（T47：跨进程存活、消费即清，零残留）。 */
         const val PREFS_UI_INSTALL = "update_ui_install"
         const val KEY_UI_INSTALL_BEFORE_CODE = "before_code"
+
+        /** T50 · 自愈重建链路的判定终态 savedState 键（仅 recreate 同进程链路，零持久化残留）。 */
+        const val KEY_SAVED_UI_CHANNEL_DECISION = "ui_channel_decision"
 
         /** 安装结果回执 action（系统安装器回调广播，installStatusReceiver 注册接收，onCreate 接线）。 */
         const val ACTION_INSTALL_STATUS = "com.sofatype.ime.action.INSTALL_STATUS"
