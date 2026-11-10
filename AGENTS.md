@@ -60,6 +60,14 @@ sofatype/
   - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
 - **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；开发环境问题写入 `local/DEV-GUIDE.md`（不提交）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD_*.md)，编号顺延、不重排。
 - 提交信息与代码注释用中文。
+- **提交信息遵循 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) 规范**：结构为 `<type>(<scope>): <描述>` + 可选 body + 可选 footer；type / scope / footer 关键词用规范固定英文词，描述与正文按上一条用中文。
+  - **type（必填，小写英文）**：`feat` 新功能、`fix` 修 bug 必用；其余按需选 `build`、`chore`、`ci`、`docs`、`style`、`refactor`、`perf`、`test`、`revert`。
+  - **scope（可选）**：括号内的名词，标明改动区域，如 `fix(ime):`。
+  - **破坏性变更**：type/scope 后紧接 `!`（如 `feat(api)!:`），或 footer 写 `BREAKING CHANGE: <说明>`；footer 里 `BREAKING CHANGE` 必须全大写（`BREAKING-CHANGE` 同义）。
+  - **描述**：紧跟 `: ` 之后，中文短句概括本次改动，不以句号结尾。
+  - **body / footer**：各与上一段之间空一行；footer 用 git trailer 格式（token 内空格写 `-`，如 `Refs: #123`、`Reviewed-by: Z`）。
+  - 示例：`feat(ime): 支持手机扫码远程输入`；`fix: 修复焦点丢失后按键无响应`；`docs: 更正 CHANGELOG 措辞`；`feat(settings)!: 重命名全部配色 Token`（另起 footer 写 `BREAKING CHANGE: ...`）。
+  - 一个 commit 只对应一种 type；混了多种就拆成多个 commit。
 
 ## 五、禁止事项
 
