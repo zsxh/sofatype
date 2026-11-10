@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-10T23:06:00+08:00" },
+  "title": "sofatype 实现快照 · 2026-11-10",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1920, "h": 596, "title": "1 · 键盘 · 小写（空输入态）" },
+    "Uppercase.dc.html": { "x": 2000, "y": 0, "w": 1920, "h": 596, "title": "2 · 键盘 · 大写（⇧ 激活+焦点）" },
+    "SymbolsFull.dc.html": { "x": 0, "y": 716, "w": 1920, "h": 596, "title": "3 · 符号键盘 · 全角 30 符号" },
+    "SymbolsHalf.dc.html": { "x": 2000, "y": 716, "w": 1920, "h": 596, "title": "4 · 符号键盘 · 半角 28 符号" },
+    "RemotePairing.dc.html": { "x": 0, "y": 1432, "w": 1920, "h": 596, "title": "5 · 远程模式 · 等待扫码（配对卡）" },
+    "RemoteConnected.dc.html": { "x": 2000, "y": 1432, "w": 1920, "h": 596, "title": "6 · 远程模式 · 已连接（决策 35）" },
+    "Settings.dc.html": { "x": 0, "y": 2148, "w": 1920, "h": 1080, "title": "7 · TV 设置页（检查更新 · 已是最新）" },
+    "PhoneRemote.dc.html": { "x": 2000, "y": 2148, "w": 390, "h": 844, "title": "8 · 手机远程输入 H5（已连接）" }
+  },
+  "order": [
+    "Main.dc.html",
+    "Uppercase.dc.html",
+    "SymbolsFull.dc.html",
+    "SymbolsHalf.dc.html",
+    "RemotePairing.dc.html",
+    "RemoteConnected.dc.html",
+    "Settings.dc.html",
+    "PhoneRemote.dc.html"
+  ],
+  "notes": {
+    "sync-src": { "x": 0, "y": -300, "text": "反向同步自模拟器实现（API 34 · 1080p · debug v0.1.0(1)）。IME 窗口实测 1920×596（原设计稿 644）；截图存 screenshots/design-sync-20261110/", "w": 560 }
+  },
+  "designSystems": []
+}
