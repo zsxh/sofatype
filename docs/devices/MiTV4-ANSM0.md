@@ -156,3 +156,9 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：户主拍板（2026-11-09）：`global install_non_market_apps=1` 长期保持置位，为该机安装授权标准态。涉及真机安装链验证时，先核对 `settings get global install_non_market_apps`。同日拍板：检查更新链路改走 UI 渠道（系统安装器），会话通道不再作本机更新主链路——PRD 决策 36，落地任务 T47。
 
+### 坑 16：系统安装器包确认界面不响应键码，仅 tap 可操作（2026-11-10，T27）
+
+**现象**：应用发起安装后弹出的系统安装器包确认界面：遥控器键码无反应（户主现场实证），adb `input keyevent`（DPAD/OK 等）同样零视觉响应（截图逐字节一致）——仅 `input tap` 可操作。小米形态：`global install_non_market_apps=1` 下**直接弹包安装确认、无「未知来源」授权步**（T21 挂账授权链就此收口）；界面含红色警告「该版本未经过安全审核，可能存在未知风险」+【取消更新/继续更新】双钮。
+
+**处置**：涉及安装器界面的真机走查，按户主拍板意图以 `input tap` 代操作（输入通道代换须报备）；双钮坐标以 screencap 目测（坑 13/14 口径）。形态与授权链结论随 T46/T47 真机段留档（`screenshots/T27/` t27r2-b1-installer.png 等）。另注：升级安装会杀设置页任务（按「完成」后不自动回前台，需 am start 恢复，onResume 判定等效触发）；升级后 `default_input_method` 被夺回搜狗（坑 5/9/37 同链，预期内）。
+
