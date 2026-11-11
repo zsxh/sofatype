@@ -17,18 +17,31 @@
 
     <application
         android:allowBackup="false"
+        android:banner="@drawable/banner_sofatype"
+        android:icon="@mipmap/ic_launcher"
         android:label="sofatype"
         android:theme="@style/Theme.Sofatype">
 
         <!-- T2：设置页 Activity（FR-D1 最小集）。
              exported=true：TASKS T2 验收方式要求 adb `am start` 直达；
              系统输入法设置的入口由 @xml/method.xml 的 settingsActivity 声明（FR-D1），
-             该 meta-data 在 T3 声明 IME service 时引用生效。 -->
+             该 meta-data 在 T3 声明 IME service 时引用生效。
+             T60：补 MAIN + LEANBACK_LAUNCHER / LAUNCHER 入口 intent-filter（FR-D1「应用入口」）——
+             两个 category 同列一个 filter，TV 桌面（LEANBACK_LAUNCHER）与通用应用列表（LAUNCHER）
+             均可解析本 Activity；图标与桌面横幅由 application 级 icon / banner 提供。 -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
             android:label="@string/settings_label"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         <!-- T54 Round 2：adjustResize 供设置页焦点接管做键盘收起检测（可见底部帧还原）
              ——键盘收起后焦点移出测试输入框，遥控键恢复宿主派发（docs/issues/open/T54.md）。 -->
 
