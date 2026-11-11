@@ -1221,8 +1221,17 @@ class SofatypeImeService : InputMethodService() {
             // FR-A9：光标在输入框内移动（插入点随移动生效，走查覆盖）
             KeyAction.CursorLeft -> moveCursor(-1)
             KeyAction.CursorRight -> moveCursor(1)
-            // FR-A3：大小写切换，刷新字母区键面与上档键态提示
+            // FR-A3 大小写切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）：
+            // 中文态按[大写] = 切换为英文输入态——组合串与候选取消、不落输入框（cancelComposition，
+            // 与 finishComposition 落定上屏相对），候选栏同步清空；大小写状态随该键语义翻转
+            //（默认小写态落大写英文）。英文态维持 FR-A3 纯大小写切换（键面与态提示刷新不变）。
             KeyAction.ToggleCase -> {
+                if (languageMode == LanguageMode.CHINESE) {
+                    cancelComposition()
+                    languageMode = LanguageMode.ENGLISH
+                    trace("language -> $languageMode")
+                    refreshCandidatesBar()
+                }
                 caseState = if (caseState == CaseState.UPPER) CaseState.LOWER else CaseState.UPPER
                 trace("case -> $caseState")
                 applyCaseState()
@@ -1237,10 +1246,12 @@ class SofatypeImeService : InputMethodService() {
                 trace("symbolsWidth -> $symbolsWidth")
                 rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
             }
-            // FR-A4 中/英切换：先结束组合态（组合串以字母形式上屏，不丢已按键内容），再切换；
+            // FR-A4 中/英切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）：
+            // 切换前取消组合态（组合串与候选作废、不落输入框，落零候选词干净态；原「组合串以
+            // 字母形式上屏」口径废止——落定字母即切换残留，2026-11-11 真机反馈「未落中文零候选态」）；
             // 候选栏占位不变、chips 清空（决策 42：占位全模式恒定，键区顶不随语言切换移动）
             KeyAction.ToggleLanguage -> {
-                finishComposition()
+                cancelComposition()
                 languageMode =
                     if (languageMode == LanguageMode.CHINESE) LanguageMode.ENGLISH else LanguageMode.CHINESE
                 trace("language -> $languageMode")
@@ -1261,6 +1272,28 @@ class SofatypeImeService : InputMethodService() {
     private fun finishComposition() {
         if (composer.composition.isEmpty()) return
         currentInputConnection?.finishComposingText()
+        composer.reset()
+    }
+
+    /**
+     * 取消组合态（T55 · 户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）：
+     * 组合串与候选一并作废、不落输入框——先 setComposingText("") 清空框架组合区间
+     *（与 updateComposingText 同通道，空串即移除区间内容），再 finishComposingText 终结
+     * 空区间（不留悬空组合态），状态机复位；无组合时为无操作。与 [finishComposition]
+     *（组合串原样上屏）相对：模式切换键（[大写] / [中/英]）走本路径，切换后的输入框
+     * 不残留组合字母与候选词。IC 缺失时仍复位状态机（防幻影组合串，T48 同口径）。
+     */
+    private fun cancelComposition() {
+        if (composer.composition.isEmpty()) return
+        currentInputConnection?.let { ic ->
+            ic.beginBatchEdit()
+            try {
+                ic.setComposingText("", 1)
+                ic.finishComposingText()
+            } finally {
+                ic.endBatchEdit()
+            }
+        }
         composer.reset()
     }
 
