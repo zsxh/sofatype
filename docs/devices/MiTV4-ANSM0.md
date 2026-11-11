@@ -174,6 +174,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：①adb install 发起、包传输完成后**立即通知户主去电视上确认安装**——安装段时长取决于户主确认速度，机器侧无兜底；②等待期不盲试重试（挂起会话期间复装曾被拒 `USER_RESTRICTED`，坑 15，疑似同源）；③DEV-GUIDE 第 2 节「限时 5 分钟」口径仅约束传输段。
 
+**补充（2026-11-11，T49 复验）**：APK 先 `adb push` 到 `/data/local/tmp` 再 `pm install -r`（复用已传包、免二次传输）同样触发电视端安装许可弹窗，户主确认后 Success——弹窗拦截的是 shell uid 发起的安装请求本身，与 `adb install` 直装同链路；flaky 无线链路下优先 push+pm install 分段（传输段计时清晰，坑 17 通知点=push 完成）。
+
 ### 坑 18：新进程 am start 设置页自动弹搜狗键盘，遮版本卡下方区域（2026-11-11，T50 复验）
 
 **现象**：新进程 `am start` 设置页时，测试输入框自动带焦点，搜狗键盘自动弹出，盖住版本卡下方区域（同轮两轮复现）。
