@@ -27,7 +27,11 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
-            android:label="@string/settings_label" />
+            android:label="@string/settings_label"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- T54 Round 2：adjustResize 供设置页焦点接管做键盘收起检测（可见底部帧还原）
+             ——键盘收起后焦点移出测试输入框，遥控键恢复宿主派发（docs/issues/open/T54.md）。 -->
+
 
         <!-- T3：最小可用输入法服务（FR-A1 最小闭环）。
              BIND_INPUT_METHOD 为系统专属权限，第三方应用无法绑定；

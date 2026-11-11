@@ -28,13 +28,18 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.FocusFinder
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
@@ -148,6 +153,12 @@ class SettingsActivity : Activity() {
     private lateinit var updateNotes: TextView
     private lateinit var downloadProgress: ProgressBar
 
+    /** T54 Round 2 · 焦点接管全局布局监听（debug 测试区接线，onDestroy 移除）。 */
+    private var focusTakeoverListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+
+    /** T54 Round 2 · 输入法可见性去重（可见性日志仅在跳变沿写一条）。 */
+    private var lastImeShown: Boolean? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -169,6 +180,13 @@ class SettingsActivity : Activity() {
         downloadProgress = findViewById(R.id.download_progress)
 
         btnCheckUpdate.setOnClickListener { onUpdateAction() }
+        // T54 Round 2 · pre-IME 键分路接线（docs/issues/open/T54.md）：
+        // 输入会话为窗口级绑定，键盘收起后遥控键仍先路由进隐藏态 IME 被消费（Round 1 定位；
+        // IME 侧消费语义属 T59 挂账面，本侧零改动）。宿主侧在框架 pre-IME 阶段
+        // （ViewRootImpl 先把键送到根视图 dispatchKeyPreIme）按键盘可见性分路：
+        // 显示态透传 IME（打字与键盘内导航零改动）；隐藏态按宿主语义路由——
+        // 方向键=FocusFinder 焦点搜索、OK=焦点控件激活、BACK=退出设置页。
+        findViewById<SettingsRootView>(R.id.settings_root).preImeKeyHandler = { handlePreImeKey(it) }
         applyState(UiState.IDLE)
         // 回执广播经本应用 PendingIntent 发出（发起身份=本应用），NOT_EXPORTED 可收；
         // targetSdk 34 起 registerReceiver 必须显式 export 标志，4 参重载 API 26 起可用，低版本走 2 参。
@@ -194,6 +212,32 @@ class SettingsActivity : Activity() {
             findViewById<Button>(R.id.btn_select_all).setOnClickListener {
                 input.selectAll()
             }
+            // T54 Round 2 · 设置页焦点接管（T20 P1 落地，docs/issues/open/T54.md）：
+            // 键盘收起后视图焦点滞留 test_input 会让输入会话不终结，遥控键全被隐藏态
+            // IME 消费（Round 1 定位）。收起检测走 adjustResize 窗口缩放（Manifest
+            // windowSoftInputMode）：可见底部帧回到全屏高度即判键盘已收起，此刻把焦点
+            // 移到 btn_check_update——输入会话随焦点离开编辑框终结，遥控键恢复宿主派发。
+            // API 23/34 通用；SofatypeImeService 零改动（T59 挂账口径不触碰）。
+            focusTakeoverListener = ViewTreeObserver.OnGlobalLayoutListener {
+                val frame = Rect()
+                window.decorView.getWindowVisibleDisplayFrame(frame)
+                val imeShown = SettingsFocusTakeover.isImeShown(
+                    frame.bottom,
+                    resources.displayMetrics.heightPixels,
+                )
+                if (imeShown != lastImeShown) {
+                    Log.i(FOCUS_LOG_TAG, "输入法可见性 imeShown=$imeShown visibleBottom=${frame.bottom}")
+                    lastImeShown = imeShown
+                }
+                if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
+                    Log.i(FOCUS_LOG_TAG, "焦点接管：键盘已收起，焦点移出 test_input -> btn_check_update")
+                    // 触摸模式（tap 弹键盘所置）下 Button 默认 focusableInTouchMode=false，
+                    // requestFocus() 静默失败——requestFocusFromTouch() 临时解除触摸模式
+                    // 完成移焦并等效退出触摸态，遥控器导航语义即恢复正常。
+                    btnCheckUpdate.requestFocusFromTouch()
+                }
+            }
+            window.decorView.viewTreeObserver.addOnGlobalLayoutListener(focusTakeoverListener)
         } else {
             testArea.visibility = View.GONE
         }
@@ -203,6 +247,11 @@ class SettingsActivity : Activity() {
         destroyed = true
         ioGeneration++
         unregisterReceiver(installStatusReceiver)
+        // T54 Round 2 · 焦点接管监听随窗口销毁移除（退出零残留，AGENTS 禁止事项 3）
+        focusTakeoverListener?.let { listener ->
+            window.decorView.viewTreeObserver.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(listener)
+        }
+        focusTakeoverListener = null
         // 退出清理：后台任务中断 + cache 下载文件不残留（AGENTS.md 禁止事项 3）
         ioExecutor.shutdownNow()
         updateApkFile().delete()
@@ -301,6 +350,38 @@ class SettingsActivity : Activity() {
         getSharedPreferences(PREFS_UI_INSTALL, MODE_PRIVATE).edit()
             .remove(KEY_UI_INSTALL_BEFORE_CODE)
             .apply()
+    }
+
+    // ═══ T54 Round 2 · pre-IME 键分路 ═══
+
+    /**
+     * pre-IME 键裁决（接线见 onCreate）：键盘显示态透传（打字链路零改动）；
+     * 隐藏态宿主语义路由。UP 事件随 DOWN 一并消费，保持按键对完整、不漏进 IME 链路。
+     */
+    private fun handlePreImeKey(event: KeyEvent): Boolean {
+        if (lastImeShown == true) return false
+        return when (val route = SettingsKeyRouter.route(event.keyCode)) {
+            SettingsKeyRouter.Route.BACK -> {
+                Log.i(FOCUS_LOG_TAG, "pre-IME BACK：退出设置页")
+                finish()
+                true
+            }
+            SettingsKeyRouter.Route.CONFIRM -> {
+                window.decorView.findFocus()?.performClick()
+                true
+            }
+            SettingsKeyRouter.Route.PASS -> false
+            else -> {
+                val root = window.decorView as? ViewGroup ?: return false
+                val focused = root.findFocus() ?: return false
+                FocusFinder.getInstance().findNextFocus(
+                    root,
+                    focused,
+                    SettingsKeyRouter.focusDirection(route),
+                )?.requestFocusFromTouch()
+                true
+            }
+        }
     }
 
     // ═══ FR-D4 交互入口 ═══
@@ -655,6 +736,9 @@ class SettingsActivity : Activity() {
     private companion object {
         const val UPDATE_LOG_TAG = "UpdateCheck"
         const val UPDATE_APK_NAME = "update_download.apk"
+
+        /** T54 Round 2 · 焦点接管与输入法可见性日志（走查取证用，TAG=SettingsFocus）。 */
+        const val FOCUS_LOG_TAG = "SettingsFocus"
 
         /** UI 渠道 in-flight 标记存储（T47：跨进程存活、消费即清，零残留）。 */
         const val PREFS_UI_INSTALL = "update_ui_install"

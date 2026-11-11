@@ -7,7 +7,11 @@
   （决策 21，visibility 由 SettingsActivity 按 BuildConfig.DEBUG 置定），锚点移至面包屑下方
   避让品牌区与版本卡。纵向坐标按画板设置页 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位；色值/规格走 Token。
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- T54 Round 2：根视图换 SettingsRootView——pre-IME 键分路（ViewRootImpl 在派发 IME 前先
+     到根视图），键盘隐藏态由 SettingsActivity 按宿主语义路由、显示态透传 IME（打字态零改动）。
+     元素与属性除根节点类名外零变化。 -->
+<com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
@@ -283,4 +287,4 @@
         android:textColor="@color/text_hint_faint"
         android:textSize="@dimen/bottom_hint_text" />
 
-</FrameLayout>
+</com.sofatype.ime.SettingsRootView>
