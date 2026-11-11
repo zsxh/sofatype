@@ -635,12 +635,11 @@ class SettingsActivity : Activity() {
     /** 下载与安装会话的 cache 文件（隐私红线：仅 cache 目录，装后 / 退出即清）。 */
     private fun updateApkFile(): File = File(cacheDir, UPDATE_APK_NAME)
 
-    // FR-D3：「v<versionName> (<versionCode>)」。versionCode 字段 API 28 起标废弃，
-    // longVersionCode 需 API 28（minSdk 23 不可用），故沿用 versionCode 字段并压制告警。
-    @Suppress("DEPRECATION")
+    // FR-D3 · PRD 决策 40（2026-11-11 户主拍板）：版本行只显示 v<versionName>，
+    // versionCode 不再对用户展示；versionCode 仅内部判定链（readVersionCode）使用。
     private fun readVersionText(): String {
         val info = packageManager.getPackageInfo(packageName, 0)
-        return VersionFormatter.format(info.versionName, info.versionCode)
+        return VersionFormatter.format(info.versionName)
     }
 
     /** 当前版本名（决策 19：与构建配置一致），供版本比较。 */
