@@ -35,4 +35,12 @@ object SettingsKeyRouter {
         Route.FOCUS_RIGHT -> View.FOCUS_RIGHT
         else -> 0
     }
+
+    /**
+     * T59（户主拍板 2026-11-11）CONFIRM 激活决策（纯函数，单元测试锁定）：
+     * 焦点在可输入控件（EditText）→ 唤起输入法（showSoftInput），与 IME 隐藏态
+     * 确认键「消费+唤起」口径同语义（FR-A1「在可输入焦点处确认后弹出键盘」）；
+     * 其余控件 → 激活焦点控件（performClick，T54 既有口径保留）。
+     */
+    fun confirmActivatesIme(focused: View?): Boolean = focused is android.widget.EditText
 }

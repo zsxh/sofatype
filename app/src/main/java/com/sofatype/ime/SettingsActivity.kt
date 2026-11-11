@@ -40,6 +40,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
@@ -367,7 +368,18 @@ class SettingsActivity : Activity() {
                 true
             }
             SettingsKeyRouter.Route.CONFIRM -> {
-                window.decorView.findFocus()?.performClick()
+                // T59（户主拍板 2026-11-11）：CONFIRM 按焦点类型分流——焦点在可输入控件
+                // （EditText）唤起键盘（showSoftInput，与 IME 隐藏态确认键口径同语义，
+                // 消除「OK-on-EditText 无可见反馈不唤起」）；其余控件激活焦点控件
+                //（T54 既有口径）。分流判定归 SettingsKeyRouter.confirmActivatesIme（纯决策单测锁定）。
+                val focused = window.decorView.findFocus()
+                if (SettingsKeyRouter.confirmActivatesIme(focused) && focused is EditText) {
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                    val shown = imm?.showSoftInput(focused, InputMethodManager.SHOW_IMPLICIT) ?: false
+                    Log.i(FOCUS_LOG_TAG, "pre-IME CONFIRM：焦点在输入框 -> showSoftInput=$shown")
+                } else {
+                    focused?.performClick()
+                }
                 true
             }
             SettingsKeyRouter.Route.PASS -> false

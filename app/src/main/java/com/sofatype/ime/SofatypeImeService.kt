@@ -704,20 +704,35 @@ class SofatypeImeService : InputMethodService() {
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // T18 · FR-B7（决策 33 划归本任务）：远程模式下系统返回键 = 退出远程模式
-            //（通知手机 + 关 HTTP/WS 监听 + 清缓冲，回键盘态）；键盘态 BACK 维持 FR-A1 收起键盘
+            //（通知手机 + 关 HTTP/WS 监听 + 清缓冲，回键盘态）；远程分支先于隐藏态判定执行，
+            // 远程主卡窗口显示态，T18 退出远程链路不受 T59 口径影响（模拟器取证见 issue T59）。
             if (RemoteInputServerManager.isRunning()) {
                 trace("remote exit via BACK")
                 exitRemoteMode()
                 return true
             }
+            // T59（户主拍板 2026-11-11）：隐藏态 BACK 透传宿主——键盘已收起时本服务收起
+            // 无效果且拦截宿主返回语义（T54 Round 1 死态根因之一：BACK 退出设置页失效；
+            // 第三方宿主同理，真机 T53 tv-c1~c3b 佐证隐藏态键到达 IME）。显示态维持 FR-A1
+            // 收起键盘，收起前按拍板增量统一 finishComposition（与 [完成] 收起同源落定组合串）。
+            if (!isInputViewShown()) {
+                return super.onKeyDown(keyCode, ev)
+            }
+            finishComposition()
             requestHideSelf(0)
             return true
         }
         val direction = DPAD_DIRECTIONS[keyCode]
         if (direction != null) {
+            // T59（户主拍板 2026-11-11）：隐藏态方向键透传宿主（DOWN/UP 对称落 super）——
+            // 隐藏态无键面焦点可导航（keyboardView 无焦点，导航空转），消费即吞宿主导航
+            //（T54 Round 1「导航键群死」根因）。显示态维持 FR-A11 格网导航：
             // 导航仅响应 ACTION_DOWN 首次按下（长按重复不连续移动）；DOWN 分支返回 true 消费。
-            // onKeyUp 未覆盖：ACTION_UP 落到 super（super 对方向键默认无焦点行为）。
-            // 不进系统默认焦点处理，防 focus search 跳变。
+            // onKeyUp 未覆盖方向键：ACTION_UP 落到 super（super 对方向键默认无焦点行为），
+            // 与隐藏态透传对称。不进系统默认焦点处理，防 focus search 跳变。
+            if (!isInputViewShown()) {
+                return super.onKeyDown(keyCode, ev)
+            }
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 val currentId = (keyboardView?.findFocus() as? View)?.tag as? String
                 if (currentId != null) {
@@ -740,11 +755,17 @@ class SofatypeImeService : InputMethodService() {
             // 不可用，在此显式派发 performClick
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 // T38：输入窗隐藏期间确认键不落键面。模拟器 API 34 实测隐藏态键事件仍路由进
-                // IME（真机 API 23 隐藏态收不到，T12 问题 3 口径），焦点残留收起前键位——
-                // 隐形点击会在错误键位直出字符或重开收起链路。吞掉后唤起由宿主侧同键
-                // showSoftInput 正常完成（其转发副本随后到达，由唤起抑制窗吞，见下）。
+                // IME（真机 API 23 隐藏态 trace 实证同样到达，T53 tv-c1~c3b），焦点残留收起前
+                // 键位——隐形点击会在错误键位直出字符或重开收起链路。吞键语义保留。
+                // T59（户主拍板 2026-11-11）：隐藏态确认键 = 消费 + 唤起键盘（FR-A1「在可输入
+                // 焦点处确认后弹出键盘」；真机收起后 CENTER 被吞无法唤起，closed/T53 坑 1 同族）。
+                // requestShowSelf 经 onShowInputRequested 裁决：收起抑制窗内被 veto（「完成」
+                // 收起后立即 OK 不唤起 = T38 既有收起语义）；唤起成功沿 onWindowShown 开唤起
+                // 抑制窗，本键已吞无转发副本，其后第二发确认键被 wake guard 吞一次（T38
+                // 真机复验既有语义）。
                 if (!isInputViewShown()) {
-                    trace("onKeyDown keyCode=$keyCode swallowed（输入窗隐藏态）")
+                    trace("onKeyDown keyCode=$keyCode swallowed（输入窗隐藏态）-> requestShowSelf")
+                    requestShowSelf(0)
                     return true
                 }
                 // T38（Bug B · T12 坑 1 / 设备档案坑 6）：键盘收起后 OK 唤起时，同一按键的转发
@@ -829,7 +850,12 @@ class SofatypeImeService : InputMethodService() {
             }
             return true
         }
-        if (event != null && KeyboardLayout.letterIdForKeyCode(keyCode) != null) {
+        if (event != null && KeyboardLayout.letterIdForKeyCode(keyCode) != null && isInputViewShown()) {
+            // T45：显示态字母键码 UP 一律消费——DOWN 已入组（中文模式）或已透传（英文直出），
+            // 孤儿 UP 经框架转发路径直写宿主文本有双写风险。
+            // T59（户主拍板 2026-11-11）：隐藏态字母 UP 透传对称——隐藏态 DOWN 已透传宿主
+            //（T45 拦截分支含 isInputViewShown 门控，隐藏态未入组），UP 同样透传宿主，
+            // 消除 DOWN/UP 分裂派发。
             return true
         }
         return super.onKeyUp(keyCode, event)
@@ -1147,7 +1173,13 @@ class SofatypeImeService : InputMethodService() {
      */
     private fun execute(key: Key) {
         when (val action = key.action) {
-            KeyAction.HideSelf -> hideSelfAfterKeyDispatch()
+            // T59（户主拍板 2026-11-11）：[下屏] 收起与 [完成] 收起统一组合态落定——收起前
+            // finishComposition（组合串原样上屏，无组合时为无操作），消除「BACK/[下屏] 收起
+            // 残留组合串、重弹时被 onStartInputView reset 丢弃」的脱节面。
+            KeyAction.HideSelf -> {
+                finishComposition()
+                hideSelfAfterKeyDispatch()
+            }
             KeyAction.Done -> {
                 // FR-A10「确认当前输入并收起」：结束组合态（组合串原样上屏，无组合时为无操作），再收起。
                 // T49 评审建议 3（户主 2026-11-10 批准）：落定+复位收敛到 finishComposition 单一实现点，
