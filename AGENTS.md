@@ -37,6 +37,7 @@ sofatype/
 - **动手之前必读 `local/`（本地文件，不提交）**：不限实机——构建、模拟器、adb、nix、环境配置、实机部署、调试、传输，任何操作动手前必须先通读 `local/` 下全部文件。其中 [`local/DEV-GUIDE.md`](local/DEV-GUIDE.md) 是开发环境问题的唯一记录处（adb 密钥目录、命令模板、就绪判据、链路坑）；不凭记忆拼命令，不原样执行他人转述的命令，先对照该文件核实。git 管理的其余文档不重复其内容。
 - **设计稿（[`designs/`](designs/)）只作视觉与交互参考**：色值/规格以 [PRD 设计规范章节](docs/PRD_*.md) 为准。
 - **[docs/](docs/) 下文档用 STE 规范输出**：按简化技术中文（ASD-STE100 原则）写——关键信息先行、一句一事、状态词固定；具体问题引用对应文档，不重复细节。可以直接用 `/ste` skill。
+- **文档更新即清理过时信息**：任何文档每次更新时，主动检查并随手清理同文件内的过时信息——过期环境事实（如 IP / 地址）、已办结的挂起状态、已被推翻或纠正的结论。纠正误判时保留「当时误判、经谁纠正」标注，错误结论不得以现行口径存续。带时间戳的历史记录与踩坑留证不算过时信息，清理不波及。
 
 ## 三、工具原则
 
@@ -55,7 +56,7 @@ sofatype/
 - **「已完成」的唯一标准是真机验证**：没有在真机上验证过的功能，不说「已完成」；汇报时明确区分「已实现」与「真机已验证」。
 - **截图统一存放与清理**：凡需要截图验证的产物，统一放仓库根 `screenshots/` 目录（按任务建子目录，如 `screenshots/T6/`），不再另建 `.shots-*`、`.verify-tmp` 等散目录；该目录已 gitignore、不入库。**真机验证完成后，询问户主是否需要删除截图**，未经户主确认不自行清理。
 - **工作留痕（三处分工，操作规范见 [`docs/issues/README.md`](docs/issues/README.md) 与 [`docs/HANDOFF.md`](docs/HANDOFF.md) 开头的「维护约定」）**：
-  - **issue（[`docs/issues/`](docs/issues/)）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 [`docs/TASKS_*.md`](docs/TASKS_*.md) 任务同名同编号；**新建 issue / 任务前先读 [`docs/issues/README.md`](docs/issues/README.md) 并按其规则从 [`docs/issues/NEXT-ID.md`](docs/issues/NEXT-ID.md) 取号、立即回写**；**处理任何 issue（开工实现、修复、验证等）之前必须先通知户主、询问是否处理，只有户主同意了才能进行，除非户主显式要求执行**（2026-11-10 拍板，T51 误派教训：需求拍板 ≠ 开工指令）；agent 通过模拟器 / 模拟过程验证后通知户主，户主验收拍板后由 `open/` 挪入 `closed/`。纯文档调整不建 issue。
+  - **issue（[`docs/issues/`](docs/issues/)）**：单次变更的唯一详细记录。每个代码 / 软件变更（功能、bug fix、构建脚本）对应一个 issue，与 [`docs/TASKS_*.md`](docs/TASKS_*.md) 任务同名同编号；**新建 issue / 任务前先读 [`docs/issues/README.md`](docs/issues/README.md) 并按其规则从 [`docs/issues/NEXT-ID.md`](docs/issues/NEXT-ID.md) 取号、立即回写**；**处理任何 issue（开工实现、修复、验证等）之前必须先通知户主、询问是否处理，只有户主同意了才能进行，除非户主显式要求执行**（需求拍板 ≠ 开工指令）；agent 通过模拟器 / 模拟过程验证后通知户主，户主验收拍板后由 `open/` 挪入 `closed/`。纯文档调整不建 issue。
   - **HANDOFF（[`docs/HANDOFF.md`](docs/HANDOFF.md)）**：只留四类内容——关键决策、踩过的坑、当前状态、待办；细节指向 issue，不重复展开。**不记录工作过程**：干了什么事的过程叙事一律不进本文（归 issue 与 git 历史）；与 [`docs/TASKS_*.md`](docs/TASKS_*.md) / issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
   - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
 - **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；开发环境问题写入 `local/DEV-GUIDE.md`（不提交）；新拍板决策追加到 [PRD 决策记录章节](docs/PRD_*.md)，编号顺延、不重排。
