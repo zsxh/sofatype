@@ -57,7 +57,10 @@
 
             <!-- 候选词栏（T10 · FR-A7）：仅候选词 chips（决策 1 不显示拼音串、决策 2 无语音入口），
                  无常亮高亮（决策 30，高亮仅随遥控器焦点态）；
-                 chips 由服务层依组合态候选程序化生成，英文/数字模式整栏 GONE、键盘区上移 -->
+                 chips 由服务层依组合态候选程序化生成；空态几何占位无条件保留——中/英模式 ×
+                 字母/符号键盘全组合键区顶恒定（PRD 决策 42，FR-A7「英文模式候选栏隐藏、
+                 键盘区上移」条款废止），键区上边距恒为本布局静态值；
+                 远程模式候选栏显隐由服务层 renderRemoteUi 驱动（T17） -->
             <LinearLayout
                 android:id="@+id/candidates_bar"
                 android:layout_width="match_parent"

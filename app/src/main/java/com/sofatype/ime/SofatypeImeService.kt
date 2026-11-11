@@ -296,7 +296,7 @@ class SofatypeImeService : InputMethodService() {
     /** 远程文本视图（40px 大字折行显示，内容 = 手机 input 全量文本 + 末尾光标 Span）。 */
     private var remoteTextView: TextView? = null
 
-    /** 键盘区引用（候选栏隐藏/显示时切换顶部边距，FR-A7「键盘区上移占满主卡片」）。 */
+    /** 键盘区引用（顶部边距恒为布局静态值 ime_key_area_margin_top，决策 42：键区顶全模式恒定）。 */
     private var keyArea: FrameLayout? = null
 
     /** 跨行浮层键视图（空格/完成键，绝对定位挂键区）；布局切换时移除重建。 */
@@ -513,7 +513,8 @@ class SofatypeImeService : InputMethodService() {
             if (prevMode == RemoteMode.REMOTE) {
                 trace("remote mode -> KEYBOARD")
                 keyArea?.visibility = View.VISIBLE
-                // 候选栏可见性按当前模式与组合态重算（含键区顶距 / 展开行回收）
+                // 候选栏内容按当前模式与组合态重算（空态占位恒在 + 展开行回收；键区几何静态恒定，
+                // 决策 42 起键区上边距为布局静态值，无运行期顶距切换）
                 refreshCandidatesBar()
                 keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus(View.FOCUS_DOWN) }
             }
@@ -587,8 +588,10 @@ class SofatypeImeService : InputMethodService() {
      * 远程上屏写入（T16 · FR-B6/C6 · 决策 9/10）：把手机上屏内容写入电视输入框光标处。
      * commitText 框架语义即满足 R-3 口径：无选中区间 = 光标处插入、不覆盖其余已有文字；
      * 有选中区间 = 替换该区间。写入前先落定本地组合串（finishComposingText）：
-     * 组合串是 IME 自身挂起的编辑区，不先落定会与上屏文本在光标处交叠；
-     * 随后组合态复位、候选栏按无组合态重算。返回 true = 已写入（Manager 据此回执并停服）；
+     * 组合串是 IME 自身挂起的编辑区，不先落定会与上屏文本在光标处交叠；随后组合态复位。
+     * 候选栏显隐不在此重算（T17：远程模式候选栏由 renderRemoteUi 驱动保持隐藏，防止重算把
+     * 空态占位顶出来压低状态行；退出远程回键盘态时由 renderRemoteUi 按无组合态重算清空 chips）。
+     * 返回 true = 已写入（Manager 据此回执并停服）；
      * false = 无焦点输入框或写入异常（远程模式保持，手机端提示失败）。
      * 任何异常吞掉不外抛（可靠性口径：不得阻塞宿主应用）；内容不入日志（隐私红线）。
      */
@@ -599,7 +602,6 @@ class SofatypeImeService : InputMethodService() {
             try {
                 ic.finishComposingText()
                 composer.reset()
-                refreshCandidatesBar()
                 ic.commitText(text, 1)
                 true
             } finally {
@@ -632,7 +634,7 @@ class SofatypeImeService : InputMethodService() {
         }
         bindRows(root, rows)
         bindOverlayKeys(root)
-        // 候选栏可见性随布局模式刷新（FR-A7：符号键盘无组合态，候选栏隐藏）
+        // 候选栏内容随布局模式刷新（决策 42：空态占位全模式恒定，键区顶不随键盘类型/语言模式变化）
         refreshCandidatesBar()
         if (requestInitialFocus) {
             keyboardView?.post { keyViews[navigator.initialKey()]?.requestFocus() }
@@ -644,7 +646,8 @@ class SofatypeImeService : InputMethodService() {
      * 含收起后唤起重弹路径；符号键盘 = 键区左上角 digit_1，维持现状）。
      * post 到 attach 完成后执行；focusableInTouchMode 保证触摸模式下焦点机制同样可用
      * （模拟器 `input tap` 唤起后紧跟 `input keyevent` 走查的场景）。
-     * 新输入框重置组合态（T10）：组合串属上一输入框，候选栏随之隐藏。
+     * 新输入框重置组合态（T10）：组合串属上一输入框，chips 清空，候选栏保持空态占位
+     * （决策 42：占位全模式恒定，键区顶不随语言/键盘模式变化）。
      * T17：远程模式运行中（键盘重建补渲染 / 切换输入框重连）——候选栏保持隐藏
      *（远程模式显隐由 renderRemoteUi 驱动，此处不重算，防空候选栏顶低状态行），
      * 焦点落「退出远程」按钮（远程模式唯一可聚焦元素，FR-B3）；服务未运行走键盘态常规路径。
@@ -855,7 +858,7 @@ class SofatypeImeService : InputMethodService() {
 
     /**
      * 键盘键方向导航（T6 格网语义 + T10 候选行进入 + T17 引导卡主按钮进入）：
-     * 行 1 键向上且候选栏可见时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选 chip）；
+     * 行 1 键向上且候选行有 chips 时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选 chip）；
      * 行 3/4 表缘向右且引导卡主按钮可达时进入主按钮（FR-B1「远程输入」主按钮遥控器可达——
      * 主按钮位于副卡下部，与完成键同处行 3/4 纵向带，视觉行列关系对齐，FR-A11 不跳变；
      * 行 1/2 表缘向右保持表缘不动口径）；其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
@@ -1203,7 +1206,7 @@ class SofatypeImeService : InputMethodService() {
                 rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
             }
             // FR-A4 中/英切换：先结束组合态（组合串以字母形式上屏，不丢已按键内容），再切换；
-            // 英文模式候选栏隐藏（FR-A7）
+            // 候选栏占位不变、chips 清空（决策 42：占位全模式恒定，键区顶不随语言切换移动）
             KeyAction.ToggleLanguage -> {
                 finishComposition()
                 languageMode =
@@ -1259,33 +1262,23 @@ class SofatypeImeService : InputMethodService() {
     // ---- 候选词栏（T10 · FR-A7）与更多候选展开行（T11 · FR-A15） ----
 
     /**
-     * 刷新候选栏可见性与内容（组合态变化、模式切换、键盘重建后调用）。
-     * 栏区显隐 = 字母键盘 × 中文模式（英文/数字/符号键盘整栏 GONE、键盘区上移占满主卡片，FR-A7 评审补充）；
-     * chips 仅组合态有候选时装载（决策 1：只显示候选词，无组合态时栏区留空）；
+     * 刷新候选栏内容（组合态变化、模式切换、键盘重建后调用）。
+     * 栏区空态几何占位无条件保留（决策 42：中/英模式 × 字母/符号键盘全组合键区顶恒定，
+     * FR-A7「英文/数字模式下候选栏隐藏、键盘区上移」条款废止——中/英切换不再整栏隐藏、
+     * 键区不上移，键区上边距恒为布局静态值）；
+     * chips 仅字母键盘 × 组合态有候选时装载（决策 1：只显示候选词，无组合态时栏区留空；
+     * 英文/符号键盘恒空态占位——英文字母直出、符号直出均不进组合态，决策 42 内容口径）；
      * 候选区整体移除 / 候选集变化时展开行同步收起（T11，展开态只在同一候选集内有效）。
+     * 远程模式不在本函数口径内：候选栏显隐由 renderRemoteUi 驱动（T17，候选栏保持隐藏、
+     * 防空态占位顶低状态行）。
      */
     private fun refreshCandidatesBar() {
         val bar = candidatesBar ?: return
-        val barVisible = keyboardMode == KeyboardMode.LETTERS &&
-            languageMode == LanguageMode.CHINESE
-        if (!barVisible) {
-            // 先记焦点再清空：chip 视图移除时框架会清焦点，事后查不到
-            val focusTag = (keyboardView?.findFocus() as? View)?.tag as? String
-            bar.visibility = View.GONE
-            setKeyAreaTopMargin(visible = false)
-            bar.removeAllViews()
-            candidateViews.clear()
-            moreToggleView = null
-            collapseMoreRow()
-            // 焦点原在候选区（chip / 更多⌄ / 展开行）：随栏移除，焦点回落键盘
-            if (focusTag?.isCandidateLayerId() == true) {
-                refocusKeyboardAfterBarHidden()
-            }
-            return
-        }
         bar.visibility = View.VISIBLE
-        setKeyAreaTopMargin(visible = true)
-        if (composer.hasCandidates) {
+        // 装载口径（决策 42 内容条款）：候选装载仅由中文组合态触发、且仅字母键盘——英文字母
+        // 直出、符号键盘直出符号，均不进组合态，候选栏恒空态占位
+        val loadCandidates = keyboardMode == KeyboardMode.LETTERS && composer.hasCandidates
+        if (loadCandidates) {
             bindCandidates(bar)
         } else {
             bar.removeAllViews()
@@ -1644,21 +1637,6 @@ class SofatypeImeService : InputMethodService() {
             ?: navigator.initialKey()
         candidateReturnKey = null
         keyboardView?.post { keyViews[targetId]?.requestFocus(View.FOCUS_DOWN) }
-    }
-
-    /** 键盘区顶部边距随候选栏显隐切换（FR-A7「英文/数字模式下候选栏隐藏、键盘区上移占满主卡片」）。 */
-    private fun setKeyAreaTopMargin(visible: Boolean) {
-        val area = keyArea ?: return
-        val params = area.layoutParams as? LinearLayout.LayoutParams ?: return
-        val target = if (visible) {
-            resources.getDimensionPixelSize(R.dimen.ime_key_area_margin_top)
-        } else {
-            0
-        }
-        if (params.topMargin != target) {
-            params.topMargin = target
-            area.layoutParams = params
-        }
     }
 
     /** 直出文本到输入框光标处（FR-A9）。 */
