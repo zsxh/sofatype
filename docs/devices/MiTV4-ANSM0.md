@@ -162,3 +162,5 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：涉及安装器界面的真机走查，按户主拍板意图以 `input tap` 代操作（输入通道代换须报备）；双钮坐标以 screencap 目测（坑 13/14 口径）。形态与授权链结论随 T46/T47 真机段留档（`screenshots/T27/` t27r2-b1-installer.png 等）。另注：升级安装会杀设置页任务（按「完成」后不自动回前台，需 am start 恢复，onResume 判定等效触发）；升级后 `default_input_method` 被夺回搜狗（坑 5/9/37 同链，预期内）。
 
+**补充（2026-11-11，T51）**：双钮两段式交互实证——首 tap 未聚焦按钮仅移焦不激活、二次 tap 才激活；初始带焦点的取消钮首 tap 即激活（证据 screenshots/T51/ qa-r1-tv-11 高亮移位）。同轮 Round 1 装机阻断（240s `INSTALL_FAILED_USER_RESTRICTED`，2026-11-10）未复现：户主在场同型安装一次成功，解阻条件实证=户主在场确认电视侧弹窗，机制仍未查明、挂账观察。另一次连接层 unauthorized 系 adb server 钥匙混淆（DEV-GUIDE 1.4 kill-server 重连即恢复），非电视端授权变更，已排除。
+
