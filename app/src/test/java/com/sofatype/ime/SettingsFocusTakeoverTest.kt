@@ -2,6 +2,8 @@
 // ① 纯决策函数边界（可见性判定阈值、接管条件四象限）；
 // ② 源码扫描守卫：接线（全局布局监听 + adjustResize）存在且不在 IME 侧
 //    （SofatypeImeService 为 T59 挂账面，本轮严禁触碰——扫描锁定零改动语义）。
+// T54 缺陷修复 Round 1（2026-11-12）修订：接管目标由 btn_check_update 改为 test_input
+//（收起沿焦点回编辑框，输入会话保活，见类头注释与 T54DefectFixTest）。
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：ManualCheckLogTest（T50 R2）、UiChannelHealFlowTest（T50 R1）。
 package com.sofatype.ime
@@ -41,14 +43,14 @@ class SettingsFocusTakeoverTest {
     }
 
     @Test
-    fun `接管条件为键盘不可见且编辑框持焦点`() {
-        // 死态成形条件：键盘收起 + 焦点滞留编辑框
-        assertTrue(SettingsFocusTakeover.shouldTakeFocus(imeShown = false, editorHasFocus = true))
+    fun `接管条件为键盘不可见且编辑框不持焦点`() {
+        // T54 缺陷修复修订语义：收起 + 焦点不在编辑框（tap 过按钮）→ 焦点回编辑框（会话保活）
+        assertTrue(SettingsFocusTakeover.shouldTakeFocus(imeShown = false, editorHasFocus = false))
         // 键盘显示中：打字态不得接管
         assertFalse(SettingsFocusTakeover.shouldTakeFocus(imeShown = true, editorHasFocus = true))
-        // 焦点已不在编辑框：无需接管
-        assertFalse(SettingsFocusTakeover.shouldTakeFocus(imeShown = false, editorHasFocus = false))
         assertFalse(SettingsFocusTakeover.shouldTakeFocus(imeShown = true, editorHasFocus = false))
+        // 焦点已在编辑框：无需接管
+        assertFalse(SettingsFocusTakeover.shouldTakeFocus(imeShown = false, editorHasFocus = true))
     }
 
     // ── ② 源码扫描守卫 ──
@@ -69,8 +71,8 @@ class SettingsFocusTakeoverTest {
             text.contains("SettingsFocusTakeover.shouldTakeFocus("),
         )
         assertTrue(
-            "接管目标须为 btn_check_update（触摸模式移焦用 requestFocusFromTouch，T54 R2）",
-            text.contains("btnCheckUpdate.requestFocusFromTouch()"),
+            "接管目标须为 test_input 编辑框（T54 缺陷修复 R1：会话保活，焦点回编辑框）",
+            text.contains("input.requestFocusFromTouch()"),
         )
         assertTrue(
             "可见性须走 isImeShown 阈值判定（T54 R2）",

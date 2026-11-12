@@ -160,6 +160,9 @@ class SettingsActivity : Activity() {
     /** T54 Round 2 · 输入法可见性去重（可见性日志仅在跳变沿写一条）。 */
     private var lastImeShown: Boolean? = null
 
+    /** T62 · 输入法切换广播接收（debug 测试区接线，收到即重建输入会话；onDestroy 注销）。 */
+    private var imeChangedReceiver: BroadcastReceiver? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -213,12 +216,16 @@ class SettingsActivity : Activity() {
             findViewById<Button>(R.id.btn_select_all).setOnClickListener {
                 input.selectAll()
             }
-            // T54 Round 2 · 设置页焦点接管（T20 P1 落地，docs/issues/open/T54.md）：
-            // 键盘收起后视图焦点滞留 test_input 会让输入会话不终结，遥控键全被隐藏态
-            // IME 消费（Round 1 定位）。收起检测走 adjustResize 窗口缩放（Manifest
-            // windowSoftInputMode）：可见底部帧回到全屏高度即判键盘已收起，此刻把焦点
-            // 移到 btn_check_update——输入会话随焦点离开编辑框终结，遥控键恢复宿主派发。
-            // API 23/34 通用；SofatypeImeService 零改动（T59 挂账口径不触碰）。
+            // T54 Round 2 · 设置页焦点接管（T20 P1 落地，docs/issues/open/T54.md）；
+            // T54 缺陷修复 Round 1 修订接管目标（2026-11-12 真机 FAIL 项，设备档案坑 23）：
+            // tap 设置页按钮使焦点离开编辑框、IMM 输入会话解绑（API 23 视图级绑定）——
+            // 会话解绑后键码不再经宿主窗口 pre-IME 分路，直达 IME 隐藏态分支被消费并被
+            // 「键盘自发重显」劫持。收起检测走 adjustResize 窗口缩放（Manifest
+            // windowSoftInputMode）：可见底部帧回到全屏高度即判键盘已收起；仅在可见性
+            // 跳变沿（收起沿）执行接管——把焦点移回 test_input，保持输入会话绑定
+            // （pre-IME 分路通道保活，T54 四口径成立）；非跳变沿的布局（状态行变化等）
+            // 不接管，防抢走用户已移到按钮上的焦点。API 23/34 通用；SofatypeImeService
+            // 零改动（T59 拍板口径不触碰）。
             focusTakeoverListener = ViewTreeObserver.OnGlobalLayoutListener {
                 val frame = Rect()
                 window.decorView.getWindowVisibleDisplayFrame(frame)
@@ -228,17 +235,43 @@ class SettingsActivity : Activity() {
                 )
                 if (imeShown != lastImeShown) {
                     Log.i(FOCUS_LOG_TAG, "输入法可见性 imeShown=$imeShown visibleBottom=${frame.bottom}")
+                    if (!imeShown) {
+                        // T54 缺陷修复：收起沿焦点回编辑框（输入会话保活），并退出触摸模式——
+                        // tap 链路遗留的触摸模式会让 FocusFinder 焦点搜索移焦静默失效
+                        //（2026-11-12 走查实测：触摸模式下收起态 DPAD 焦点不动且键被
+                        // pre-IME 分路消费；退出触摸模式后四向移焦恢复）。
+                        // requestFocusFromTouch 对已持焦点的编辑框 = 仅退出触摸模式，焦点不变。
+                        if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
+                            Log.i(FOCUS_LOG_TAG, "焦点接管：键盘已收起，焦点回 test_input（输入会话保活）")
+                        }
+                        input.requestFocusFromTouch()
+                    }
                     lastImeShown = imeShown
-                }
-                if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
-                    Log.i(FOCUS_LOG_TAG, "焦点接管：键盘已收起，焦点移出 test_input -> btn_check_update")
-                    // 触摸模式（tap 弹键盘所置）下 Button 默认 focusableInTouchMode=false，
-                    // requestFocus() 静默失败——requestFocusFromTouch() 临时解除触摸模式
-                    // 完成移焦并等效退出触摸态，遥控器导航语义即恢复正常。
-                    btnCheckUpdate.requestFocusFromTouch()
                 }
             }
             window.decorView.viewTreeObserver.addOnGlobalLayoutListener(focusTakeoverListener)
+
+            // T62 · IC 输出黑洞修复（docs/issues/open/T62.md，设备档案坑 22）：
+            // default_input_method 被夺回后 `ime set` 切回会重启 IME 服务实例（新 pid），
+            // 既有输入会话的 IC 输出（组合串 setComposingText / 选词 commitText）不落
+            // 宿主输入框——宿主侧旧输入连接包装器随切换失效，新 IME 实例写不进正文。
+            // 修复 = 监听输入法切换系统广播，收到即 restartInput 重建输入会话（新 IC），
+            // 新 IME 实例经 onStartInput 拿到可用输入连接，输出恢复落框。仅 debug 接线
+            //（测试输入区为 debug 门控，release 设置页无输入框、黑洞面不存在）。
+            val imeChangedFilter = IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)
+            imeChangedReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    Log.i(FOCUS_LOG_TAG, "输入法切换广播 -> 重建输入会话（T62）")
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                    imm?.restartInput(input)
+                }
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(imeChangedReceiver, imeChangedFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(imeChangedReceiver, imeChangedFilter)
+            }
         } else {
             testArea.visibility = View.GONE
         }
@@ -248,6 +281,9 @@ class SettingsActivity : Activity() {
         destroyed = true
         ioGeneration++
         unregisterReceiver(installStatusReceiver)
+        // T62 · 输入法切换广播接收随窗口销毁注销（退出零残留，AGENTS 禁止事项 3）
+        imeChangedReceiver?.let { unregisterReceiver(it) }
+        imeChangedReceiver = null
         // T54 Round 2 · 焦点接管监听随窗口销毁移除（退出零残留，AGENTS 禁止事项 3）
         focusTakeoverListener?.let { listener ->
             window.decorView.viewTreeObserver.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(listener)
