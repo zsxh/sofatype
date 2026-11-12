@@ -82,6 +82,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **补充（2026-11-08 午后）**：T12 终验待验空闲期再次发生回退（sofatype → 搜狗），当时无杀进程、无同进程前台 Activity 死亡伴随（前台 orchard，机制未查明）；同日累计 2 次空闲期回退。**机制评估归档（2026-11-09，T39 / PRD 决策 37）**：回退定性 = 平台 force-stop 类动作触发 AOSP 6 原生重置（当前 IME 包被 force-stop → 清空选中并重选系统默认输入法，源码实证）；本坑空闲期回退的机制假设 = 坑 9 屏保强杀同链——下次复现抓全窗 logcat 查 `Force stopping com.sofatype.ime` 指纹即可归并（取证纪律挂账，不立项实施，见 issue T39）。
 
+**补充（2026-11-12，真机批次 review-qa 实测）**：装机走查期间再次回退（sofatype → 搜狗，14:43 观测，设置页 BACK 退出场景前后），全窗 logcat 无 `Force stopping com.sofatype` 指纹（chatty 吞没可能）——无指纹回退累计 3 次，机制仍未查明；按坑 3 口径 ime set 即恢复，恢复后连带暴露坑 22（IC 输出黑洞）。
+
 ### 坑 6：键盘收起后发 CENTER 唤起，CENTER 直落 IME 初始焦点键（2026-11-08，T12）
 
 **现象**：键盘收起后注入 `input keyevent 23` 唤起，宿主 `showSoftInput` 重弹与注入竞争，CENTER 在重弹完成后到达 IME，落在初始焦点键 digit_1 上直出「1」（同轮 3 次复现，ImeKeyTrace 可证）。真机竞争窗口大于 120ms（HANDOFF「CENTER 收起延迟 120ms——时序常量真机待复核」的实锤）。
@@ -181,4 +183,42 @@ adb shell getprop ro.product.cpu.abilist
 **现象**：新进程 `am start` 设置页时，测试输入框自动带焦点，搜狗键盘自动弹出，盖住版本卡下方区域（同轮两轮复现）。
 
 **处置**：走查先 BACK 收起键盘，再操作版本卡区域；坐标以收起后最新 screencap 目测为准（坑 13/14 口径）。
+
+**补充（2026-11-12，真机批次 review-qa 实测）**：默认 IME 为 sofatype 时同型复现——新进程 `am start` 自动弹出 **sofatype 键盘**（a 键初始焦点），行为同族；副卡（跨屏输入卡）随键盘窗口可见。
+
+### 坑 19：无线 adb 断连新形态——网络层通但 adbd 会话僵死（2026-11-12，真机批次 review-qa 实测）
+
+**现象**：15:16 起设备 `offline`：Mac 侧 ping 电视 0% 丢包（网络层通）、TCP 可连，但 `adb devices` 恒 offline；`adb kill-server` + 多轮 disconnect/connect（间隔 30s~90s）约 8 分钟不恢复，15:25 前后自行恢复为 `device`（恢复瞬间伴随部分服务进程 inode 更换，系统未整机重启）。与坑 8「偶发 offline 断连，`adb connect` 即恢复」不同型——本型 connect 不恢复、需等待。
+
+**诱因时序**：断连前最后一笔操作为 `input tap` 副卡[远程输入]（首击仅聚焦，见坑 20），约 6s 后断连；当时副卡[远程输入]未激活、远程服务未启动（恢复后 logcat 无服务启动记录），**因果未证实**。断连现场设备侧状态未被保留，机制未查明。经户主拍板按整机重启预案处置（预案未及执行设备已自愈）。
+
+**处置**：kill-server + connect 两轮不恢复即停手报 lead 等待，不密集轰炸重试；恢复后先核 `default_input_method`（等待期屏保强杀链可能夺回，本次实测确被夺回搜狗）与 `/proc/net/tcp6` 清场。
+
+### 坑 20：tap 首击仅聚焦不激活——应用内按钮需双击 tap（2026-11-12，真机批次 review-qa 实测）
+
+**现象**：设置页副卡[远程输入]按钮 `input tap` 首击：按钮获得焦点态高亮（accent-wash 底 + 描边可见）但**不激活**（无服务启动日志、副卡仍引导卡，复测多次同型）；第二次 tap 同坐标才激活进入远程模式。与坑 16「系统安装器确认钮首 tap 即激活（初始带焦点）」分属两型：系统弹窗钮初始带焦点、首 tap 即触发；应用内 View 首击在触摸模式下仅聚焦（HANDOFF 模拟器走查坑 3「键帽 focusableInTouchMode 首击聚焦不点击」的真机应用按钮同族扩展）。
+
+**处置**：真机走查 tap 激活应用内按钮按「双击 tap」口径执行（首击聚焦 + 二击激活），每次激活前后截图核对；遥控通道激活优先（键码 OK 走焦点控件 performClick，单键即激活）。
+
+### 坑 21：设置页副卡（跨屏输入卡）随 IME 键盘窗口渲染，键盘收起副卡消失（2026-11-12，真机批次 review-qa 实测）
+
+**现象**：键盘显示态副卡可见（引导卡/二维码卡）；BACK 收起键盘后副卡随之消失——`uiautomator dump` 的 Activity 树中无任何副卡控件节点（仅主卡元素），右侧全黑（截图在案）；同帧设置页主卡元素（test_input/按钮/版本卡）bounds 与键盘显示态一致，非滚动/重排。
+
+**处置**：涉及副卡的操作（进远程模式、看二维码）须在**键盘显示态**执行；键盘收起态 tap 副卡历史坐标必落空。
+
+### 坑 22：IC 输出黑洞——ime set 切回的服务重启实例上组合串/选词不落输入框（2026-11-12，真机批次 review-qa 实测；缺陷候选，修复走 dev 轮次）
+
+**现象**：default_input_method 被夺回搜狗（坑 5 同族，无 Force stopping 指纹）→ `ime set` 切回 sofatype（IME 服务重启、新 pid）→ 既有输入会话上：组合态建立正常（composer 装载 total=24、候选栏 chips 可见），但组合串 `setComposingText` 与选词 `commitText` **均不写入宿主输入框**——输入框恒占位文案（视觉截图 + uiautomator dump text 双证，dump API 23 空框时 text 属性含 hint，判据注意）；期间键码打字走键盘键面的直出同样不落框。用户 tap 输入框后恢复（会话重建）：组合串落框、选词上屏（text='n嗯'，「嗯」为选词）全部正常；黑洞期已失败的组合串在恢复后延迟落框（'nn' 双 n），如实留档。
+
+**影响**：该状态下用户经由键盘的输入全部丢失（候选栏显示、正文无字）——输入法核心输出链路失效。
+
+**处置**：走查遇组合装载正常但正文不落框，先核对 default_input_method 与 IME 进程 pid 是否在会话中途更换；恢复动作 = tap 输入框重建会话；根治修复挂账 dev 轮次（复现链：夺回 → ime set → 弹键盘输入）。本批走查期间该缺陷污染了打字键码「直写正文」的独立取证（T59 口径 4 部分项），如实标注。
+
+### 坑 23：tap 设置页按钮后收起键盘，后续首键码触发键盘自发重显（2026-11-12，真机批次 review-qa 实测；缺陷候选，修复走 dev 轮次）
+
+**现象**：设置页 tap 过任意按钮（如 [全选]/[填入样例]）后 BACK 收起键盘，随后注入的**第一发键码（DPAD/OK）触发系统级 show**——`dumpsys input_method mShowRequested=true mShowExplicitlyRequested=true`、`onStartInputView + onWindowShown` 链执行、键盘重显；OK 被消费为 IME 键面激活（候选装载在案），宿主焦点不动。三轮复现（14:19/14:29/14:37）。对照：收起后**不 tap** 直接键码，无此重显（14:31 对照实验：tap 空白 3s 后 mInputShown=false 不弹）。伴生事实：tap 按钮使焦点转移、IMM 会话解绑，此后键码直达 IME 隐藏态分支（ImeKeyTrace 有 onKeyDown 行）；会话存活时设置页 pre-IME 分路拦截正常（BACK 退出那发 trace 零行）——「T54 修复的两派发路径行为结果一致」在真机 DPAD/OK 场景被本现象破坏。
+
+**影响**：T54 口径「收起后 DPAD 宿主移焦、OK 激活焦点控件」在 tap 过按钮的场景不可达——真机缺陷（REJECT 候选·P1，详见 open/T54.md 真机复验节），修复走 dev 轮次。
+
+**处置**：真机走查「收起后遥控宿主响应」类取证，必须在「收起后未 tap 过任何按钮」的干净态做；tap 通道用过的状态只做显示态键盘项。
 
