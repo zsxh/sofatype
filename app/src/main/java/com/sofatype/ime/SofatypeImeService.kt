@@ -1808,8 +1808,10 @@ class SofatypeImeService : InputMethodService() {
 
     /**
      * 刷新大小写相关键面（FR-A3）：字母区键面大小写与无障碍标注同步刷新（T26：
-     * contentDescription 与键面同文，大写态朗读不回退小写）、上档键激活视觉
-     * （画板②：accent_wash 底 + accent_text 图标色，复用强调键 drawable）与态提示。
+     * contentDescription 与键面同文，大写态朗读不回退小写）、上档键激活视觉与态提示。
+     * 决策 44（高亮收敛全页面推广）：UPPER 激活态不再复用完成键 drawable 换底
+     * （画板②激活底口径废止），键帽背景恒为 bg_key（rebuildKeys 既有装配），
+     * 焦点态由 bg_key selector 表达；激活提示仅保留图标色切换（accent_text / text_secondary）。
      */
     private fun applyCaseState() {
         val upper = caseState == CaseState.UPPER
@@ -1822,7 +1824,6 @@ class SofatypeImeService : InputMethodService() {
             }
             if (id == "shift") {
                 view.contentDescription = KeyboardLayout.shiftContentDescription(caseState)
-                view.background = getDrawable(if (upper) R.drawable.bg_key_done else R.drawable.bg_key)
                 (view as? ImageView)?.setColorFilter(
                     getColor(if (upper) R.color.accent_text else R.color.text_secondary),
                 )
