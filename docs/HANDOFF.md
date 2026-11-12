@@ -18,7 +18,7 @@
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
 5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。**开发环境工具链拍板不入 PRD**，记录于本文决策速查与对应 issue。
 
-## 当前快照（截至 2026-11-11）
+## 当前快照（截至 2026-11-12）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
@@ -29,6 +29,7 @@
   - T52 已收口归档（2026-11-11）：修复口径=决策 41「符号键盘保留候选栏占位」；designs/20261110 符号板已按决策 41 回写（补空态占位带、键区顶与字母板一致）。
   - T53 已收口归档（2026-11-11）：修复口径=决策 42「候选栏占位全模式恒定」；真机复验四象限键区顶全 580 spread=0、英文两象限 510→580 修复签名实证；口径差异 2 条仅留 issue 挂账（明细见 closed/T53）。
   - T54 / T55 / T56 / T57 / T59 / T60 模拟器口径 PASS、真机复验留待真机批次（2026-11-11 户主拍板；T55、T56 于 2026-11-12 拍板并入；T57 于 2026-11-12 拍板并入）：T54 Round 2 设置页焦点接管＋pre-IME 分路；T55 Round 1 模式切换键复位组合与候选（PRD 决策 43）；T56 Round 1 六键下边框高亮修复（唯一代码改动 = ime_keyboard.xml 行容器 `baselineAligned="false"`×4，评审 PASS）；T57 Round 1 高亮收敛全页面推广（PRD 决策 44：完成键 / 副卡[远程输入] / 设置页按钮常态去高亮、上档键 UPPER 激活态仅图标色，评审 PASS，截图 screenshots/T57/）；T59 Round 1 隐藏态键码七条口径落地；T60 Round 1 桌面入口 intent-filter＋icon/banner 资源；真机批次届时专项核验「sofatype 默认输入法下遥控 OK 点桌面入口」拦截项（见 open/T60 踩过的坑）；代码均已提交：T54 `e9cb94e`、T55 `e9d4eaf`、T56 `75361e7`、T57 `eb9b00d`、T59 `b782da9`、T60 `896e2e0`；明细见 open/T54、open/T55、open/T56、open/T57、open/T59、open/T60。
+  - T58（open，2026-11-12 户主指令开工）：半角 [0]↔[*] 焦点直达修复 = FocusNavigator 越空格位寻最近实键（模型 + 单测 4 文件）；模拟器双向直达 trace 取证 + 全/半与候选行回归全过、单测 448/0/0（--rerun-tasks 全 executed）；代码已提交 `1f22770`；并案排查结论 T61 不同源且当前代码 + 冷启实例不复现（留档 open/T61，户主拍板暂不动）；真机复验并入真机批次（与 T54~T60 同批），明细见 open/T58。
   - 首版终验已通过（2026-11-10，批次明细见 closed/T27「重启批次记录」）。
 - 设备态：sofatype 已装（T53 包，lastUpdateTime 2026-11-11 15:12:40）＋默认 IME（2026-11-11 T52 真机复验后户主拍板保留现状，T53 复验装机后维持）；screenshots 处置由户主自理。
 - 遗留观察（挂账，不影响功能）：
