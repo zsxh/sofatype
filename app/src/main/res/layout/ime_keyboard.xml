@@ -179,10 +179,14 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
+                    <!-- 键区 4 行容器一律关基线对齐（baselineAligned 默认 true 会把小字号功能键
+                         文字键按基线对齐 30px 键文字下推 ~4px，行容器按自身边界裁剪溢出部分，
+                         焦点态下边框被裁掉——T56 根因）；关掉后全部键帽按行顶对齐，行几何不变 -->
                     <LinearLayout
                         android:id="@+id/key_row_1"
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/ime_key_height"
+                        android:baselineAligned="false"
                         android:orientation="horizontal" />
 
                     <LinearLayout
@@ -190,6 +194,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/ime_key_height"
                         android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:baselineAligned="false"
                         android:orientation="horizontal" />
 
                     <LinearLayout
@@ -197,6 +202,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/ime_key_height"
                         android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:baselineAligned="false"
                         android:orientation="horizontal" />
 
                     <LinearLayout
@@ -204,6 +210,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="@dimen/ime_key_height"
                         android:layout_marginTop="@dimen/ime_row_spacing"
+                        android:baselineAligned="false"
                         android:orientation="horizontal" />
                 </LinearLayout>
             </FrameLayout>
