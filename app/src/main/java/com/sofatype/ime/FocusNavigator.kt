@@ -3,7 +3,9 @@
 // 行内键格位由 x 原点推导（步进与 T28 列节奏单测同口径：键 80 + 键距 12 = 92、spacer 42 + 键距 12 = 54，
 // 1080p px 基准）；跨两行完成键按绝对定位（左缘 1120px = 图标列原点，T28 回归点）显式声明占据行 3/4 的图标列格位。
 // 导航规则（FR-A11「符合视觉行列关系，不跳变」）：
-//   左/右 = 同行相邻列；上/下 = 同列相邻行；目标格不存在（表缘）时不动；
+//   左/右 = 同行向该方向的最近实键（空格位无键格越空直达，T58：不越任何实键，仍是视觉相邻键）；
+//   上/下 = 同列向该方向的最近实键（现行布局各列全实键，语义与逐格一致）；
+//   扫到自身占据格位（跨行键）即停不动；目标格不存在（表缘）时不动；
 //   完成键以顶行格位为导航锚（跨行高键，向下仍是自身视觉区域 → 不动）。
 // 方向键事件由 SofatypeImeService.onKeyDown 处理（转发键事件不经过 IME view 树，见该类 onKeyDown 注释），
 // 表缘 next 返回 null 时调用方消费事件并保持焦点，不进入系统 focus search，保证路径确定不跳变。
@@ -53,7 +55,7 @@ class FocusNavigator(
                         x += KEY_PX + KEY_GAP_PX
                     }
                     Cell.Spacer -> x += SPACER_PX + KEY_GAP_PX
-                    // 空格位：占一格无键（格网留空，表缘导航语义；T8 半角行 4）
+                    // 空格位：占一格无键（格网留空，导航越空直达最近实键；T8 半角行 4 / T58 语义）
                     Cell.EmptyCell -> x += KEY_PX + KEY_GAP_PX
                 }
             }
@@ -84,21 +86,32 @@ class FocusNavigator(
     fun positionsOf(keyId: String): List<Pair<Int, Int>> = positions[keyId].orEmpty()
 
     /**
-     * 焦点导航：当前键沿方向移动到相邻行列键。
-     * 返回目标键 id；表缘或目标为自身（完成键向下）返回 null，调用方保持焦点不动。
+     * 焦点导航：当前键沿方向移动到该行/列线上的最近实键。
+     * 空格位（EmptyCell，无键格）越空直达，不越任何实键（T58：半角符号 [0]↔[*] 左右直达）；
+     * 扫到自身占据格位（跨行键另一格）即停返回 null；表缘（该方向无更多格位/实键）返回 null，
+     * 调用方消费事件并保持焦点不动。
      */
     fun next(currentKeyId: String, direction: FocusDirection): String? {
         // 完成键以顶行格位为锚（跨两行高键，FR-A10）
         val (row, col) = positionsOf(currentKeyId).minByOrNull { it.first }
             ?: return null
-        val (targetRow, targetCol) = when (direction) {
-            FocusDirection.LEFT -> row to col - 1
-            FocusDirection.RIGHT -> row to col + 1
-            FocusDirection.UP -> row - 1 to col
-            FocusDirection.DOWN -> row + 1 to col
+        val dRow = if (direction == FocusDirection.UP) -1 else if (direction == FocusDirection.DOWN) 1 else 0
+        val dCol = if (direction == FocusDirection.LEFT) -1 else if (direction == FocusDirection.RIGHT) 1 else 0
+        var r = row + dRow
+        var c = col + dCol
+        while (r in 1..GRID_ROWS && c in 1..GRID_COLS) {
+            when (val target = keyAt(r, c)) {
+                // 空格位：格网留空，越空继续寻路（T58 半角行 4 col2/3）
+                null -> {
+                    r += dRow
+                    c += dCol
+                }
+                // 仍是自身（跨行键另一格，如完成键 DOWN）：视觉未离开自身 → 不动
+                currentKeyId -> return null
+                else -> return target
+            }
         }
-        val target = keyAt(targetRow, targetCol) ?: return null
-        return target.takeIf { it != currentKeyId }
+        return null
     }
 
     companion object {
@@ -107,5 +120,9 @@ class FocusNavigator(
         private const val KEY_PX = 80
         private const val KEY_GAP_PX = 12
         private const val SPACER_PX = 42
+
+        // 格网规模（画板① 4 行 × 12 列；越空寻路与表缘判定的边界，T58）
+        private const val GRID_ROWS = 4
+        private const val GRID_COLS = 12
     }
 }

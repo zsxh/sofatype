@@ -181,31 +181,51 @@ class SymbolsLayoutTest {
     // ---- 焦点导航（T6 基座口径） ----
 
     @Test
-    fun movesStayAdjacentInGrid() {
-        // 左右同行、上下同列相邻格位；跨行键取相邻格位；表缘不动（FR-A11 不跳变）
+    fun movesStayInLineToNearestKey() {
+        // 左右 = 同行该方向最近实键（越空格位、不越实键，T58）；上下 = 同列该方向最近实键；
+        // 跨行键取方向侧格位；表缘不动（FR-A11 不跳变）
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
             val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
             val allKeys = keysOf(width).map { it.id }
             for (keyId in allKeys) {
                 val from = navigator.positionsOf(keyId).minByOrNull { it.first }!!
-                for (dir in listOf(FocusDirection.LEFT, FocusDirection.RIGHT)) {
+                for (dir in FocusDirection.entries) {
                     val next = navigator.next(keyId, dir) ?: continue
-                    val dCol = if (dir == FocusDirection.LEFT) -1 else 1
+                    val horizontal = dir == FocusDirection.LEFT || dir == FocusDirection.RIGHT
+                    val delta = if (dir == FocusDirection.LEFT || dir == FocusDirection.UP) -1 else 1
+                    val target = navigator.positionsOf(next).firstOrNull {
+                        if (horizontal) it.first == from.first && (it.second - from.second) * delta > 0
+                        else it.second == from.second && (it.first - from.first) * delta > 0
+                    }
+                    assertTrue("键 $keyId $dir 目标 $next 应落在方向侧同线", target != null)
+                    val between = if (horizontal) {
+                        if (delta > 0) (from.second + 1) until target!!.second else (target!!.second + 1) until from.second
+                    } else {
+                        if (delta > 0) (from.first + 1) until target!!.first else (target!!.first + 1) until from.first
+                    }.map { if (horizontal) from.first to it else it to from.second }
                     assertTrue(
-                        "键 $keyId $dir 应落在相邻格位",
-                        navigator.positionsOf(next).any { it.first == from.first && it.second == from.second + dCol },
-                    )
-                }
-                for (dir in listOf(FocusDirection.UP, FocusDirection.DOWN)) {
-                    val next = navigator.next(keyId, dir) ?: continue
-                    val dRow = if (dir == FocusDirection.UP) -1 else 1
-                    assertTrue(
-                        "键 $keyId $dir 应落在相邻格位",
-                        navigator.positionsOf(next).any { it.first == from.first + dRow && it.second == from.second },
+                        "键 $keyId $dir 与目标 $next 之间不得夹实键（不跳变）",
+                        between.all { navigator.keyAt(it.first, it.second) == null },
                     )
                 }
             }
         }
+    }
+
+    @Test
+    fun halfWidthZeroAndStarReachEachOtherLeftRight() {
+        // T58（户主真机反馈）：半角行 4 [0]（col1）与 [*]（col4）隔空格位 col2/3，
+        // 左右键应越空直达最近实键（FR-A11 视觉相邻）；全角行 4 无空格位不受影响
+        val half = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.HALF_WIDTH), SymbolsLayout.overlayCells())
+        assertEquals("[0] RIGHT 越空直达 [*]", "hw_*", half.next("digit_0", FocusDirection.RIGHT))
+        assertEquals("[*] LEFT 越空直达 [0]", "digit_0", half.next("hw_*", FocusDirection.LEFT))
+        // 越空不越键：[*] 右邻仍逐格到 [；同列 UP 关系不变
+        assertEquals("hw_[", half.next("hw_*", FocusDirection.RIGHT))
+        assertEquals("hw_;", half.next("hw_*", FocusDirection.UP))
+        assertNull("[0] LEFT 仍表缘不动", half.next("digit_0", FocusDirection.LEFT))
+        val full = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH), SymbolsLayout.overlayCells())
+        assertEquals("全角行 4 无空格位，[0] RIGHT 逐格到 。", "fw_。", full.next("digit_0", FocusDirection.RIGHT))
+        assertEquals("digit_0", full.next("fw_。", FocusDirection.LEFT))
     }
 
     @Test

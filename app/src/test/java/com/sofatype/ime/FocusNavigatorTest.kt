@@ -51,32 +51,64 @@ class FocusNavigatorTest {
 
     @Test
     fun horizontalMovesStayInSameRow() {
-        // 不跳变的精确定义：左右一步 = 移到相邻列的同格位（目标键跨行时，取其占据的相邻格位即可）
+        // 不跳变的精确定义（T58）：左右一步 = 同行移动到该方向最近实键
+        //（空格位无键、越空直达，不越任何实键），即当前格位与目标格位之间不夹实键
         for (keyId in allKeyIds) {
             val from = navigator.positionsOf(keyId).minByOrNull { it.first }!!
             for (dir in listOf(FocusDirection.LEFT, FocusDirection.RIGHT)) {
                 val next = navigator.next(keyId, dir) ?: continue
-                val deltaCol = if (dir == FocusDirection.LEFT) -1 else 1
-                val landsAdjacent = navigator.positionsOf(next)
-                    .any { it.first == from.first && it.second == from.second + deltaCol }
-                assertTrue("键 $keyId $dir 应落在相邻格位 (${from.first}, ${from.second + deltaCol})，实际 $next", landsAdjacent)
+                val delta = if (dir == FocusDirection.LEFT) -1 else 1
+                val target = navigator.positionsOf(next)
+                    .firstOrNull { it.first == from.first && (it.second - from.second) * delta > 0 }
+                assertTrue("键 $keyId $dir 目标 $next 应落在同行方向侧", target != null)
+                val between = if (delta > 0) (from.second + 1) until target!!.second
+                    else (target!!.second + 1) until from.second
+                assertTrue(
+                    "键 $keyId $dir 与目标 $next 之间不得夹实键（不跳变）",
+                    between.all { navigator.keyAt(from.first, it) == null },
+                )
             }
         }
     }
 
     @Test
     fun verticalMovesStayInSameColumn() {
-        // 不跳变的精确定义：上下一步 = 移到相邻行的同格位（目标键跨行时，取其占据的相邻格位即可）
+        // 不跳变的精确定义（T58）：上下一步 = 同列移动到该方向最近实键
+        //（空格位无键、越空直达，不越任何实键），即当前格位与目标格位之间不夹实键
         for (keyId in allKeyIds) {
             val from = navigator.positionsOf(keyId).minByOrNull { it.first }!!
             for (dir in listOf(FocusDirection.UP, FocusDirection.DOWN)) {
                 val next = navigator.next(keyId, dir) ?: continue
-                val deltaRow = if (dir == FocusDirection.UP) -1 else 1
-                val landsAdjacent = navigator.positionsOf(next)
-                    .any { it.first == from.first + deltaRow && it.second == from.second }
-                assertTrue("键 $keyId $dir 应落在相邻格位 (${from.first + deltaRow}, ${from.second})，实际 $next", landsAdjacent)
+                val delta = if (dir == FocusDirection.UP) -1 else 1
+                val target = navigator.positionsOf(next)
+                    .firstOrNull { it.second == from.second && (it.first - from.first) * delta > 0 }
+                assertTrue("键 $keyId $dir 目标 $next 应落在同列方向侧", target != null)
+                val between = if (delta > 0) (from.first + 1) until target!!.first
+                    else (target!!.first + 1) until from.first
+                assertTrue(
+                    "键 $keyId $dir 与目标 $next 之间不得夹实键（不跳变）",
+                    between.all { navigator.keyAt(it, from.second) == null },
+                )
             }
         }
+    }
+
+    @Test
+    fun horizontalMoveSkipsEmptyCellsToNearestKey() {
+        // T58：左/右越空格位（EmptyCell）直达最近实键、不越实键；合成布局锁定通用语义
+        //（列号按 x 原点全局分配，首行铺满 4 列、次行挖空 col2/3，与半角符号行 4 同构）
+        fun key(id: String) = Cell.KeyCell(Key(id, KeyAction.Text("x"), contentDescription = id))
+        val rows = listOf(
+            KeyRow(listOf(key("a1"), key("b1"), key("c1"), key("d1"))),
+            KeyRow(listOf(key("a2"), Cell.EmptyCell, Cell.EmptyCell, key("d2"))),
+        )
+        val nav = FocusNavigator(rows, overlayCells = emptyMap(), initialCell = 1 to 1)
+        assertEquals("右越两个空格位直达最近实键", "d2", nav.next("a2", FocusDirection.RIGHT))
+        assertEquals("左越两个空格位直达最近实键", "a2", nav.next("d2", FocusDirection.LEFT))
+        assertEquals("无空格位逐格不变", "b1", nav.next("a1", FocusDirection.RIGHT))
+        assertEquals("无空格位逐格不变", "a1", nav.next("b1", FocusDirection.LEFT))
+        assertNull("表缘（行尾）越空到边仍不动", nav.next("d2", FocusDirection.RIGHT))
+        assertNull(nav.next("a2", FocusDirection.LEFT))
     }
 
     @Test

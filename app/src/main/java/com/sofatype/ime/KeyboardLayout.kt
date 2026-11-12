@@ -106,7 +106,8 @@ sealed interface Cell {
     /** 列间隔占位：数字列｜字母区｜功能键区之间的空隙。 */
     object Spacer : Cell
 
-    /** 空格位：占一个键格但无键（布局缺键位，x 步进与键一致；T8 符号键盘半角行 4）。 */
+    /** 空格位：占一个键格但无键（布局缺键位，x 步进与键一致；T8 符号键盘半角行 4；
+     *  焦点导航左右越空直达最近实键，T58 语义，见 FocusNavigator.next）。 */
     object EmptyCell : Cell
 }
 
