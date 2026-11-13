@@ -195,6 +195,13 @@ class SofatypeImeService : InputMethodService() {
     /** 符号键盘全/半角状态（FR-A6）；仅符号键盘内有效。 */
     private var symbolsWidth = SymbolsWidth.FULL_WIDTH
 
+    /**
+     * T64 · 符号键盘行步进窗口偏移（0 起）：显示窗顶行在真实矩阵（5 行）中的行下标，
+     * 界面恒显示 4 行；全/半角两页同位语义，偏移跨全/半切换保留（画板 10/11 两页各有下移态）。
+     * 进出符号键盘 / 键盘视图重建复位 0（默认态）。
+     */
+    private var symbolsWindowOffset = 0
+
     /** 语言模式（FR-A4）：中文（拼音组合）↔ 英文（直出）。键盘重建复位中文（PRD 5.2「弹出键盘（中文 · 小写）」；记忆属 FR-A13 P2 不做）。 */
     private enum class LanguageMode { CHINESE, ENGLISH }
 
@@ -315,6 +322,7 @@ class SofatypeImeService : InputMethodService() {
         caseState = CaseState.LOWER
         keyboardMode = KeyboardMode.LETTERS
         symbolsWidth = SymbolsWidth.FULL_WIDTH
+        symbolsWindowOffset = 0
         languageMode = LanguageMode.CHINESE
         composer.reset()
         navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
@@ -620,20 +628,25 @@ class SofatypeImeService : InputMethodService() {
      */
     private fun rebuildKeys(root: View, requestInitialFocus: Boolean) {
         navigator = when (keyboardMode) {
-            // 初始键口径（T40）：字母键盘 = 字母区首键 [a]；符号键盘 = 键区左上角 digit_1（维持现状）
+            // 初始键口径（T40）：字母键盘 = 字母区首键 [a]；符号键盘 = 键区左上角 digit_1（维持现状）；
+            // T64：符号键盘按行步进窗口偏移装配显示窗（界面恒 4 行，仅符号区 7 列随窗口切换）
             KeyboardMode.LETTERS -> FocusNavigator(initialCell = KeyboardLayout.initialCell)
             KeyboardMode.SYMBOLS -> FocusNavigator(
-                SymbolsLayout.rows(symbolsWidth),
+                SymbolsLayout.rows(symbolsWidth, symbolsWindowOffset),
                 SymbolsLayout.overlayCells(),
                 SymbolsLayout.initialCell,
             )
         }
         val rows = when (keyboardMode) {
             KeyboardMode.LETTERS -> KeyboardLayout.rows
-            KeyboardMode.SYMBOLS -> SymbolsLayout.rows(symbolsWidth)
+            KeyboardMode.SYMBOLS -> SymbolsLayout.rows(symbolsWidth, symbolsWindowOffset)
         }
         bindRows(root, rows)
         bindOverlayKeys(root)
+        // T64 走查实证（模拟器 API 34）：行步进后的全/半切换，视图树与逻辑状态已正确重建
+        //（bindRows 行容器子视图与焦点导航 keyViews 均为新键位），但窗口帧可能滞留旧键面——
+        // 对根容器强制失效重绘（幂等、无副作用），保证 rebuild 后尽快取得新帧
+        root.invalidate()
         // 候选栏内容随布局模式刷新（决策 42：空态占位全模式恒定，键区顶不随键盘类型/语言模式变化）
         refreshCandidatesBar()
         if (requestInitialFocus) {
@@ -897,6 +910,19 @@ class SofatypeImeService : InputMethodService() {
             candidateViews[0].requestFocus(View.FOCUS_DOWN)
             return
         }
+        // T64 · 行步进窗口（符号键盘）：焦点锚在显示窗口底/顶行、该方向到显示格网表缘、
+        // 且该侧还有真实行时，窗口步进一行；符号内容切换但光标屏上位置不动（步进方法内落焦点）。
+        // 字母键盘不触发（格网表缘维持不动口径）；跨行浮层键锚行为 3 不满足触发行，语义不变。
+        if (keyboardMode == KeyboardMode.SYMBOLS) {
+            val anchor = navigator.positionsOf(currentId).minByOrNull { it.first }
+            val newOffset = anchor?.let {
+                SymbolsLayout.windowStep(it.first, direction, symbolsWindowOffset)
+            }
+            if (anchor != null && newOffset != null) {
+                stepSymbolsWindow(newOffset, anchor)
+                return
+            }
+        }
         val nextId = navigator.next(currentId, direction)
         if (nextId == null && direction == FocusDirection.RIGHT && canEnterGuideButton(currentId)) {
             guideReturnKey = currentId
@@ -913,6 +939,21 @@ class SofatypeImeService : InputMethodService() {
     private fun canEnterGuideButton(currentId: String): Boolean =
         guideButtonView != null &&
             navigator.positionsOf(currentId).any { it.first == 3 || it.first == 4 }
+
+    /**
+     * T64 · 行步进窗口执行（符号键盘）：窗口偏移切到 [newOffset] 重建键区（符号区 7 列切换内容、
+     * 数字列与功能键列固定），焦点屏上位置不动——落新窗口同一显示格位的键（原下一/上一行同列键；
+     * 符号区换语义，数字列/功能列同键身份）。格网与键位 id 随窗口重建，该格位必存在，缺失兜底回初始键。
+     */
+    private fun stepSymbolsWindow(newOffset: Int, anchor: Pair<Int, Int>) {
+        val previousOffset = symbolsWindowOffset
+        symbolsWindowOffset = newOffset
+        trace("symbols window $previousOffset -> $newOffset（${if (newOffset > previousOffset) "DOWN" else "UP"} 步进）")
+        rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = false)
+        val targetId = navigator.keyAt(anchor.first, anchor.second) ?: navigator.initialKey()
+        trace("focus step -> $targetId（屏上位置 (${anchor.first}, ${anchor.second}) 不动）")
+        keyViews[targetId]?.requestFocus(View.FOCUS_DOWN)
+    }
 
     /** 引导卡主按钮方向导航（T17 · FR-A11）：LEFT 回进入前的键盘键（丢失回初始键）；其余表缘不动。 */
     private fun handleGuideButtonDirection(direction: FocusDirection) {
@@ -1067,7 +1108,9 @@ class SofatypeImeService : InputMethodService() {
 
     /**
      * 跨行浮层键绑定（绝对定位挂键区）：字母键盘 = 完成键；符号键盘 = 空格键 + 完成键
-     * （决策 3：跨行 3/4，col11/12，画板③ 84×196 对称）。布局切换时先移除旧浮层视图。
+     * （决策 3：跨行 3/4，col11/12，画板③ 84×196 对称）+ T64 行步进边界暗示箭头
+     * （下方还有真实行 = 显示第 4 行底部下箭头；上方还有真实行 = 显示第 1 行上方上箭头；
+     * 灰色装饰件、无障碍不标注、不进焦点链）。布局切换时先移除旧浮层视图。
      */
     private fun bindOverlayKeys(root: View) {
         val keyArea = root.findViewById<FrameLayout>(R.id.key_area)
@@ -1099,6 +1142,50 @@ class SofatypeImeService : InputMethodService() {
                 },
             )
         }
+        // T64 边界暗示箭头：显隐随窗口偏移判定（默认态只下箭头、下移态只上箭头、字母键盘两箭头皆无）；
+        // 与浮层键同入 overlayViews 注册表，布局/窗口切换重建时随旧视图一并移除，不残留
+        if (keyboardMode == KeyboardMode.SYMBOLS) {
+            if (SymbolsLayout.canStepDown(symbolsWindowOffset)) {
+                val down = createRowArrowView(R.drawable.ic_row_arrow_down)
+                overlayViews.add(down)
+                keyArea.addView(
+                    down,
+                    FrameLayout.LayoutParams(
+                        resources.getDimensionPixelSize(R.dimen.ime_row_arrow_width),
+                        resources.getDimensionPixelSize(R.dimen.ime_row_arrow_height),
+                        Gravity.TOP or Gravity.CENTER_HORIZONTAL,
+                    ).apply {
+                        topMargin = resources.getDimensionPixelSize(R.dimen.ime_row_arrow_down_top)
+                    },
+                )
+            }
+            if (SymbolsLayout.canStepUp(symbolsWindowOffset)) {
+                val up = createRowArrowView(R.drawable.ic_row_arrow_up)
+                overlayViews.add(up)
+                keyArea.addView(
+                    up,
+                    FrameLayout.LayoutParams(
+                        resources.getDimensionPixelSize(R.dimen.ime_row_arrow_width),
+                        resources.getDimensionPixelSize(R.dimen.ime_row_arrow_height),
+                        Gravity.TOP or Gravity.CENTER_HORIZONTAL,
+                    ).apply {
+                        topMargin = resources.getDimensionPixelSize(R.dimen.ime_row_arrow_up_top)
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * 行步进边界暗示箭头视图（T64 · 画板 3/10）：纯装饰件——无障碍标注置空 + 不参与无障碍、
+     * 不可聚焦（不进焦点链，方向导航仍走 onKeyDown 格网语义）。
+     */
+    private fun createRowArrowView(drawableRes: Int): View = ImageView(this).apply {
+        setImageResource(drawableRes)
+        contentDescription = null
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        isFocusable = false
+        isFocusableInTouchMode = false
     }
 
     /** 行内键帽包装：固定键帽尺寸，键间留键距（行尾不留）。 */
@@ -1135,7 +1222,12 @@ class SofatypeImeService : InputMethodService() {
     }
 
     private fun createTextKey(key: Key): TextView {
-        val sizeRes = if (key.textSize == KeyTextSize.SMALL) R.dimen.ime_key_fn_text else R.dimen.ime_key_text
+        val sizeRes = when (key.textSize) {
+            KeyTextSize.SMALL -> R.dimen.ime_key_fn_text
+            // 半角多字符符号键面（T64 · 画板 4「...」「--」24px）
+            KeyTextSize.DENSE -> R.dimen.ime_key_dense_text
+            KeyTextSize.NORMAL -> R.dimen.ime_key_text
+        }
         return TextView(this).apply {
             // 键面随大小写状态（FR-A3）：字母键在小写态创建即显示小写
             text = KeyboardLayout.displayLabel(key, caseState)
@@ -1244,6 +1336,8 @@ class SofatypeImeService : InputMethodService() {
                     if (symbolsWidth == SymbolsWidth.FULL_WIDTH) SymbolsWidth.HALF_WIDTH
                     else SymbolsWidth.FULL_WIDTH
                 trace("symbolsWidth -> $symbolsWidth")
+                // T64：行步进窗口偏移跨全/半切换保留（两页同位语义，画板 10/11 两页各有下移态），
+                // 焦点回初始键（既有口径）
                 rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
             }
             // FR-A4 中/英切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）：
@@ -1260,10 +1354,11 @@ class SofatypeImeService : InputMethodService() {
         }
     }
 
-    /** 字母键盘 ↔ 符号键盘切换（FR-A5）：先结束组合态（组合串原样上屏），再重建键区视图与导航格网，焦点落新布局初始键。 */
+    /** 字母键盘 ↔ 符号键盘切换（FR-A5）：先结束组合态（组合串原样上屏），再重建键区视图与导航格网，焦点落新布局初始键。进符号键盘复位行步进窗口默认态（T64，窗口偏移不跨布局模式记忆）。 */
     private fun switchKeyboardMode(mode: KeyboardMode) {
         finishComposition()
         keyboardMode = mode
+        if (mode == KeyboardMode.SYMBOLS) symbolsWindowOffset = 0
         trace("keyboardMode -> $mode")
         rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
     }
@@ -1749,7 +1844,9 @@ class SofatypeImeService : InputMethodService() {
         val focusId = (keyboardView?.findFocus() as? View)?.tag as? String ?: return
         val focusedKey = when (keyboardMode) {
             KeyboardMode.LETTERS -> KeyboardLayout.keyById[focusId]
-            KeyboardMode.SYMBOLS -> SymbolsLayout.allKeys(symbolsWidth).firstOrNull { it.id == focusId }
+            // T64：按当前显示窗口查键（焦点键恒在显示窗口内；全矩阵见 SymbolsLayout.allMatrixKeys）
+            KeyboardMode.SYMBOLS -> SymbolsLayout.allKeys(symbolsWidth, symbolsWindowOffset)
+                .firstOrNull { it.id == focusId }
         }
         if (focusedKey?.action != KeyAction.Delete) return
         deleteRepeatIndex = 0

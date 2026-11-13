@@ -1,85 +1,226 @@
-// T8 · 符号键盘模型单元测试（JUnit 4，纯 Kotlin，不依赖 Android UI 与模拟器）。
-// 锁定 FR-A5（进出/无大写键无中英键）、FR-A6（全角 30/半角 28 符号集，PRD 97~98 行原文逐字符）、
-// 决策 3（返回键行 2、空格/完成跨行对称）、决策 27（无 .com/@、全角 30 符号键位微调）、
-// 以及符号键盘焦点导航格网（T6 基座口径：逐格移动不跳变、表缘不动、全键可达）。
+// T64 · 符号键盘 7×5 同位语义矩阵单元测试（JUnit 4，纯 Kotlin，不依赖 Android UI 与模拟器）。
+// 键位唯一依据 = 原型定稿 designs/20261110 画板 3/4（默认态 R1-R4 + 下箭头）与画板 10/11
+//（下移态 R2-R5 + 上箭头），本文按画板原文逐字符锁定（决策 27 布局由 PRD 决策 45 推翻取代）。
+// 锁定五件事：
+// ① 全角/半角两页 7×5 真实矩阵逐位与原型一致（35 键位、同位置同语义）；
+// ② 数字列与字母键盘对齐（1-9 + 第四行 .com 0 @，决策 45）且不随行步进窗口滚动；
+// ③ 行步进窗口模型（界面恒显示 4 行、窗口偏移装配、越界拒绝、步进决策与边界不动）；
+// ④ 列节奏 x 原点断言（HANDOFF 模拟器坑 7 口径：格网列号断言拦不住视觉错位）随新布局补充；
+// ⑤ 显示窗口格网焦点导航回归（T58 同线最近实键口径 + 表缘不动 + 全键可达 + 决策 3 浮层键）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SymbolsLayoutTest {
 
-    /** PRD FR-A6 全角符号集（30 个，PRD 97 行原文逐字符）。 */
-    private val prdFullWidth: Set<String> = setOf(
-        "～", "！", "＃", "￥", "％", "……", "＆",
-        "？", "（", "）", "——", "＋", "＝", "×",
-        "；", "：", "‘", "’", "“", "”", "，",
-        "。", "／", "＊", "「", "」", "《", "》", "｜", "＼",
+    /** 全角 7×5 真实矩阵期望（画板 3 显示 R1-R4 + 画板 10 显示 R5，原文逐字符）。 */
+    private val expectedFullMatrix: List<List<String>> = listOf(
+        listOf("，", "。", "、", "？", "！", "；", "："),
+        listOf("“", "”", "‘", "’", "（", "）", "《"),
+        listOf("》", "【", "】", "…", "—", "～", "·"),
+        listOf("／", "＿", "｜", "＠", "＃", "％", "＆"),
+        listOf("＋", "＝", "＊", "＄", "＾", "｀", "￥"),
     )
 
-    /** PRD FR-A6 半角符号集（28 个，PRD 98 行原文逐字符）。 */
-    private val prdHalfWidth: Set<String> = setOf(
-        "~", "!", "#", "$", "^", "%", "&",
-        "?", "(", ")", "_", "-", "+", "=",
-        ";", ":", "'", "\"", ",", ".", "/",
-        "*", "[", "]", "{", "}", "|", "\\",
+    /** 半角 7×5 真实矩阵期望（画板 4 显示 R1-R4 + 画板 11 显示 R5，原文逐字符）。 */
+    private val expectedHalfMatrix: List<List<String>> = listOf(
+        listOf(",", ".", "\\", "?", "!", ";", ":"),
+        listOf("\"", "\"", "'", "'", "(", ")", "<"),
+        listOf(">", "[", "]", "...", "--", "~", "·"),
+        listOf("/", "_", "|", "@", "#", "%", "&"),
+        listOf("+", "=", "*", "$", "^", "`", "¥"),
     )
 
-    private fun keysOf(width: SymbolsWidth): List<Key> = SymbolsLayout.allKeys(width)
-    private fun idsOf(width: SymbolsWidth): Set<String> = keysOf(width).map { it.id }.toSet()
+    private fun keysOf(width: SymbolsWidth, offset: Int = 0): List<Key> = SymbolsLayout.allKeys(width, offset)
+    private fun idsOf(width: SymbolsWidth, offset: Int = 0): Set<String> = keysOf(width, offset).map { it.id }.toSet()
 
-    // ---- FR-A6：全角 30 / 半角 28 符号集逐字符核对 ----
+    private fun navigator(width: SymbolsWidth, offset: Int = 0): FocusNavigator =
+        FocusNavigator(SymbolsLayout.rows(width, offset), SymbolsLayout.overlayCells())
 
-    @Test
-    fun fullWidthCoversAll30PrdSymbols() {
-        val symbols = keysOf(SymbolsWidth.FULL_WIDTH)
-            .mapNotNull { (it.action as? KeyAction.Text)?.value }
-            .filter { it.length != 1 || it[0] !in '0'..'9' }
-            .toSet()
-        assertEquals("全角符号应与 PRD 集合逐字符一致（30 个）", prdFullWidth, symbols)
-        assertEquals(30, prdFullWidth.size)
-    }
+    // ---- ① 真实矩阵逐位（画板 3/4/10/11 原文逐字符） ----
 
     @Test
-    fun halfWidthCoversAll28PrdSymbols() {
-        val symbols = keysOf(SymbolsWidth.HALF_WIDTH)
-            .mapNotNull { (it.action as? KeyAction.Text)?.value }
-            .filter { it.length != 1 || it[0] !in '0'..'9' }
-            .toSet()
-        assertEquals("半角符号应与 PRD 集合逐字符一致（28 个）", prdHalfWidth, symbols)
-        assertEquals(28, prdHalfWidth.size)
-    }
-
-    @Test
-    fun symbolKeysEmitTheirOwnCharacter() {
-        // 符号键直出自身字符（FR-A6），不受字母键盘大小写状态影响
-        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            for (key in keysOf(width)) {
-                val text = key.action as? KeyAction.Text ?: continue
-                if (text.value == "0") continue
-                assertEquals("符号键 ${key.id} 输出值应为键面字符", text.value, key.label)
+    fun fullWidthMatrixMatchesArtboards() {
+        val matrix = SymbolsLayout.matrixKeys(SymbolsWidth.FULL_WIDTH)
+        assertEquals("全角矩阵应为 5 行 × 7 列（35 键位）", 5, matrix.size)
+        matrix.forEachIndexed { rowIndex, row ->
+            assertEquals("全角 R${rowIndex + 1} 应 7 键", 7, row.size)
+            row.forEachIndexed { colIndex, key ->
+                val expected = expectedFullMatrix[rowIndex][colIndex]
+                assertEquals("全角 R${rowIndex + 1}C${colIndex + 1} 键面应与原型一致", expected, key.label)
+                assertEquals("全角 R${rowIndex + 1}C${colIndex + 1} 输出值应与键面一致", expected, (key.action as KeyAction.Text).value)
             }
         }
     }
 
-    // ---- FR-A5 / 决策 27：无大写键、无中/英键、无 .com、无 @ ----
-
     @Test
-    fun symbolsKeyboardHasNoShiftLangDotComAtKeys() {
-        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val ids = idsOf(width)
-            assertTrue("符号键盘不应有大写键", "shift" !in ids)
-            assertTrue("符号键盘不应有中/英键", "lang" !in ids)
-            assertTrue("符号键盘不应有 .com 键（决策 27）", ids.none { it.endsWith(".com") || it == "dot_com" })
-            assertTrue("符号键盘不应有 @ 键（决策 27）", ids.none { it == "at" || it.endsWith("@") })
-            val labels = keysOf(width).mapNotNull { it.label }
-            assertTrue("键面不应出现 .com", ".com" !in labels)
-            assertTrue("键面不应出现 @", "@" !in labels)
-            assertTrue("键面不应出现大写字母（符号/数字除外）", labels.none { it.length == 1 && it[0] in 'A'..'Z' })
+    fun halfWidthMatrixMatchesArtboards() {
+        val matrix = SymbolsLayout.matrixKeys(SymbolsWidth.HALF_WIDTH)
+        assertEquals("半角矩阵应为 5 行 × 7 列（35 键位）", 5, matrix.size)
+        matrix.forEachIndexed { rowIndex, row ->
+            assertEquals("半角 R${rowIndex + 1} 应 7 键", 7, row.size)
+            row.forEachIndexed { colIndex, key ->
+                val expected = expectedHalfMatrix[rowIndex][colIndex]
+                assertEquals("半角 R${rowIndex + 1}C${colIndex + 1} 键面应与原型一致", expected, key.label)
+                assertEquals("半角 R${rowIndex + 1}C${colIndex + 1} 输出值应与键面一致", expected, (key.action as KeyAction.Text).value)
+            }
         }
     }
+
+    @Test
+    fun halfWidthR5C7IsHalfWidthYenSign() {
+        // 画板 11 半角 R5C7 = U+00A5（半角 ¥），区别于全角页 R5C7 = U+FFE5（￥）
+        assertEquals('¥'.toString(), SymbolsLayout.matrixKeys(SymbolsWidth.HALF_WIDTH)[4][6].label)
+        assertEquals("￥", SymbolsLayout.matrixKeys(SymbolsWidth.FULL_WIDTH)[4][6].label)
+    }
+
+    @Test
+    fun matrixKeyIdsAreUniquePerPage() {
+        // 半角 R2 直引号同字符占两格，键 id 必须按格位编号保唯一
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            val ids = SymbolsLayout.allMatrixKeys(width).map { it.id }
+            assertEquals("页内矩阵键 id 必须唯一（$width）", ids.size, ids.distinct().size)
+        }
+    }
+
+    @Test
+    fun symbolKeysHaveAccessibilityLabels() {
+        // T26 全键位口径：键面 = 输出 = 无障碍标注（含显示窗口外行）
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            for (key in SymbolsLayout.allMatrixKeys(width)) {
+                assertTrue("键 ${key.id} 无障碍标注不能为空白", key.contentDescription.isNotBlank())
+                assertEquals("键 ${key.id} 标注应与键面一致", key.label, key.contentDescription)
+            }
+        }
+    }
+
+    // ---- ② 数字列与字母键盘对齐（决策 45），且不随窗口滚动 ----
+
+    @Test
+    fun digitColumnMatchesLettersKeyboard() {
+        // 显示 4 行数字列 = 1-3 / 4-6 / 7-9 / .com 0 @（与字母键盘逐行一致，决策 45）
+        for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+            for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+                val nav = navigator(width, offset)
+                assertEquals("digit_1", nav.keyAt(1, 1))
+                assertEquals("digit_4", nav.keyAt(2, 1))
+                assertEquals("digit_7", nav.keyAt(3, 1))
+                assertEquals(".com 应在显示行 4 col1（决策 45）", "dot_com", nav.keyAt(4, 1))
+                assertEquals("digit_0 应在显示行 4 col2", "digit_0", nav.keyAt(4, 2))
+                assertEquals("@ 应在显示行 4 col3（决策 45）", "at", nav.keyAt(4, 3))
+            }
+        }
+    }
+
+    @Test
+    fun dotComKeyMatchesLettersKeyboardStyle() {
+        // .com 与字母键盘行 4 同构：功能键样式 + 小字号 + 直出文本（决策 45）
+        val dotCom = keysOf(SymbolsWidth.FULL_WIDTH).first { it.id == "dot_com" }
+        assertEquals(KeyVariant.FUNCTION, dotCom.variant)
+        assertEquals(KeyTextSize.SMALL, dotCom.textSize)
+        assertEquals(KeyAction.Text(".com"), dotCom.action)
+    }
+
+    @Test
+    fun digitAndFunctionColumnsFixedAcrossWindows() {
+        // 数字列与功能键列固定不随窗口滚动：两窗口态下同格位同键 id
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            val defaultNav = navigator(width, 0)
+            val bottomNav = navigator(width, SymbolsLayout.MAX_WINDOW_OFFSET)
+            val fixedCols = listOf(1, 2, 3, 11, 12)
+            for (row in 1..SymbolsLayout.VISIBLE_ROWS) {
+                for (col in fixedCols) {
+                    assertEquals(
+                        "格位 ($row, $col) 应跨窗口固定（$width）",
+                        defaultNav.keyAt(row, col),
+                        bottomNav.keyAt(row, col),
+                    )
+                }
+            }
+            // 行 3 col11/12 由浮层键声明（空格/完成），两窗口一致
+            assertEquals("space", defaultNav.keyAt(3, 11))
+            assertEquals("space", bottomNav.keyAt(3, 11))
+        }
+    }
+
+    // ---- ③ 行步进窗口模型 ----
+
+    @Test
+    fun defaultWindowShowsRealRowsOneToFour() {
+        // 默认态（offset=0）= 原型画板 3/4：显示 R1-R4 + 仅下箭头
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            val nav = navigator(width, 0)
+            val keyById = keysOf(width, 0).associateBy { it.id }
+            val expected = if (width == SymbolsWidth.FULL_WIDTH) expectedFullMatrix else expectedHalfMatrix
+            for (windowRow in 1..4) {
+                for (col in 4..10) {
+                    val key = nav.keyAt(windowRow, col)?.let { keyById[it] }
+                    val expectedSym = expected[windowRow - 1][col - 4]
+                    assertEquals("默认态显示行 $windowRow col$col 应为 R${windowRow}C${col - 3}（$width）", expectedSym, key?.let { (it.action as? KeyAction.Text)?.value })
+                }
+            }
+            assertTrue("默认态下方还有真实行（R5）", SymbolsLayout.canStepDown(0))
+            assertTrue("默认态上方无真实行", !SymbolsLayout.canStepUp(0))
+        }
+    }
+
+    @Test
+    fun steppedWindowShowsRealRowsTwoToFive() {
+        // 下移态（offset=1）= 原型画板 10/11：显示 R2-R5 + 仅上箭头
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            val nav = navigator(width, 1)
+            val keyById = keysOf(width, 1).associateBy { it.id }
+            val expected = if (width == SymbolsWidth.FULL_WIDTH) expectedFullMatrix else expectedHalfMatrix
+            for (windowRow in 1..4) {
+                for (col in 4..10) {
+                    val key = nav.keyAt(windowRow, col)?.let { keyById[it] }
+                    val expectedSym = expected[windowRow][col - 4]
+                    assertEquals("下移态显示行 $windowRow col$col 应为 R${windowRow + 1}C${col - 3}（$width）", expectedSym, key?.let { (it.action as? KeyAction.Text)?.value })
+                }
+            }
+            assertTrue("下移态下方无真实行", !SymbolsLayout.canStepDown(1))
+            assertTrue("下移态上方还有真实行（R1）", SymbolsLayout.canStepUp(1))
+        }
+    }
+
+    @Test
+    fun windowOffsetOutOfRangeIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) { SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH, -1) }
+        assertThrows(IllegalArgumentException::class.java) { SymbolsLayout.rows(SymbolsWidth.HALF_WIDTH, SymbolsLayout.MAX_WINDOW_OFFSET + 1) }
+    }
+
+    @Test
+    fun windowStepDecisionMatchesArtboardInteraction() {
+        val bottom = SymbolsLayout.MAX_WINDOW_OFFSET
+        // 显示第 4 行按[下]：默认态步进下移、下移态（边界外）不动
+        assertEquals(1, SymbolsLayout.windowStep(4, FocusDirection.DOWN, 0))
+        assertNull("边界外按[下]不越界", SymbolsLayout.windowStep(4, FocusDirection.DOWN, bottom))
+        // 显示第 1 行按[上]：下移态步进回移、默认态（边界外）不动
+        assertEquals(0, SymbolsLayout.windowStep(1, FocusDirection.UP, bottom))
+        assertNull("边界外按[上]不越界", SymbolsLayout.windowStep(1, FocusDirection.UP, 0))
+        // 格网内正常导航不触发步进（锚行非窗口底/顶缘）
+        for (anchorRow in 2..3) {
+            assertNull(SymbolsLayout.windowStep(anchorRow, FocusDirection.DOWN, 0))
+            assertNull(SymbolsLayout.windowStep(anchorRow, FocusDirection.UP, bottom))
+        }
+        // 跨行浮层键（空格/完成）锚行为 3：不满足触发行，语义不变
+        assertNull(SymbolsLayout.windowStep(3, FocusDirection.DOWN, 0))
+        assertNull(SymbolsLayout.windowStep(3, FocusDirection.UP, bottom))
+    }
+
+    @Test
+    fun realRowIndexMapsWindowRowToMatrix() {
+        assertEquals(0, SymbolsLayout.realRowIndex(1, 0))
+        assertEquals(3, SymbolsLayout.realRowIndex(4, 0))
+        assertEquals(1, SymbolsLayout.realRowIndex(1, 1))
+        assertEquals(4, SymbolsLayout.realRowIndex(4, 1))
+    }
+
+    // ---- 功能键与浮层键（决策 3 口径延续） ----
 
     @Test
     fun symbolsKeyboardHasToggleWidthBackSpaceDoneKeys() {
@@ -91,6 +232,9 @@ class SymbolsLayoutTest {
             assertTrue("应有完成键", SymbolsLayout.DONE_ID in ids)
             assertTrue("应有下屏键", "hide" in ids)
             assertTrue("应有删除键", "delete" in ids)
+            // FR-A5：符号键盘无大写键、无中/英键
+            assertTrue("符号键盘不应有大写键", "shift" !in ids)
+            assertTrue("符号键盘不应有中/英键", "lang" !in ids)
         }
     }
 
@@ -106,13 +250,10 @@ class SymbolsLayoutTest {
         assertEquals("返回字母键盘", byId.getValue(SymbolsLayout.BACK_ID).contentDescription)
     }
 
-    // ---- 决策 3：返回键行 2、空格/完成跨行对称（col11/col12 行 3/4） ----
-
     @Test
     fun backKeyIsOnRowTwo() {
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            val backCol = navigator.positionsOf(SymbolsLayout.BACK_ID).single()
+            val backCol = navigator(width).positionsOf(SymbolsLayout.BACK_ID).single()
             assertEquals("返回键应位于第二行（决策 3）", 2, backCol.first)
             assertEquals("返回键应位于功能列 col11（画板③）", 11, backCol.second)
         }
@@ -121,124 +262,114 @@ class SymbolsLayoutTest {
     @Test
     fun spaceAndDoneSpanRowsThreeAndFour() {
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
+            val nav = navigator(width)
             assertEquals(
                 "空格键应跨行 3/4 col11（决策 3）",
                 SymbolsLayout.spaceKeyCells,
-                navigator.positionsOf(SymbolsLayout.SPACE_ID).sortedBy { it.first },
+                nav.positionsOf(SymbolsLayout.SPACE_ID).sortedBy { it.first },
             )
             assertEquals(
                 "完成键应跨行 3/4 col12（决策 3，与空格对称）",
                 SymbolsLayout.doneKeyCells,
-                navigator.positionsOf(SymbolsLayout.DONE_ID).sortedBy { it.first },
+                nav.positionsOf(SymbolsLayout.DONE_ID).sortedBy { it.first },
             )
         }
     }
 
-    // ---- 格网结构（4 行 12 列，与字母键盘同构） ----
+    // ---- ④ 显示窗口格网完整性 + 焦点导航回归（T58 口径） ----
 
     @Test
-    fun fullWidthGridCoversAllCells() {
-        val navigator = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH), SymbolsLayout.overlayCells())
-        for (row in 1..4) {
-            for (col in 1..12) {
-                assertTrue("全角格位 ($row, $col) 应有键", navigator.keyAt(row, col) != null)
-            }
-        }
-    }
-
-    @Test
-    fun halfWidthRowFourHasEmptyCellsAtCol2And3() {
-        // 决策 27：.com/@ 移除后半角行 4 仅 0（col1）+ 7 符号（col4-10），col2/3 为空格位
-        val navigator = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.HALF_WIDTH), SymbolsLayout.overlayCells())
-        assertTrue(navigator.keyAt(4, 1) == "digit_0")
-        assertNull(navigator.keyAt(4, 2))
-        assertNull(navigator.keyAt(4, 3))
-        for (col in 4..10) assertTrue("半角行 4 col$col 应有符号", navigator.keyAt(4, col) != null)
-    }
-
-    @Test
-    fun digitColumnRunsThroughOneToZero() {
-        // 数字列贯通（FR-A9 数字输入 + 导航列关系）：1-4-7-0 同列
+    fun windowGridCoversAllCells() {
+        // 显示窗口格网 4×12 全实键：新矩阵数字列贯通后无空格位（EmptyCell 消失），
+        // col11/12 行 3/4 由浮层键声明
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            assertEquals("digit_1", navigator.keyAt(1, 1))
-            assertEquals("digit_4", navigator.keyAt(2, 1))
-            assertEquals("digit_7", navigator.keyAt(3, 1))
-            assertEquals("digit_0", navigator.keyAt(4, 1))
-            assertEquals("digit_1", navigator.initialKey())
-        }
-    }
-
-    @Test
-    fun initialFocusIsDigitOne() {
-        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            assertEquals("digit_1", navigator.initialKey())
-        }
-    }
-
-    // ---- 焦点导航（T6 基座口径） ----
-
-    @Test
-    fun movesStayInLineToNearestKey() {
-        // 左右 = 同行该方向最近实键（越空格位、不越实键，T58）；上下 = 同列该方向最近实键；
-        // 跨行键取方向侧格位；表缘不动（FR-A11 不跳变）
-        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            val allKeys = keysOf(width).map { it.id }
-            for (keyId in allKeys) {
-                val from = navigator.positionsOf(keyId).minByOrNull { it.first }!!
-                for (dir in FocusDirection.entries) {
-                    val next = navigator.next(keyId, dir) ?: continue
-                    val horizontal = dir == FocusDirection.LEFT || dir == FocusDirection.RIGHT
-                    val delta = if (dir == FocusDirection.LEFT || dir == FocusDirection.UP) -1 else 1
-                    val target = navigator.positionsOf(next).firstOrNull {
-                        if (horizontal) it.first == from.first && (it.second - from.second) * delta > 0
-                        else it.second == from.second && (it.first - from.first) * delta > 0
+            for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+                val nav = navigator(width, offset)
+                for (row in 1..4) {
+                    for (col in 1..12) {
+                        assertTrue("格位 ($row, $col) 应有键（$width offset=$offset）", nav.keyAt(row, col) != null)
                     }
-                    assertTrue("键 $keyId $dir 目标 $next 应落在方向侧同线", target != null)
-                    val between = if (horizontal) {
-                        if (delta > 0) (from.second + 1) until target!!.second else (target!!.second + 1) until from.second
-                    } else {
-                        if (delta > 0) (from.first + 1) until target!!.first else (target!!.first + 1) until from.first
-                    }.map { if (horizontal) from.first to it else it to from.second }
-                    assertTrue(
-                        "键 $keyId $dir 与目标 $next 之间不得夹实键（不跳变）",
-                        between.all { navigator.keyAt(it.first, it.second) == null },
-                    )
                 }
             }
         }
     }
 
     @Test
-    fun halfWidthZeroAndStarReachEachOtherLeftRight() {
-        // T58（户主真机反馈）：半角行 4 [0]（col1）与 [*]（col4）隔空格位 col2/3，
-        // 左右键应越空直达最近实键（FR-A11 视觉相邻）；全角行 4 无空格位不受影响
-        val half = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.HALF_WIDTH), SymbolsLayout.overlayCells())
-        assertEquals("[0] RIGHT 越空直达 [*]", "hw_*", half.next("digit_0", FocusDirection.RIGHT))
-        assertEquals("[*] LEFT 越空直达 [0]", "digit_0", half.next("hw_*", FocusDirection.LEFT))
-        // 越空不越键：[*] 右邻仍逐格到 [；同列 UP 关系不变
-        assertEquals("hw_[", half.next("hw_*", FocusDirection.RIGHT))
-        assertEquals("hw_;", half.next("hw_*", FocusDirection.UP))
-        assertNull("[0] LEFT 仍表缘不动", half.next("digit_0", FocusDirection.LEFT))
-        val full = FocusNavigator(SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH), SymbolsLayout.overlayCells())
-        assertEquals("全角行 4 无空格位，[0] RIGHT 逐格到 。", "fw_。", full.next("digit_0", FocusDirection.RIGHT))
-        assertEquals("digit_0", full.next("fw_。", FocusDirection.LEFT))
+    fun initialFocusIsDigitOne() {
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+                assertEquals("digit_1", navigator(width, offset).initialKey())
+            }
+        }
+    }
+
+    @Test
+    fun movesStayInLineToNearestKey() {
+        // 左右 = 同行该方向最近实键（不越实键，T58）；上下 = 同列该方向最近实键；
+        // 跨行键取方向侧格位；表缘不动（FR-A11 不跳变）。两页两窗口全键遍历。
+        for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
+            for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+                val nav = navigator(width, offset)
+                val allKeys = keysOf(width, offset).map { it.id }
+                for (keyId in allKeys) {
+                    val from = nav.positionsOf(keyId).minByOrNull { it.first }!!
+                    for (dir in FocusDirection.entries) {
+                        val next = nav.next(keyId, dir) ?: continue
+                        val horizontal = dir == FocusDirection.LEFT || dir == FocusDirection.RIGHT
+                        val delta = if (dir == FocusDirection.LEFT || dir == FocusDirection.UP) -1 else 1
+                        val target = nav.positionsOf(next).firstOrNull {
+                            if (horizontal) it.first == from.first && (it.second - from.second) * delta > 0
+                            else it.second == from.second && (it.first - from.first) * delta > 0
+                        }
+                        assertTrue("键 $keyId $dir 目标 $next 应落在方向侧同线", target != null)
+                        val between = if (horizontal) {
+                            if (delta > 0) (from.second + 1) until target!!.second else (target!!.second + 1) until from.second
+                        } else {
+                            if (delta > 0) (from.first + 1) until target!!.first else (target!!.first + 1) until from.first
+                        }.map { if (horizontal) from.first to it else it to from.second }
+                        assertTrue(
+                            "键 $keyId $dir 与目标 $next 之间不得夹实键（不跳变）",
+                            between.all { nav.keyAt(it.first, it.second) == null },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun rowFourNavigatesCellByCellWithoutEmptyCells() {
+        // T58 口径在新矩阵的形态：行 4 数字列贯通（.com 0 @）+ 符号区 7 键，逐格导航无空格位
+        val full = navigator(SymbolsWidth.FULL_WIDTH, 0)
+        assertEquals("fw_r4c1", full.next("at", FocusDirection.RIGHT))
+        assertEquals("at", full.next("fw_r4c1", FocusDirection.LEFT))
+        assertEquals("fw_r4c3", full.next("fw_r4c2", FocusDirection.RIGHT))
+        assertEquals("fw_r4c1", full.next("fw_r4c2", FocusDirection.LEFT))
+        // 半角下移态（画板 11）：显示行 4 = R5（＋半角 +），焦点落点逐格
+        val halfBottom = navigator(SymbolsWidth.HALF_WIDTH, 1)
+        assertEquals("hw_r5c2", halfBottom.next("hw_r5c1", FocusDirection.RIGHT))
+        assertEquals("hw_r5c1", halfBottom.next("hw_r5c2", FocusDirection.LEFT))
     }
 
     @Test
     fun edgeMovesKeepFocus() {
+        // 表缘（窗口格网缘）不动：步进由服务层窗口步进分支处理（模型决策见 windowStepDecisionMatchesArtboardInteraction）
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            assertNull(navigator.next("digit_1", FocusDirection.LEFT))
-            assertNull(navigator.next("digit_1", FocusDirection.UP))
-            // 行 1 col12（下屏）RIGHT 为表缘
-            assertNull(navigator.next("hide", FocusDirection.RIGHT))
-            // 完成键 DOWN（行 4 格位为自身）与 RIGHT（表缘）均不动
-            assertNull(navigator.next(SymbolsLayout.DONE_ID, FocusDirection.DOWN))
-            assertNull(navigator.next(SymbolsLayout.DONE_ID, FocusDirection.RIGHT))
+            val nav = navigator(width)
+            assertNull(nav.next("digit_1", FocusDirection.LEFT))
+            assertNull(nav.next("digit_1", FocusDirection.UP))
+            assertNull(nav.next("hide", FocusDirection.RIGHT))
+            assertNull(nav.next(SymbolsLayout.DONE_ID, FocusDirection.DOWN))
+            assertNull(nav.next(SymbolsLayout.DONE_ID, FocusDirection.RIGHT))
+            // 下移态：显示行 4 = 真实 R5；显示第 4 行键 DOWN 为格网表缘 null（窗口步进由服务层
+            // 决策分支承担，模型见 windowStepDecisionMatchesArtboardInteraction）；col10 RIGHT 落
+            // 浮层空格（col11）为格网内正常导航；空格/完成 RIGHT 为格网表缘 null
+            val bottomNav = navigator(width, SymbolsLayout.MAX_WINDOW_OFFSET)
+            assertNull(bottomNav.next("dot_com", FocusDirection.DOWN))
+            assertNull(bottomNav.next(if (width == SymbolsWidth.HALF_WIDTH) "hw_r5c7" else "fw_r5c7", FocusDirection.DOWN))
+            assertEquals(SymbolsLayout.SPACE_ID, bottomNav.next(if (width == SymbolsWidth.HALF_WIDTH) "hw_r5c7" else "fw_r5c7", FocusDirection.RIGHT))
+            assertEquals(SymbolsLayout.DONE_ID, bottomNav.next(SymbolsLayout.SPACE_ID, FocusDirection.RIGHT))
+            assertNull(bottomNav.next(SymbolsLayout.DONE_ID, FocusDirection.RIGHT))
         }
     }
 
@@ -246,32 +377,48 @@ class SymbolsLayoutTest {
     fun spaceAndDoneReachableFromFunctionColumn() {
         // 全/半 DOWN → 返回；下屏 DOWN → 删除；删除 DOWN → 完成；完成 LEFT → 空格
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            assertEquals(SymbolsLayout.BACK_ID, navigator.next(SymbolsLayout.TOGGLE_WIDTH_ID, FocusDirection.DOWN))
-            assertEquals("delete", navigator.next("hide", FocusDirection.DOWN))
-            assertEquals(SymbolsLayout.DONE_ID, navigator.next("delete", FocusDirection.DOWN))
-            assertEquals(SymbolsLayout.SPACE_ID, navigator.next(SymbolsLayout.DONE_ID, FocusDirection.LEFT))
+            val nav = navigator(width)
+            assertEquals(SymbolsLayout.BACK_ID, nav.next(SymbolsLayout.TOGGLE_WIDTH_ID, FocusDirection.DOWN))
+            assertEquals("delete", nav.next("hide", FocusDirection.DOWN))
+            assertEquals(SymbolsLayout.DONE_ID, nav.next("delete", FocusDirection.DOWN))
+            assertEquals(SymbolsLayout.SPACE_ID, nav.next(SymbolsLayout.DONE_ID, FocusDirection.LEFT))
         }
     }
 
     @Test
     fun allKeysReachableFromInitialFocus() {
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val navigator = FocusNavigator(SymbolsLayout.rows(width), SymbolsLayout.overlayCells())
-            val visited = mutableSetOf(navigator.initialKey())
-            val queue = ArrayDeque(visited)
-            while (queue.isNotEmpty()) {
-                val current = queue.removeFirst()
-                for (dir in FocusDirection.entries) {
-                    val next = navigator.next(current, dir)
-                    if (next != null && visited.add(next)) queue.addLast(next)
+            for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+                val nav = navigator(width, offset)
+                val visited = mutableSetOf(nav.initialKey())
+                val queue = ArrayDeque(visited)
+                while (queue.isNotEmpty()) {
+                    val current = queue.removeFirst()
+                    for (dir in FocusDirection.entries) {
+                        val next = nav.next(current, dir)
+                        if (next != null && visited.add(next)) queue.addLast(next)
+                    }
                 }
+                assertEquals(
+                    "从初始键应可达全部键位（$width offset=$offset）",
+                    keysOf(width, offset).map { it.id }.toSet(),
+                    visited,
+                )
             }
-            assertEquals("从初始键应可达全部键位", keysOf(width).map { it.id }.toSet(), visited)
         }
     }
 
-    // ---- 列节奏（画板③ 口径，T29 锁定：行 1/2 功能区与浮层键/字母键盘同列对齐） ----
+    @Test
+    fun denseTextSizeForMultiCharHalfWidthKeys() {
+        // 画板 4：半角「...」「--」键面 24px（DENSE），其余矩阵键 30px（NORMAL）
+        val dense = SymbolsLayout.allMatrixKeys(SymbolsWidth.HALF_WIDTH).filter { it.label!!.length >= 2 }
+        assertEquals(setOf("...", "--"), dense.map { it.label }.toSet())
+        assertTrue(dense.all { it.textSize == KeyTextSize.DENSE })
+        val normal = SymbolsLayout.allMatrixKeys(SymbolsWidth.HALF_WIDTH).filter { it.label!!.length == 1 }
+        assertTrue(normal.all { it.textSize == KeyTextSize.NORMAL })
+    }
+
+    // ---- ⑤ 列节奏 x 原点断言（HANDOFF 模拟器坑 7 口径，随新布局补充） ----
 
     /** 键区水平排布口径（1080p px，与 KeyboardLayoutTest.cellOriginPxs 一致）：
      *  键 80 + 键距 12；spacer 42 + 右侧键距 12（列间隔实宽 = 12+42+12 = 66px）。
@@ -291,46 +438,40 @@ class SymbolsLayoutTest {
     }
 
     @Test
-    fun functionColumnOriginsMatchLettersKeyboardAndOverlays() {
+    fun columnRhythmMatchesArtboard() {
         // 画板③ 列原点（相对键区）：数字列 0 / 符号列 330-882（col4-10）/
-        // 功能列 1028（屏 1136，= 浮层空格 1028）/ 图标列 1120（屏 1228，= 浮层完成键左缘）。
-        // T8 回归根因：行 1/2 符号区后漏 Spacer，功能区流式键左移 54px 与浮层键错位。
+        // 功能列 1028（屏 1136，= 浮层空格 1028）/ 图标列 1120（屏 1228，= 浮层完成键左缘）
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val rows = SymbolsLayout.rows(width)
-            val row1 = cellOriginPxs(rows[0])
-            assertEquals("符号区首键应落 col4 原点 330", 330, row1[4])
-            assertEquals("符号区末键应落 col10 原点 882", 882, row1[10])
-            assertEquals("全/半应在功能列原点 1028（与浮层空格同列线）", 1028, row1[12])
-            assertEquals("下屏应在图标列原点 1120（与浮层完成键左缘对齐）", 1120, row1[13])
-            val row2 = cellOriginPxs(rows[1])
-            assertEquals("返回应在功能列原点 1028", 1028, row2[12])
-            assertEquals("删除应在图标列原点 1120", 1120, row2[13])
-            // 与字母键盘同构：行 1/2 列原点逐位一致（数字列/符号区/两道列间隔/功能区全同节奏）
-            assertEquals("符号行 1 与字母行 1 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[0]), row1)
-            assertEquals("符号行 2 与字母行 2 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[1]), row2)
-            // 行 3 前缀节奏一致（col11/12 无行内键，由浮层键声明）
-            val lettersRow3 = cellOriginPxs(KeyboardLayout.rows[2])
-            assertEquals(
-                "符号行 3 与字母行 3 列原点前缀一致",
-                lettersRow3.take(rows[2].cells.size),
-                cellOriginPxs(rows[2]),
-            )
+            for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
+                val rows = SymbolsLayout.rows(width, offset)
+                val row1 = cellOriginPxs(rows[0])
+                assertEquals("符号区首键应落 col4 原点 330（$width offset=$offset）", 330, row1[4])
+                assertEquals("符号区末键应落 col10 原点 882", 882, row1[10])
+                assertEquals("全/半应在功能列原点 1028（与浮层空格同列线）", 1028, row1[12])
+                assertEquals("下屏应在图标列原点 1120（与浮层完成键左缘对齐）", 1120, row1[13])
+                val row2 = cellOriginPxs(rows[1])
+                assertEquals("返回应在功能列原点 1028", 1028, row2[12])
+                assertEquals("删除应在图标列原点 1120", 1120, row2[13])
+                // 与字母键盘同构：行 1/2 列原点逐位一致（数字列/符号区/两道列间隔/功能区全同节奏）
+                assertEquals("符号行 1 与字母行 1 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[0]), row1)
+                assertEquals("符号行 2 与字母行 2 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[1]), row2)
+                // 行 3 前缀节奏一致（col11/12 无行内键，由浮层键声明）
+                val lettersRow3 = cellOriginPxs(KeyboardLayout.rows[2])
+                assertEquals(
+                    "符号行 3 与字母行 3 列原点前缀一致",
+                    lettersRow3.take(rows[2].cells.size),
+                    cellOriginPxs(rows[2]),
+                )
+                // 行 4 数字列段与字母键盘行 4 前缀一致（.com 0 @，决策 45）
+                val lettersRow4 = cellOriginPxs(KeyboardLayout.rows[3])
+                assertEquals(
+                    "符号行 4 数字列段与字母行 4 列原点前缀一致（.com 0 @ + 列间隔）",
+                    lettersRow4.take(4),
+                    cellOriginPxs(rows[3]).take(4),
+                )
+                assertEquals("行 4 符号区首键应落 col4 原点 330", 330, cellOriginPxs(rows[3])[4])
+                assertEquals("行 4 符号区末键应落 col10 原点 882", 882, cellOriginPxs(rows[3])[10])
+            }
         }
-    }
-
-    // ---- 全/半切换的布局差异（决策 27 微调落点） ----
-
-    @Test
-    fun fullWidthRowFourHasMoreKeysThanHalfWidth() {
-        // 全角行 4 = 0 + 9 符号（。／＊「」《》｜＼）＝ 10 键；半角行 4 = 0 + 7 符号（*[]{}|\）＝ 8 键
-        val fullFlow = SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH)[3].cells.count { it is Cell.KeyCell }
-        val halfFlow = SymbolsLayout.rows(SymbolsWidth.HALF_WIDTH)[3].cells.count { it is Cell.KeyCell }
-        assertEquals(10, fullFlow)
-        assertEquals(8, halfFlow)
-        val fullWidth = SymbolsLayout.rows(SymbolsWidth.FULL_WIDTH)[3]
-        val symbolsInRow4 = fullWidth.cells.filterIsInstance<Cell.KeyCell>()
-            .mapNotNull { (it.key.action as? KeyAction.Text)?.value }
-            .filter { it != "0" }
-        assertEquals(listOf("。", "／", "＊", "「", "」", "《", "》", "｜", "＼"), symbolsInRow4)
     }
 }

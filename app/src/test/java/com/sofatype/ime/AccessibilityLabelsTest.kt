@@ -29,8 +29,9 @@ class AccessibilityLabelsTest {
 
     @Test
     fun `符号键盘全角半角两态全部键位有无障碍标注`() {
+        // T64 行步进窗口：两窗口态（默认态 + 下移态）并集 = 全矩阵 35 键位 + 数字/功能列 + 浮层键
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
-            val keys = SymbolsLayout.allKeys(width)
+            val keys = (0..SymbolsLayout.MAX_WINDOW_OFFSET).flatMap { offset -> SymbolsLayout.allKeys(width, offset) }
             assertTrue("符号键盘键位不应为空（$width）", keys.isNotEmpty())
             for (key in keys) {
                 assertTrue("符号键盘键位 ${key.id}（$width）缺少无障碍标注", key.contentDescription.isNotBlank())

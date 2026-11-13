@@ -83,6 +83,15 @@
     <dimen name="ime_icon_hide">14dp</dimen>
     <dimen name="ime_icon_backspace">16dp</dimen>
     <dimen name="ime_icon_cursor">14dp</dimen>
+    <!-- 符号键盘行步进窗口边界暗示箭头（T64 · 画板 3/10；28×14px，色 text_faint）：
+         下箭头挂显示第 4 行底部居中（svg top 412px，行区高 404px）、上箭头挂显示第 1 行上方
+        （svg top -16px）；margin 相对键区（行区高 202dp），溢出键区显示（clipChildren=false） -->
+    <dimen name="ime_row_arrow_width">14dp</dimen>
+    <dimen name="ime_row_arrow_height">7dp</dimen>
+    <dimen name="ime_row_arrow_down_top">206dp</dimen>
+    <dimen name="ime_row_arrow_up_top">-8dp</dimen>
+    <!-- 半角多字符符号键面（T64 · 画板 4 省略号与双短横线两键 font-size 24px） -->
+    <dimen name="ime_key_dense_text">12sp</dimen>
     <!-- 底部柔影垫层（PRD 6.3 黑 55% 模糊 30 / 画板① rgba(0,0,0,.55) blur(30px)、圆角 48）：
          尺寸 = 各自卡片 + 每侧 6dp 外扩（主卡 1272px / 副卡 472px，高 548px），近似 blur 扩散；
          主副卡宽度不同，垫层宽 Token 分列，禁止互相复用（评审第 2 轮 Major：副卡复用主卡宽致左溢 412dp） -->

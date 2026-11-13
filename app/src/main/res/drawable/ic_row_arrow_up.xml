@@ -1,0 +1,15 @@
+<!-- T64 · 行步进窗口上箭头（画板 10/11 下移态：显示第 1 行上方居中，暗示上方还有真实行）。
+     装饰件：无障碍不标注（服务层 contentDescription=null + importantForAccessibility=no）、不进焦点链。
+     色 = text_faint（rgba(232,239,246,.5)，画板原文），宽 2.5px 线帽/折角圆头（画板原文）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="14dp"
+    android:viewportWidth="28"
+    android:viewportHeight="14">
+    <path
+        android:pathData="M4,11 L14,3 L24,11"
+        android:strokeColor="@color/text_faint"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
