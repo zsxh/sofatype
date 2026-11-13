@@ -17,7 +17,12 @@
 // T50 Round 2 · 手动检查路径补日志点（2026-11-10 户主指令，review-qa Round 1 非阻塞建议 1）：
 // startCheck 发起一条、onCheckResult 落态一条（三态标识 + 失败原因），仅走查取证用，
 // 不改变任何行为逻辑；日志不含用户输入内容。
-// 范围边界：测试输入区沿 T2，仅 debug 显示。
+// T63 · FR-D1 本批次（docs/PRD_20261112.md）：版本卡「检查更新」行下新增第三行「测试打字」
+// 按钮（画板 7，样式与检查更新同款），点击跳转独立测试打字页（TestTypingActivity）；
+// 顶部 test_input_area 调试区整体迁出本页，T54 焦点接管 / T62 切换广播接线随迁至
+// TestTypingActivity（承载面 = 调试三件套所在页面）；本页 pre-IME 键分路保留
+// （BACK 退出 / OK 激活 / 方向键移焦为设置页既有宿主语义，与调试区无关）。
+// 范围边界：检查更新逻辑与三态呈现零改动（FR-D4 / 决策 36/39/40 口径不动）。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -28,7 +33,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
-import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -39,7 +43,6 @@ import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -154,14 +157,12 @@ class SettingsActivity : Activity() {
     private lateinit var updateNotes: TextView
     private lateinit var downloadProgress: ProgressBar
 
-    /** T54 Round 2 · 焦点接管全局布局监听（debug 测试区接线，onDestroy 移除）。 */
-    private var focusTakeoverListener: ViewTreeObserver.OnGlobalLayoutListener? = null
-
-    /** T54 Round 2 · 输入法可见性去重（可见性日志仅在跳变沿写一条）。 */
+    /**
+     * T54 Round 2 · 输入法可见性去重标记：T63 起焦点接管接线随调试区迁至 TestTypingActivity，
+     * 本页无输入框、无监听写值（恒 null = 一律按隐藏态路由，与既有 release 行为一致）；
+     * 字段保留维持 pre-IME 分路「显示态透传」门控线与 T54 守卫测试锚点。
+     */
     private var lastImeShown: Boolean? = null
-
-    /** T62 · 输入法切换广播接收（debug 测试区接线，收到即重建输入会话；onDestroy 注销）。 */
-    private var imeChangedReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -184,12 +185,18 @@ class SettingsActivity : Activity() {
         downloadProgress = findViewById(R.id.download_progress)
 
         btnCheckUpdate.setOnClickListener { onUpdateAction() }
+        // T63 · 「测试打字」入口（画板 7 第三行）：点击进入独立测试打字页。
+        // 同应用内 startActivity，BACK 由测试打字页 finish 后回到本页（系统返回栈）。
+        findViewById<Button>(R.id.btn_test_typing).setOnClickListener {
+            startActivity(Intent(this, TestTypingActivity::class.java))
+        }
         // T54 Round 2 · pre-IME 键分路接线（docs/issues/open/T54.md）：
         // 输入会话为窗口级绑定，键盘收起后遥控键仍先路由进隐藏态 IME 被消费（Round 1 定位；
         // IME 侧消费语义属 T59 挂账面，本侧零改动）。宿主侧在框架 pre-IME 阶段
         // （ViewRootImpl 先把键送到根视图 dispatchKeyPreIme）按键盘可见性分路：
-        // 显示态透传 IME（打字与键盘内导航零改动）；隐藏态按宿主语义路由——
-        // 方向键=FocusFinder 焦点搜索、OK=焦点控件激活、BACK=退出设置页。
+        // 显示态透传 IME；隐藏态按宿主语义路由——方向键=FocusFinder 焦点搜索、
+        // OK=焦点控件激活、BACK=退出设置页。（T63 起本页无输入框，调试走查链路移至
+        // TestTypingActivity，本分路服务设置页既有控件语义，行为零变化。）
         findViewById<SettingsRootView>(R.id.settings_root).preImeKeyHandler = { handlePreImeKey(it) }
         applyState(UiState.IDLE)
         // 回执广播经本应用 PendingIntent 发出（发起身份=本应用），NOT_EXPORTED 可收；
@@ -201,94 +208,12 @@ class SettingsActivity : Activity() {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(installStatusReceiver, statusFilter)
         }
-
-        val testArea = findViewById<View>(R.id.test_input_area)
-        // 决策 21：测试输入区仅 debug 构建显示，release 与设计稿一致
-        if (BuildConfig.DEBUG) {
-            testArea.visibility = View.VISIBLE
-            val input = findViewById<EditText>(R.id.test_input)
-            // 「填入示例文本」：预置确定性文本，供键盘/上屏验收（后续 T3/T16）使用
-            findViewById<Button>(R.id.btn_fill_sample).setOnClickListener {
-                input.setText(R.string.sample_text)
-                input.setSelection(input.text.length)
-            }
-            // 「全选」：制造选中区间，供替换选中区间类验收（T16）使用
-            findViewById<Button>(R.id.btn_select_all).setOnClickListener {
-                input.selectAll()
-            }
-            // T54 Round 2 · 设置页焦点接管（T20 P1 落地，docs/issues/open/T54.md）；
-            // T54 缺陷修复 Round 1 修订接管目标（2026-11-12 真机 FAIL 项，设备档案坑 23）：
-            // tap 设置页按钮使焦点离开编辑框、IMM 输入会话解绑（API 23 视图级绑定）——
-            // 会话解绑后键码不再经宿主窗口 pre-IME 分路，直达 IME 隐藏态分支被消费并被
-            // 「键盘自发重显」劫持。收起检测走 adjustResize 窗口缩放（Manifest
-            // windowSoftInputMode）：可见底部帧回到全屏高度即判键盘已收起；仅在可见性
-            // 跳变沿（收起沿）执行接管——把焦点移回 test_input，保持输入会话绑定
-            // （pre-IME 分路通道保活，T54 四口径成立）；非跳变沿的布局（状态行变化等）
-            // 不接管，防抢走用户已移到按钮上的焦点。API 23/34 通用；SofatypeImeService
-            // 零改动（T59 拍板口径不触碰）。
-            focusTakeoverListener = ViewTreeObserver.OnGlobalLayoutListener {
-                val frame = Rect()
-                window.decorView.getWindowVisibleDisplayFrame(frame)
-                val imeShown = SettingsFocusTakeover.isImeShown(
-                    frame.bottom,
-                    resources.displayMetrics.heightPixels,
-                )
-                if (imeShown != lastImeShown) {
-                    Log.i(FOCUS_LOG_TAG, "输入法可见性 imeShown=$imeShown visibleBottom=${frame.bottom}")
-                    if (!imeShown) {
-                        // T54 缺陷修复：收起沿焦点回编辑框（输入会话保活），并退出触摸模式——
-                        // tap 链路遗留的触摸模式会让 FocusFinder 焦点搜索移焦静默失效
-                        //（2026-11-12 走查实测：触摸模式下收起态 DPAD 焦点不动且键被
-                        // pre-IME 分路消费；退出触摸模式后四向移焦恢复）。
-                        // requestFocusFromTouch 对已持焦点的编辑框 = 仅退出触摸模式，焦点不变。
-                        if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
-                            Log.i(FOCUS_LOG_TAG, "焦点接管：键盘已收起，焦点回 test_input（输入会话保活）")
-                        }
-                        input.requestFocusFromTouch()
-                    }
-                    lastImeShown = imeShown
-                }
-            }
-            window.decorView.viewTreeObserver.addOnGlobalLayoutListener(focusTakeoverListener)
-
-            // T62 · IC 输出黑洞修复（docs/issues/open/T62.md，设备档案坑 22）：
-            // default_input_method 被夺回后 `ime set` 切回会重启 IME 服务实例（新 pid），
-            // 既有输入会话的 IC 输出（组合串 setComposingText / 选词 commitText）不落
-            // 宿主输入框——宿主侧旧输入连接包装器随切换失效，新 IME 实例写不进正文。
-            // 修复 = 监听输入法切换系统广播，收到即 restartInput 重建输入会话（新 IC），
-            // 新 IME 实例经 onStartInput 拿到可用输入连接，输出恢复落框。仅 debug 接线
-            //（测试输入区为 debug 门控，release 设置页无输入框、黑洞面不存在）。
-            val imeChangedFilter = IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)
-            imeChangedReceiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    Log.i(FOCUS_LOG_TAG, "输入法切换广播 -> 重建输入会话（T62）")
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                    imm?.restartInput(input)
-                }
-            }
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(imeChangedReceiver, imeChangedFilter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("UnspecifiedRegisterReceiverFlag")
-                registerReceiver(imeChangedReceiver, imeChangedFilter)
-            }
-        } else {
-            testArea.visibility = View.GONE
-        }
     }
 
     override fun onDestroy() {
         destroyed = true
         ioGeneration++
         unregisterReceiver(installStatusReceiver)
-        // T62 · 输入法切换广播接收随窗口销毁注销（退出零残留，AGENTS 禁止事项 3）
-        imeChangedReceiver?.let { unregisterReceiver(it) }
-        imeChangedReceiver = null
-        // T54 Round 2 · 焦点接管监听随窗口销毁移除（退出零残留，AGENTS 禁止事项 3）
-        focusTakeoverListener?.let { listener ->
-            window.decorView.viewTreeObserver.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(listener)
-        }
-        focusTakeoverListener = null
         // 退出清理：后台任务中断 + cache 下载文件不残留（AGENTS.md 禁止事项 3）
         ioExecutor.shutdownNow()
         updateApkFile().delete()
@@ -393,11 +318,17 @@ class SettingsActivity : Activity() {
 
     /**
      * pre-IME 键裁决（接线见 onCreate）：键盘显示态透传（打字链路零改动）；
-     * 隐藏态宿主语义路由。UP 事件随 DOWN 一并消费，保持按键对完整、不漏进 IME 链路。
+     * 隐藏态宿主语义路由。PASS 交回框架与 IME 链路。
+     * T63 修正：动作仅在 DOWN 执行，UP 仅消费——按键对完整、不漏进 IME 链路（T54 R2 口径
+     * 保持），同时消除遥控 OK 单击的二次 performClick（DOWN/UP 各执行一次曾使 startActivity
+     * 双发、堆叠两个测试打字页实例，模拟器实测复现；检查更新侧双触发为幂等浪费，同修）。
      */
     private fun handlePreImeKey(event: KeyEvent): Boolean {
         if (lastImeShown == true) return false
-        return when (val route = SettingsKeyRouter.route(event.keyCode)) {
+        val route = SettingsKeyRouter.route(event.keyCode)
+        // 非 DOWN（UP 等）不执行动作：透传键（PASS）交回框架，动作键仅消费（按键对完整）
+        if (event.action != KeyEvent.ACTION_DOWN) return route != SettingsKeyRouter.Route.PASS
+        return when (route) {
             SettingsKeyRouter.Route.BACK -> {
                 Log.i(FOCUS_LOG_TAG, "pre-IME BACK：退出设置页")
                 finish()

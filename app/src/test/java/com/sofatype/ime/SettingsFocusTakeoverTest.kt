@@ -4,6 +4,9 @@
 //    （SofatypeImeService 为 T59 挂账面，本轮严禁触碰——扫描锁定零改动语义）。
 // T54 缺陷修复 Round 1（2026-11-12）修订：接管目标由 btn_check_update 改为 test_input
 //（收起沿焦点回编辑框，输入会话保活，见类头注释与 T54DefectFixTest）。
+// T63（docs/PRD_20261112.md）：调试三件套迁入独立测试打字页，焦点接管接线承载面随迁
+// ——接线扫描目标由 SettingsActivity 改为 TestTypingActivity（纯决策与 pre-IME 分路
+// 设置页保留项不变）。
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：ManualCheckLogTest（T50 R2）、UiChannelHealFlowTest（T50 R1）。
 package com.sofatype.ime
@@ -60,8 +63,9 @@ class SettingsFocusTakeoverTest {
         File("src/main/java/com/sofatype/ime/$name").readText()
 
     @Test
-    fun `SettingsActivity 接线全局布局监听与纯决策`() {
-        val text = mainSource("SettingsActivity.kt")
+    fun `测试打字页接线全局布局监听与纯决策`() {
+        // T63：焦点接线承载面随调试区迁至 TestTypingActivity（原 SettingsActivity debug 块）
+        val text = mainSource("TestTypingActivity.kt")
         assertTrue(
             "焦点接管须走全局布局监听（T54 R2）",
             text.contains("addOnGlobalLayoutListener(focusTakeoverListener)"),

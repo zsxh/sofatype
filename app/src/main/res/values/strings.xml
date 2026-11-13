@@ -36,7 +36,13 @@
     <string name="btn_download_update">下载更新</string>
     <string name="btn_retry">重试</string>
     <string name="update_endpoint_url"></string>
-    <!-- 测试输入区（仅 debug 构建显示，PRD 决策 21） -->
+    <!-- 测试打字页（T63 · FR-D1 本批次：自设置页顶部调试区整体迁入，面包屑 / 入口按钮 / 底部提示为新增） -->
+    <string name="breadcrumb_test_typing">测试打字</string>
+    <string name="test_typing_label">sofatype 测试打字</string>
+    <string name="btn_test_typing">测试打字</string>
+    <string name="cd_btn_test_typing">打开测试打字页</string>
+    <string name="test_hint">调试走查页 · 由设置页「测试打字」进入</string>
+    <!-- 测试输入三件套（T63 起承载于测试打字页；门控沿用决策 21：仅 debug 构建显示） -->
     <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
     <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>
     <string name="btn_fill_sample">填入示例文本</string>

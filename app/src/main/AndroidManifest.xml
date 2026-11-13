@@ -45,6 +45,16 @@
         <!-- T54 Round 2：adjustResize 供设置页焦点接管做键盘收起检测（可见底部帧还原）
              ——键盘收起后焦点移出测试输入框，遥控键恢复宿主派发（docs/issues/open/T54.md）。 -->
 
+        <!-- T63 · FR-D1 本批次：独立测试打字页（调试走查区自设置页迁入的承载页）。
+             无 intent-filter（无 MAIN/LAUNCHER category）→ 不从桌面可达（FR-D1「无 LAUNCHER 入口」）；
+             exported=true 沿 T2 设置页先例：走查 adb `am start` 直达（TASKS T2 验收方式同口径）；
+             adjustResize 供测试打字页焦点接管做键盘收起检测（T54 Round 2 机制随调试区迁入本页）。 -->
+        <activity
+            android:name=".TestTypingActivity"
+            android:exported="true"
+            android:label="@string/test_typing_label"
+            android:windowSoftInputMode="adjustResize" />
+
 
         <!-- T3：最小可用输入法服务（FR-A1 最小闭环）。
              BIND_INPUT_METHOD 为系统专属权限，第三方应用无法绑定；

@@ -3,9 +3,11 @@
   T20 · 设置页补全：面包屑 + 品牌区 + 版本信息卡 + 底部操作提示（FR-D1~D3、D5，决策 19/21）。
   版本值由 SettingsActivity 读真实 PackageInfo 写入（FR-D3）。
   T21 · FR-D4：状态点 / 状态文字接成真实三态（初始隐藏），新增更新说明与下载进度条
-  （发现新版与下载态显示）；三态切换逻辑在 SettingsActivity。测试输入区仅 debug 构建显示
-  （决策 21，visibility 由 SettingsActivity 按 BuildConfig.DEBUG 置定），锚点移至面包屑下方
-  避让品牌区与版本卡。纵向坐标按画板设置页 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位；色值/规格走 Token。
+  （发现新版与下载态显示）；三态切换逻辑在 SettingsActivity。纵向坐标按画板设置页 1080p 基准
+  （px ÷ 2 = dp）自屏幕顶部定位；色值/规格走 Token。
+  T63 · FR-D1 本批次（docs/PRD_20261112.md）：顶部 test_input_area 调试区整体迁入独立
+  测试打字页（activity_test_typing.xml / TestTypingActivity，门控沿用决策 21 debug 构建可见性）；
+  版本卡「检查更新」行下按画板 7 新增分隔线与第三行「测试打字」按钮（样式与检查更新同款）。
 -->
 <!-- T54 Round 2：根视图换 SettingsRootView——pre-IME 键分路（ViewRootImpl 在派发 IME 前先
      到根视图），键盘隐藏态由 SettingsActivity 按宿主语义路由、显示态透传 IME（打字态零改动）。
@@ -47,66 +49,8 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
-    <!-- debug 测试输入区（决策 21：仅 debug 构建；T20 起锚点移至面包屑下方避让品牌区与版本卡） -->
-    <LinearLayout
-        android:id="@+id/test_input_area"
-        android:layout_width="@dimen/test_area_width"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="@dimen/test_area_top_margin"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <EditText
-            android:id="@+id/test_input"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/test_input_height"
-            android:background="@drawable/bg_test_input"
-            android:contentDescription="@string/cd_test_input"
-            android:hint="@string/test_input_hint"
-            android:importantForAccessibility="yes"
-            android:paddingStart="@dimen/test_input_padding"
-            android:paddingEnd="@dimen/test_input_padding"
-            android:singleLine="true"
-            android:textColor="@color/text_body"
-            android:textColorHint="@color/text_muted"
-            android:textCursorDrawable="@null"
-            android:textSize="@dimen/test_input_text" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/btn_gap"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btn_fill_sample"
-                android:layout_width="@dimen/btn_width"
-                android:layout_height="@dimen/btn_height"
-                android:background="@drawable/bg_btn_accent"
-                android:contentDescription="@string/cd_btn_fill_sample"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text="@string/btn_fill_sample"
-                android:textColor="@color/accent_text"
-                android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btn_select_all"
-                android:layout_width="@dimen/btn_width"
-                android:layout_height="@dimen/btn_height"
-                android:layout_marginStart="@dimen/btn_gap"
-                android:background="@drawable/bg_btn_accent"
-                android:contentDescription="@string/cd_btn_select_all"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text="@string/btn_select_all"
-                android:textColor="@color/accent_text"
-                android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </LinearLayout>
+    <!-- T63：原顶部 test_input_area 调试区（测试输入框 + 填入示例文本 + 全选）整体迁入
+         activity_test_typing.xml，设置页不再承载调试区（FR-D1 本批次细项 2）。 -->
 
     <!-- 品牌区（FR-D2）：Logo 88×88 圆角方块（accent 底 + on_accent「S」）+ 字标，下方副标题 -->
     <LinearLayout
@@ -249,6 +193,34 @@
                     android:textColor="@color/text_dim"
                     android:textSize="@dimen/set_status_text" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- T63 · 画板 7 第三行：「测试打字」入口（样式与检查更新同款：bg_btn_accent 常态 key 底
+             无描边、焦点态 accent-wash 上界底 + border-accent 描边，决策 44 / PRD 6.4；
+             点击跳转 TestTypingActivity，接线在 SettingsActivity） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_divider_h"
+            android:background="@color/divider_soft" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_test_row_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_test_typing"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_test_typing"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_test_typing"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- 更新说明（T21 · FR-D4 发现新版态：release notes；默认隐藏） -->

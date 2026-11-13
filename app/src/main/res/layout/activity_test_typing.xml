@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T63 · FR-D1 本批次（docs/PRD_20261112.md）：独立测试打字页，画板 9（TestTyping.dc.html）
+  视觉参考，色值/规格走 Token（PRD 第 6 章）。自设置页顶部调试区整体迁入的三件套
+  （测试输入框 + 填入示例文本 + 全选）由 test_typing_content 承载，门控沿用决策 21
+  （visibility 由 TestTypingActivity 按 BuildConfig.DEBUG 置定，release 仅面包屑与底部提示）；
+  BACK 返回设置页；无 LAUNCHER 入口（清单未配 intent-filter）。
+  根视图沿用 SettingsRootView（pre-IME 键分路根视图，T54 R2 机制，与设置页同构）。
+  纵向坐标按画板 9 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位。
+-->
+<com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/test_typing_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <!-- 面包屑「sofatype 输入法 ｜ 测试打字」（画板 9，与设置页同构） -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/page_padding_start"
+        android:paddingTop="@dimen/page_padding_top">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_app"
+            android:textColor="@color/text_muted"
+            android:textSize="@dimen/breadcrumb_text_size" />
+
+        <View
+            android:layout_width="@dimen/breadcrumb_divider_w"
+            android:layout_height="@dimen/breadcrumb_divider_h"
+            android:layout_marginStart="@dimen/breadcrumb_gap"
+            android:layout_marginEnd="@dimen/breadcrumb_gap"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_test_typing"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/breadcrumb_text_size" />
+    </LinearLayout>
+
+    <!-- 测试三件套（决策 21 门控：仅 debug 构建显示，release 整体 GONE） -->
+    <LinearLayout
+        android:id="@+id/test_typing_content"
+        android:layout_width="@dimen/test_area_width"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/test_page_input_top_margin"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/test_input"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/test_input_height"
+            android:background="@drawable/bg_test_input"
+            android:contentDescription="@string/cd_test_input"
+            android:hint="@string/test_input_hint"
+            android:importantForAccessibility="yes"
+            android:paddingStart="@dimen/test_input_padding"
+            android:paddingEnd="@dimen/test_input_padding"
+            android:singleLine="true"
+            android:textColor="@color/text_body"
+            android:textColorHint="@color/text_muted"
+            android:textCursorDrawable="@null"
+            android:textSize="@dimen/test_input_text" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/test_page_buttons_margin_top"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_fill_sample"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_fill_sample"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_fill_sample"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_select_all"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:layout_marginStart="@dimen/btn_gap"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_select_all"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_select_all"
+                android:textColor="@color/accent_text"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 底部提示（画板 9：「调试走查页 · 由设置页「测试打字」进入」） -->
+    <TextView
+        android:id="@+id/test_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/test_page_hint_margin_top"
+        android:text="@string/test_hint"
+        android:textColor="@color/text_hint_faint"
+        android:textSize="@dimen/bottom_hint_text" />
+
+</com.sofatype.ime.SettingsRootView>

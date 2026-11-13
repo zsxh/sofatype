@@ -4,6 +4,9 @@
 //    （SettingsFocusTakeoverTest）；本文件锁接线与禁区。
 // ② T62（IC 输出黑洞，设备档案坑 22）：输入法切换广播接收接线（restartInput 重建会话）
 //    + onDestroy 注销（零残留）+ debug 门控（release 设置页无输入框）。
+// T63（docs/PRD_20261112.md）：调试三件套迁入独立测试打字页，T54 接线与 T62 接线承载面
+// 随迁——扫描目标由 SettingsActivity 改为 TestTypingActivity（pre-IME 分路设置页保留项
+// 与 IME 服务禁区不变）。
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：SettingsFocusTakeoverTest（T54 R2）、T59HiddenKeySemanticsTest（T59）。
 package com.sofatype.ime
@@ -19,6 +22,8 @@ class T54DefectFixTest {
     private fun mainSource(name: String): String =
         File("src/main/java/com/sofatype/ime/$name").readText()
 
+    /** T63：T54/T62 接线承载页 = 测试打字页（调试三件套所在页）。 */
+    private val carrier: String get() = mainSource("TestTypingActivity.kt")
     private val activity: String get() = mainSource("SettingsActivity.kt")
     private val service: String get() = mainSource("SofatypeImeService.kt")
 
@@ -26,11 +31,12 @@ class T54DefectFixTest {
 
     @Test
     fun `焦点接管仅在可见性跳变沿执行且目标为编辑框`() {
-        val layoutIdx = activity.indexOf("imeShown != lastImeShown")
+        // T63：扫描目标 = TestTypingActivity（接线承载面随调试区迁移）
+        val layoutIdx = carrier.indexOf("imeShown != lastImeShown")
         assertTrue("可见性跳变沿判定存在（防非沿布局抢焦点）", layoutIdx >= 0)
-        val edgeEnd = activity.indexOf("lastImeShown = imeShown", layoutIdx)
+        val edgeEnd = carrier.indexOf("lastImeShown = imeShown", layoutIdx)
         assertTrue("跳变沿分支闭合存在", edgeEnd > layoutIdx)
-        val edgeBody = activity.substring(layoutIdx, edgeEnd)
+        val edgeBody = carrier.substring(layoutIdx, edgeEnd)
         assertTrue(
             "接管须在跳变沿分支内（T54 缺陷修复 R1）",
             edgeBody.contains("SettingsFocusTakeover.shouldTakeFocus("),
@@ -50,7 +56,7 @@ class T54DefectFixTest {
     fun `收起沿接管日志与会话保活语义落源码`() {
         assertTrue(
             "收起沿接管日志存在（走查取证锚点）",
-            activity.contains("焦点接管：键盘已收起，焦点回 test_input（输入会话保活）"),
+            carrier.contains("焦点接管：键盘已收起，焦点回 test_input（输入会话保活）"),
         )
         assertTrue(
             "接管决策语义 = 收起且编辑框不持焦点（tap 过按钮态）",
@@ -78,32 +84,35 @@ class T54DefectFixTest {
 
     @Test
     fun `输入法切换广播接线重建输入会话`() {
+        // T63：扫描目标 = TestTypingActivity（接线承载面随调试区迁移）
         assertTrue(
             "须注册 ACTION_INPUT_METHOD_CHANGED 广播（T62）",
-            activity.contains("IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)"),
+            carrier.contains("IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)"),
         )
         assertTrue(
             "收到广播须 restartInput 重建输入会话（T62）",
-            activity.contains("imm?.restartInput(input)"),
+            carrier.contains("imm?.restartInput(input)"),
         )
         assertTrue(
             "切换广播日志存在（走查取证锚点）",
-            activity.contains("输入法切换广播 -> 重建输入会话（T62）"),
+            carrier.contains("输入法切换广播 -> 重建输入会话（T62）"),
         )
     }
 
     @Test
     fun `T62 接线须在 debug 门控内且随窗口注销`() {
-        val debugIdx = activity.indexOf("if (BuildConfig.DEBUG) {")
-        val imeIdx = activity.indexOf("ACTION_INPUT_METHOD_CHANGED")
-        assertTrue("debug 门控块存在（决策 21）", debugIdx >= 0)
+        // T63：扫描目标 = TestTypingActivity（接线承载面随调试区迁移）
+        val debugIdx = carrier.indexOf("TestTypingGate.contentVisible(BuildConfig.DEBUG)")
+        // 门控块之后的代码级接线（绕过类头注释中的 action 文字说明）
+        val imeIdx = carrier.indexOf("Intent.ACTION_INPUT_METHOD_CHANGED)", debugIdx)
+        assertTrue("debug 门控块存在（决策 21 沿用口径，TestTypingGate 承载）", debugIdx >= 0)
         assertTrue(
-            "T62 广播接线须在 debug 门控内（release 设置页无输入框，黑洞面不存在）",
+            "T62 广播接线须在 debug 门控内（release 页无输入框，黑洞面不存在）",
             imeIdx > debugIdx,
         )
         assertTrue(
             "onDestroy 须注销输入法切换接收器（退出零残留，AGENTS 禁止事项 3）",
-            activity.contains("imeChangedReceiver?.let { unregisterReceiver(it) }"),
+            carrier.contains("imeChangedReceiver?.let { unregisterReceiver(it) }"),
         )
     }
 
