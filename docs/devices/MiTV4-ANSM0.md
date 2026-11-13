@@ -84,6 +84,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **补充（2026-11-12，真机批次 review-qa 实测）**：装机走查期间再次回退（sofatype → 搜狗，14:43 观测，设置页 BACK 退出场景前后），全窗 logcat 无 `Force stopping com.sofatype` 指纹（chatty 吞没可能）——无指纹回退累计 3 次，机制仍未查明；按坑 3 口径 ime set 即恢复，恢复后连带暴露坑 22（IC 输出黑洞）。
 
+**补充（2026-11-13，T54/T62 真机复验批次 review-qa 实测）**：设置页 BACK 退出伴随 default_input_method 被夺回搜狗 **3/3 稳定复现**（09:14/09:25/09:27 三次退出三三次夺回，每次伴随 IME 进程更换），诱因锁定为「设置页 BACK 退出」本身、非空闲期——坑 5「同进程前台 Activity destroy 伴随」假设的定向实锤；`Force stopping` 指纹核验待下次复现补抓。按坑 3 口径 ime set 即恢复，走查纪律不变：退出设置页后任何走查段，弹键盘前先核对 default。
+
 ### 坑 6：键盘收起后发 CENTER 唤起，CENTER 直落 IME 初始焦点键（2026-11-08，T12）
 
 **现象**：键盘收起后注入 `input keyevent 23` 唤起，宿主 `showSoftInput` 重弹与注入竞争，CENTER 在重弹完成后到达 IME，落在初始焦点键 digit_1 上直出「1」（同轮 3 次复现，ImeKeyTrace 可证）。真机竞争窗口大于 120ms（HANDOFF「CENTER 收起延迟 120ms——时序常量真机待复核」的实锤）。
@@ -200,6 +202,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：真机走查 tap 激活应用内按钮按「双击 tap」口径执行（首击聚焦 + 二击激活），每次激活前后截图核对；遥控通道激活优先（键码 OK 走焦点控件 performClick，单键即激活）。
 
+**补充（2026-11-13，T54/T62 真机复验批次 review-qa 实测勘误）**：「首击仅聚焦」限于**副卡**随键盘窗口控件——设置页**主卡**按钮（[填入样例]）`input tap` **一击即激活**且视图焦点不离开输入框（dump 实证 focused 恒 test_input）；本坑「应用内按钮需双击」口径收窄为副卡形态，走查前先分型（主卡单击／副卡双击）再操作。
+
 ### 坑 21：设置页副卡（跨屏输入卡）随 IME 键盘窗口渲染，键盘收起副卡消失（2026-11-12，真机批次 review-qa 实测）
 
 **现象**：键盘显示态副卡可见（引导卡/二维码卡）；BACK 收起键盘后副卡随之消失——`uiautomator dump` 的 Activity 树中无任何副卡控件节点（仅主卡元素），右侧全黑（截图在案）；同帧设置页主卡元素（test_input/按钮/版本卡）bounds 与键盘显示态一致，非滚动/重排。
@@ -214,6 +218,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **处置**：走查遇组合装载正常但正文不落框，先核对 default_input_method 与 IME 进程 pid 是否在会话中途更换；恢复动作 = tap 输入框重建会话；根治修复挂账 dev 轮次（复现链：夺回 → ime set → 弹键盘输入）。本批走查期间该缺陷污染了打字键码「直写正文」的独立取证（T59 口径 4 部分项），如实标注。
 
+**修复验证（2026-11-13，T62 真机复验批次）**：修复包（`805d894`，sha256 f15b70c5…d4eb232）上黑洞态**零复现**——意外夺回实例与受控 `ime set` 切走/切回链的组合串落框、选词上屏、键面直出全部精确落框；切回沿键盘自动重显 2/2（广播→重建会话→onStartInputView+onWindowShown）。「nn」双写无复现（黑洞恢复期土壤不存在）。形态区分实测：受控 `ime set` 切走**不**重启 IME 进程（pid 不变），「服务重启、新 pid」仅发生于系统夺回链；「切走沿 finishComposingText 提交」与「组合串保留」在 dump text 值上不可区分，判读注意。
+
 ### 坑 23：tap 设置页按钮后收起键盘，后续首键码触发键盘自发重显（2026-11-12，真机批次 review-qa 实测；缺陷候选，修复走 dev 轮次）
 
 **现象**：设置页 tap 过任意按钮（如 [全选]/[填入样例]）后 BACK 收起键盘，随后注入的**第一发键码（DPAD/OK）触发系统级 show**——`dumpsys input_method mShowRequested=true mShowExplicitlyRequested=true`、`onStartInputView + onWindowShown` 链执行、键盘重显；OK 被消费为 IME 键面激活（候选装载在案），宿主焦点不动。三轮复现（14:19/14:29/14:37）。对照：收起后**不 tap** 直接键码，无此重显（14:31 对照实验：tap 空白 3s 后 mInputShown=false 不弹）。伴生事实：tap 按钮使焦点转移、IMM 会话解绑，此后键码直达 IME 隐藏态分支（ImeKeyTrace 有 onKeyDown 行）；会话存活时设置页 pre-IME 分路拦截正常（BACK 退出那发 trace 零行）——「T54 修复的两派发路径行为结果一致」在真机 DPAD/OK 场景被本现象破坏。
@@ -221,4 +227,6 @@ adb shell getprop ro.product.cpu.abilist
 **影响**：T54 口径「收起后 DPAD 宿主移焦、OK 激活焦点控件」在 tap 过按钮的场景不可达——真机缺陷（REJECT 候选·P1，详见 open/T54.md 真机复验节），修复走 dev 轮次。
 
 **处置**：真机走查「收起后遥控宿主响应」类取证，必须在「收起后未 tap 过任何按钮」的干净态做；tap 通道用过的状态只做显示态键盘项。
+
+**修复验证（2026-11-13，T54 真机复验批次）**：修复包（`805d894`，sha256 f15b70c5…d4eb232）上本坑缺陷形态**零复现**——tap 按钮→BACK 收起后单发 DPAD/OK/BACK 全部宿主语义响应（焦点移动／UpdateCheck 双日志／退出设置页）、ImeKeyTrace 零劫持行、`mShowRequested` 恒 false、无自发 onStartInputView；主链＋[完成] 收起路径＋收起→再弹循环全过。**勘误（经本轮 dump 实证更正，2026-11-13）**：上文「tap 按钮使焦点转移」表述不准确——真机主卡按钮 tap 一击激活且视图焦点不离开 test_input（dump 在案），劫持机制应归会话／键路由层变化，非视图焦点转移。收起沿焦点回编辑框后无自动弹回（坑 18 家族风险观测 0/3）。
 
