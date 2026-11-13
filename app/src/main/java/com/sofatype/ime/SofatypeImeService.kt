@@ -44,6 +44,7 @@
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
+import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -128,6 +129,12 @@ class SofatypeImeService : InputMethodService() {
         /** 「更多⌄」入口键面：收起态（画板① 原文）与展开态（chevron 翻转，FR-A15「再次点按收起」）。 */
         const val MORE_LABEL_COLLAPSED = "更多 ⌄"
         const val MORE_LABEL_EXPANDED = "更多 ⌃"
+
+        /** 上档键容器内图标视图 tag（applyCaseState 触发态刷新用，T65 · 决策 47-①）。 */
+        const val SHIFT_ICON_TAG = "shift_icon"
+
+        /** 上档键容器内下划线条视图 tag（触发态可见性刷新用，T65 · 决策 47-①）。 */
+        const val SHIFT_BAR_TAG = "shift_bar"
     }
 
     /**
@@ -183,8 +190,12 @@ class SofatypeImeService : InputMethodService() {
     /** T22 已发出的重复删除计数（不含单击首删；仅 trace 结构信息用，不含输入内容）。 */
     private var deleteRepeatIndex = 0
 
-    /** 大小写状态（FR-A3）；键盘视图重建时复位小写（键盘记忆属 FR-A13 P2，不做）。 */
-    private var caseState = CaseState.LOWER
+    /**
+     * 大小写状态（FR-A3）。默认大写（T65 · 决策 48-①：字母键盘默认态 = 英文输入 + 大写，
+     * 键盘视图创建即 ⇧ 处于触发态）；⇧ 触发态是唯一大小写指示（键面恒显大写，决策 48-②）。
+     * 键盘视图重建复位（键盘记忆属 FR-A13 P2，不做）。
+     */
+    private var caseState = CaseState.UPPER
 
     /** 键盘布局模式：字母键盘 ↔ 符号键盘（FR-A5）。 */
     private enum class KeyboardMode { LETTERS, SYMBOLS }
@@ -192,8 +203,11 @@ class SofatypeImeService : InputMethodService() {
     /** 当前布局模式（会话内状态）。 */
     private var keyboardMode = KeyboardMode.LETTERS
 
-    /** 符号键盘全/半角状态（FR-A6）；仅符号键盘内有效。 */
-    private var symbolsWidth = SymbolsWidth.FULL_WIDTH
+    /**
+     * 符号键盘全/半角状态（FR-A6）；仅符号键盘内有效。
+     * 默认半角（T65 · 决策 46-③：符号键盘默认半角，[全/半] 键亮「半」）。
+     */
+    private var symbolsWidth = SymbolsWidth.HALF_WIDTH
 
     /**
      * T64 · 符号键盘行步进窗口偏移（0 起）：显示窗顶行在真实矩阵（5 行）中的行下标，
@@ -202,11 +216,16 @@ class SofatypeImeService : InputMethodService() {
      */
     private var symbolsWindowOffset = 0
 
-    /** 语言模式（FR-A4）：中文（拼音组合）↔ 英文（直出）。键盘重建复位中文（PRD 5.2「弹出键盘（中文 · 小写）」；记忆属 FR-A13 P2 不做）。 */
+    /**
+     * 语言模式（FR-A4）：中文（拼音组合）↔ 英文（直出）。
+     * 默认英文（T65 · 决策 46-③ / 决策 48-①：字母键盘默认态 = 英文输入 + 大写；
+     * 原 PRD 5.2「弹出键盘（中文 · 小写）」随决策 46/48 调整）。
+     * 键盘视图重建复位（记忆属 FR-A13 P2 不做）。
+     */
     private enum class LanguageMode { CHINESE, ENGLISH }
 
     /** 当前语言模式（会话内状态）。 */
-    private var languageMode = LanguageMode.CHINESE
+    private var languageMode = LanguageMode.ENGLISH
 
     /** 中文组合态状态机（T10，纯模型）：候选查询接真实词库引擎（见 queryPinyinCandidates）。 */
     private val composer = ChineseComposer(::queryPinyinCandidates)
@@ -319,11 +338,13 @@ class SofatypeImeService : InputMethodService() {
         overlayViews.clear()
         candidateViews.clear()
         candidateReturnKey = null
-        caseState = CaseState.LOWER
+        // 默认态（T65 · 决策 46-③ / 48-①）：字母键盘默认英文输入 + 大写（⇧ 触发态）、符号键盘默认半角；
+        // 键盘视图重建复位（记忆属 FR-A13 P2 不做）
+        caseState = CaseState.UPPER
         keyboardMode = KeyboardMode.LETTERS
-        symbolsWidth = SymbolsWidth.FULL_WIDTH
+        symbolsWidth = SymbolsWidth.HALF_WIDTH
         symbolsWindowOffset = 0
-        languageMode = LanguageMode.CHINESE
+        languageMode = LanguageMode.ENGLISH
         composer.reset()
         navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
         // T11 展开行状态复位
@@ -1208,16 +1229,35 @@ class SofatypeImeService : InputMethodService() {
         val view = createKeyContentView(key)
         view.tag = key.id
         keyViews[key.id] = view
+        // 状态键创建即按当前模式渲染当前态指示 + 运行态无障碍描述（决策 46-② / 47-①；
+        // 依赖 tag 锚定键 id，须在注册表登记后执行）
+        if (key.stateOptions != null) applyStateKeyAppearance(view)
         view.isFocusable = true
         view.isFocusableInTouchMode = true
         view.setOnClickListener { execute(key) }
         return view
     }
 
-    /** 键帽内容视图：文字键 = TextView；图标键 = ImageView（图标尺寸按画板① Token）。无障碍标注全键位必设（T26）。 */
+    /**
+     * 键帽内容视图装配（T6 基座 + T65 扩展）：状态键 = 斜杠排版两态容器（决策 46-② 方案 C）；
+     * 上档键 = 图标 + 下划线条容器（决策 47-①）；其余文字键 = TextView、图标键 = ImageView
+     *（图标尺寸按画板 Token）。无障碍标注全键位必设（T26）。
+     */
     private fun createKeyContentView(key: Key): View {
-        val view: View = if (key.icon != null) createIconKey(key) else createTextKey(key)
-        view.contentDescription = key.contentDescription
+        val view: View = when {
+            key.stateOptions != null -> createStateKeyView(key)
+            key.icon == KeyIcon.SHIFT -> createShiftKey(key)
+            key.icon != null -> createIconKey(key)
+            else -> createTextKey(key)
+        }
+        // 字母键标注随键面恒大写（决策 48-②：键面 A 标注朗读同文）；其余键位用模型动作语义描述
+        view.contentDescription =
+            if (key.id in KeyboardLayout.letterKeyIds) KeyboardLayout.displayLabel(key)
+            else key.contentDescription
+        // 上档键创建即带当前态标注（决策 47-① / 48-①：含当前态 + 动作；后续随动走 applyCaseState）
+        if (key.icon == KeyIcon.SHIFT) {
+            view.contentDescription = KeyboardLayout.shiftContentDescription(caseState)
+        }
         return view
     }
 
@@ -1229,8 +1269,8 @@ class SofatypeImeService : InputMethodService() {
             KeyTextSize.NORMAL -> R.dimen.ime_key_text
         }
         return TextView(this).apply {
-            // 键面随大小写状态（FR-A3）：字母键在小写态创建即显示小写
-            text = KeyboardLayout.displayLabel(key, caseState)
+            // 键面恒显大写（决策 48-②）：字母键面不随大小写输出状态或输入模式变化
+            text = KeyboardLayout.displayLabel(key)
             gravity = Gravity.CENTER
             maxLines = 1
             // dimens 中以 sp 声明，getDimension 已换算为 px，按 px 设置避免二次缩放
@@ -1240,6 +1280,122 @@ class SofatypeImeService : InputMethodService() {
         }
     }
 
+    /**
+     * 状态键视图（T65 · 决策 46-② 方案 C）：保留「中/英」「全/半」斜杠排版，当前态字符亮青
+     *（#7DD3FC）加粗 + 3px 下划线、另一态压暗（半透明白 50%），指示随切换实时随动
+     *（applyStateKeyAppearance）；焦点态叠加按决策 50-②（焦点底 wash + 描边、焦点文字 #E8EEF5）。
+     * 容器可聚焦，焦点底由 bg_key selector 表达；字符/分隔线为展示件（容器整体承载朗读语义）。
+     */
+    private fun createStateKeyView(key: Key): View {
+        val options = requireNotNull(key.stateOptions) { "状态键缺少两态字符：${key.id}" }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = getDrawable(backgroundOf(key.variant))
+            setOnFocusChangeListener { v, _ -> applyStateKeyAppearance(v) }
+        }
+        val textPx = resources.getDimension(R.dimen.ime_key_fn_text)
+        val barHeight = resources.getDimensionPixelSize(R.dimen.ime_state_underline_height)
+        val barOffset = resources.getDimensionPixelSize(R.dimen.ime_state_underline_offset)
+        val charOptions = listOf(options.first, options.second)
+        charOptions.forEachIndexed { index, option ->
+            if (index > 0) {
+                val sep = TextView(this).apply {
+                    text = "/"
+                    setTextColor(getColor(R.color.text_hint_faint))
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, textPx)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }
+                container.addView(
+                    sep,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        marginStart = resources.getDimensionPixelSize(R.dimen.ime_state_sep_margin)
+                        marginEnd = resources.getDimensionPixelSize(R.dimen.ime_state_sep_margin)
+                    },
+                )
+            }
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            cell.addView(
+                TextView(this).apply {
+                    text = option
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, textPx)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    tag = stateCharTag(index)
+                },
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            cell.addView(
+                View(this).apply {
+                    setBackgroundResource(R.drawable.bg_key_underline)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    tag = stateBarTag(index)
+                },
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    barHeight,
+                ).apply { topMargin = barOffset },
+            )
+            container.addView(
+                cell,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        return container
+    }
+
+    /**
+     * 上档键视图（T65 · 决策 47-① 触发态统一 / 决策 46-④）：⇧ 图标 32px + 图标下方 3px 短
+     * 下划线条（宽 36px、圆角 2px）；触发态（大写）= 图标亮青 + 下划线条可见（激活底色与描边
+     * 废止，bg 恒为 bg_key，焦点态由 selector 表达），未触发 = 图标功能键色、条隐藏
+     *（applyCaseState 刷新）。
+     */
+    private fun createShiftKey(key: Key): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = getDrawable(backgroundOf(key.variant))
+        }
+        val iconSize = resources.getDimensionPixelSize(R.dimen.ime_icon_shift)
+        val icon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_key_shift)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            tag = SHIFT_ICON_TAG
+        }
+        container.addView(icon, LinearLayout.LayoutParams(iconSize, iconSize))
+        val bar = View(this).apply {
+            setBackgroundResource(R.drawable.bg_key_underline)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            tag = SHIFT_BAR_TAG
+        }
+        container.addView(
+            bar,
+            LinearLayout.LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.ime_shift_underline_width),
+                resources.getDimensionPixelSize(R.dimen.ime_state_underline_height),
+            ).apply {
+                topMargin = resources.getDimensionPixelSize(R.dimen.ime_shift_underline_gap)
+            },
+        )
+        // 创建即按当前触发态着色（决策 48-①：键盘打开默认 ⇧ 触发态；后续随动走 applyCaseState）
+        val upper = caseState == CaseState.UPPER
+        icon.setColorFilter(getColor(if (upper) R.color.accent_text else R.color.text_secondary))
+        bar.visibility = if (upper) View.VISIBLE else View.GONE
+        return container
+    }
+
+    /** 图标键视图（下屏 / 删除 / 光标左右；上档键走 [createShiftKey] 容器，T65 · 决策 47-①）。 */
     private fun createIconKey(key: Key): ImageView {
         val icon = key.icon ?: error("图标键缺少图标定义：${key.id}")
         val keyWidth = resources.getDimensionPixelSize(R.dimen.ime_key_width)
@@ -1249,11 +1405,7 @@ class SofatypeImeService : InputMethodService() {
             setImageResource(iconResOf(icon))
             scaleType = ImageView.ScaleType.FIT_CENTER
             background = getDrawable(backgroundOf(key.variant))
-            // 上档键图标色随大小写状态（FR-A3 画板②激活态 = accent_text）；其余图标色即资源本色
-            if (icon == KeyIcon.SHIFT) {
-                setColorFilter(getColor(if (caseState == CaseState.UPPER) R.color.accent_text else R.color.text_secondary))
-            }
-            // padding 限定图标绘制区 = 键帽中心 iconSize 见方（画板① 图标尺寸）
+            // padding 限定图标绘制区 = 键帽中心 iconSize 见方（画板 图标尺寸）
             setPadding((keyWidth - iconSize) / 2, (keyHeight - iconSize) / 2, (keyWidth - iconSize) / 2, (keyHeight - iconSize) / 2)
         }
     }
@@ -1313,18 +1465,25 @@ class SofatypeImeService : InputMethodService() {
             // FR-A9：光标在输入框内移动（插入点随移动生效，走查覆盖）
             KeyAction.CursorLeft -> moveCursor(-1)
             KeyAction.CursorRight -> moveCursor(1)
-            // FR-A3 大小写切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）：
-            // 中文态按[大写] = 切换为英文输入态——组合串与候选取消、不落输入框（cancelComposition，
-            // 与 finishComposition 落定上屏相对），候选栏同步清空；大小写状态随该键语义翻转
-            //（默认小写态落大写英文）。英文态维持 FR-A3 纯大小写切换（键面与态提示刷新不变）。
+            // FR-A3 大小写切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）
+            // × 决策 49（修订决策 43-①）：中文态按[上档] = 切换为英文输入小写状态——组合串与候选
+            // 取消、不落输入框（cancelComposition，与 finishComposition 落定上屏相对），候选栏同步
+            // 清空；⇧ 固定落未触发态（输出小写），不随该键翻转。英文态维持 FR-A3 纯大小写切换
+            //（键面恒大写不随动，决策 48-②；触发态样式 = 图标亮青 + 下划线条，决策 47-①）。
             KeyAction.ToggleCase -> {
                 if (languageMode == LanguageMode.CHINESE) {
                     cancelComposition()
                     languageMode = LanguageMode.ENGLISH
+                    // 决策 49：固定落英文小写（⇧ 未触发），不翻转
+                    caseState = CaseState.LOWER
                     trace("language -> $languageMode")
                     refreshCandidatesBar()
+                    // T65 · 决策 46-②：中文态按[⇧]切英文后 [中/英] 当前态指示随切换实时随动
+                    //（Round 2 打回 D1 修复：与 refreshCandidatesBar 同拍，漏调则指示残留亮「中」）
+                    applyStateKeyAppearance()
+                } else {
+                    caseState = if (caseState == CaseState.UPPER) CaseState.LOWER else CaseState.UPPER
                 }
-                caseState = if (caseState == CaseState.UPPER) CaseState.LOWER else CaseState.UPPER
                 trace("case -> $caseState")
                 applyCaseState()
             }
@@ -1350,6 +1509,8 @@ class SofatypeImeService : InputMethodService() {
                     if (languageMode == LanguageMode.CHINESE) LanguageMode.ENGLISH else LanguageMode.CHINESE
                 trace("language -> $languageMode")
                 refreshCandidatesBar()
+                // T65 · 决策 46-②：[中/英] 当前态指示随切换实时随动
+                applyStateKeyAppearance()
             }
         }
     }
@@ -1650,13 +1811,13 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 「更多⌄」入口底形与文字色：普通态 = 无底色 + 画板① 入口淡文字色（text_faint）；
-     * 焦点态 = 主色描边 + accent-text 文字（PRD 6.4，与候选 chip 焦点态同形）。
+     * 「更多⌄」入口底形与文字色：普通态 = 无底色 + 画板 入口淡文字色（text_faint）；
+     * 焦点态 = 主色描边 + 焦点文字 #E8EEF5（PRD 6.4 / T65 · 决策 50-②，accent-text 焦点文字废止）。
      */
     private fun applyToggleAppearance(view: TextView) {
         if (view.isFocused) {
             view.background = getDrawable(R.drawable.bg_chip_highlight)
-            view.setTextColor(getColor(R.color.accent_text))
+            view.setTextColor(getColor(R.color.text_body))
         } else {
             view.background = null
             view.setTextColor(getColor(R.color.text_faint))
@@ -1777,14 +1938,15 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * chip 底形与文字色（全部走 Token）：高亮仅表达遥控器焦点态（决策 30，无常亮高亮）——
-     * 焦点态 = accent-wash 底 + border-accent 描边（PRD 6.4「聚焦态 = 主色描边」）+ accent-text 文字；
-     * 非焦点 chip 无底色 + 键帽字符正文色（画板① .bchip）。
+     * 候选 chip 底形与文字色（全部走 Token）：高亮仅表达遥控器焦点态（决策 30，无常亮高亮）——
+     * 焦点态 = accent-wash 淡青底（rgba(56,189,248,.16)，决策 50-②）+ border-accent 描边
+     *（PRD 6.4「聚焦态 = 主色描边」）+ 焦点文字 #E8EEF5（#7DD3FC 焦点青字废止，决策 50-②）；
+     * 非焦点 chip 无底色 + 键帽字符正文色。
      */
     private fun applyChipAppearance(view: View) {
         if (view.isFocused) {
             view.background = getDrawable(R.drawable.bg_chip_highlight)
-            (view as? TextView)?.setTextColor(getColor(R.color.accent_text))
+            (view as? TextView)?.setTextColor(getColor(R.color.text_body))
         } else {
             view.background = null
             (view as? TextView)?.setTextColor(getColor(R.color.text_body))
@@ -1904,29 +2066,67 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 刷新大小写相关键面（FR-A3）：字母区键面大小写与无障碍标注同步刷新（T26：
-     * contentDescription 与键面同文，大写态朗读不回退小写）、上档键激活视觉与态提示。
-     * 决策 44（高亮收敛全页面推广）：UPPER 激活态不再复用完成键 drawable 换底
-     * （画板②激活底口径废止），键帽背景恒为 bg_key（rebuildKeys 既有装配），
-     * 焦点态由 bg_key selector 表达；激活提示仅保留图标色切换（accent_text / text_secondary）。
+     * 刷新上档键触发态（T65 · 决策 47-① / 48-①）：⇧ 触发态（大写）= 图标亮青 + 图标下方 3px
+     * 短下划线条（深蓝实底 + 青描边激活态废止，键帽背景恒为 bg_key，焦点态由 selector 表达）；
+     * 未触发 = 图标功能键色、下划线条隐藏。字母键面恒显大写（决策 48-②），键面与无障碍标注
+     * 在视图创建时已定格，不随大小写刷新（键面与输出解耦）。
      */
     private fun applyCaseState() {
         val upper = caseState == CaseState.UPPER
-        for ((id, view) in keyViews) {
-            val key = KeyboardLayout.keyById[id] ?: continue
-            if (id in KeyboardLayout.letterKeyIds) {
-                val label = KeyboardLayout.displayLabel(key, caseState)
-                (view as? TextView)?.text = label
-                view.contentDescription = label
-            }
-            if (id == "shift") {
-                view.contentDescription = KeyboardLayout.shiftContentDescription(caseState)
-                (view as? ImageView)?.setColorFilter(
-                    getColor(if (upper) R.color.accent_text else R.color.text_secondary),
-                )
-            }
+        val shift = keyViews["shift"] ?: return
+        shift.findViewWithTag<ImageView>(SHIFT_ICON_TAG)?.setColorFilter(
+            getColor(if (upper) R.color.accent_text else R.color.text_secondary),
+        )
+        shift.findViewWithTag<View>(SHIFT_BAR_TAG)?.visibility =
+            if (upper) View.VISIBLE else View.GONE
+        shift.contentDescription = KeyboardLayout.shiftContentDescription(caseState)
+    }
+
+    /**
+     * 状态键当前态渲染（T65 · 决策 46-② 方案 C / 47-①）：当前态字符亮青（#7DD3FC）加粗 +
+     * 3px 下划线，另一态压暗（半透明白 50%），分隔线中性淡色；无障碍标注含当前态 + 动作。
+     * 焦点态叠加（决策 50-②）：焦点文字 #E8EEF5（#7DD3FC 焦点青字废止），加粗与下划线指示保留。
+     */
+    private fun applyStateKeyAppearance(view: View) {
+        val keyId = view.tag as? String ?: return
+        val activeIndex = when (keyId) {
+            "lang" -> if (languageMode == LanguageMode.CHINESE) 0 else 1
+            SymbolsLayout.TOGGLE_WIDTH_ID -> if (symbolsWidth == SymbolsWidth.HALF_WIDTH) 1 else 0
+            else -> return
+        }
+        for (index in 0..1) {
+            val charView = view.findViewWithTag<TextView>(stateCharTag(index)) ?: continue
+            val active = index == activeIndex
+            charView.typeface = Typeface.create(charView.typeface, if (active) Typeface.BOLD else Typeface.NORMAL)
+            charView.setTextColor(
+                getColor(
+                    when {
+                        !active -> R.color.text_faint
+                        view.isFocused -> R.color.text_body // 决策 50-②：焦点文字废止青字
+                        else -> R.color.accent_text
+                    },
+                ),
+            )
+            view.findViewWithTag<View>(stateBarTag(index))?.visibility =
+                if (active) View.VISIBLE else View.GONE
+        }
+        view.contentDescription = when (keyId) {
+            "lang" -> KeyboardLayout.langContentDescription(languageMode == LanguageMode.CHINESE)
+            SymbolsLayout.TOGGLE_WIDTH_ID -> SymbolsLayout.widthContentDescription(symbolsWidth == SymbolsWidth.HALF_WIDTH)
+            else -> view.contentDescription
         }
     }
+
+    /** [中/英] 状态键指示随语言模式刷新（决策 46-② 实时随动；键不存在时无操作）。 */
+    private fun applyStateKeyAppearance() {
+        keyViews["lang"]?.let { applyStateKeyAppearance(it) }
+    }
+
+    /** 状态键当前态字符视图 tag（index = 0/1，对应 first/second 态字符）。 */
+    private fun stateCharTag(index: Int): String = "state_char_$index"
+
+    /** 状态键当前态下划线条视图 tag（index = 0/1，与 [stateCharTag] 同下标）。 */
+    private fun stateBarTag(index: Int): String = "state_bar_$index"
 
     /**
      * 收起键盘（FR-A1 / FR-A10）。CENTER 键的转发广播会让宿主 EditText 同拍触发
@@ -1985,7 +2185,8 @@ class SofatypeImeService : InputMethodService() {
     private fun textColorOf(variant: KeyVariant): Int = when (variant) {
         KeyVariant.CHARACTER -> R.color.text_body
         KeyVariant.FUNCTION -> R.color.text_secondary
-        KeyVariant.ACCENT -> R.color.accent_text
+        // 完成键常态不高亮（T65 · 决策 46-①）：文字与普通键一致 #E8EEF5（青字废止，决策 47-②）
+        KeyVariant.ACCENT -> R.color.text_body
     }
 
     private fun backgroundOf(variant: KeyVariant): Int = when (variant) {

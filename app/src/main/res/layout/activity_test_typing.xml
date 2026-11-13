@@ -86,9 +86,9 @@
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:text="@string/btn_fill_sample"
-                android:textColor="@color/accent_text"
+                android:textColor="@color/text_body"
                 android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
+                android:textStyle="normal" />
 
             <Button
                 android:id="@+id/btn_select_all"
@@ -100,9 +100,9 @@
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:text="@string/btn_select_all"
-                android:textColor="@color/accent_text"
+                android:textColor="@color/text_body"
                 android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
+                android:textStyle="normal" />
         </LinearLayout>
     </LinearLayout>
 

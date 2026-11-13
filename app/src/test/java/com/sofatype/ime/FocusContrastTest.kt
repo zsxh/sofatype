@@ -29,7 +29,8 @@ class FocusContrastTest {
     private val textSecondary = rgb(0xC9D4E2) // 功能键文字
     private val borderAccent = argb(0x80, 0x38BDF8) // 主色描边 rgba(56,189,248,.5)
     private val accentWash = argb(0x24, 0x38BDF8) // 主色淡底 rgba(56,189,248,.14)
-    private val accentWashStrong = argb(0x29, 0x38BDF8) // 主色淡底上界 rgba(56,189,248,.16)
+    private val accentWashStrong = argb(0x29, 0x38BDF8) // 主色淡底上界 rgba(56,189,248,.16) · 焦点底（决策 50-②）
+    private val textFaint = argb(0x80, 0xE8EEF5) // 半透明白 50%（状态键非当前态压暗字符 / 更多⌄ 常态）
 
     // ---- WCAG 2.1 相对亮度与对比度 ----
 
@@ -89,43 +90,52 @@ class FocusContrastTest {
         )
     }
 
-    // ---- TV 端焦点态（PRD 6.4「聚焦态 = 主色描边 + 键帽提亮」） ----
+    // ---- TV 端焦点态（T65 · 决策 50-②：焦点底统一 accent-wash 淡青底 rgba(56,189,248,.16)
+    //      + border-accent 描边，焦点文字 #E8EEF5；#242C39 灰调焦点底与 #7DD3FC 焦点青字废止） ----
 
     @Test
     fun `键帽焦点态文字对比度达标`() {
-        // 字母/数字键帽字符 30px（bg_key state_focused 底 = key_hover）：大文字档 3:1
-        assertContrast("键帽字符焦点 text_body on key_hover", textBody, keyHover, 3.0)
-        // 功能键 22px / 图标键（bg_key 焦点底）：普通文字档 4.5:1
-        assertContrast("功能键与图标键焦点 text_secondary on key_hover", textSecondary, keyHover, 4.5)
-        // 上档键激活态图标/描边文字色（大写态 accent_text on key_hover）：组件 3:1
-        assertContrast("上档激活焦点 accent_text on key_hover", accentText, keyHover, 3.0)
+        // 键盘键焦点底（bg_key state_focused）= accent_wash_strong 合成到主卡 card
+        val focusOnCard = over(accentWashStrong, card)
+        // 字母/数字键帽字符 30px：大文字档 3:1
+        assertContrast("键帽字符焦点 text_body on wash_strong@card", textBody, focusOnCard, 3.0)
+        // 功能键 22px / 图标键：普通文字档 4.5:1（焦点文字维持功能键色，非青字）
+        assertContrast("功能键焦点 text_secondary on wash_strong@card", textSecondary, focusOnCard, 4.5)
+        // 上档键激活态图标（T65 · 决策 47-① 图标亮青）：组件 3:1
+        assertContrast("上档激活图标 accent_text on wash_strong@card", accentText, focusOnCard, 3.0)
+        // 状态键当前态字符（T65 · 决策 46-② 方案 C，常态键帽底）：22px 加粗，实测 > 4.5
+        assertContrast("状态键当前态 accent_text on key", accentText, key, 4.5)
     }
 
     @Test
     fun `主色淡底元素焦点态文字对比度达标`() {
-        val washOnCard = over(accentWash, card) // 候选 chip / 更多⌄ / 完成键常态底
-        val washStrongOnCard = over(accentWashStrong, card) // 完成键 / 副卡按钮焦点底
-        val washStrongOnBg = over(accentWashStrong, bg) // 设置页按钮焦点底（页根为 bg）
-        // 候选 chip 28px / 更多⌄ 22px / 完成键（bg_chip_highlight / bg_key_done）焦点文字
-        assertContrast("候选 chip 焦点 accent_text on wash@card", accentText, washOnCard, 4.5)
-        assertContrast("完成键焦点 accent_text on wash_strong@card", accentText, washStrongOnCard, 4.5)
-        // 引导卡主按钮 21px（bg_side_button 焦点底 = wash 上界 @ card）
-        assertContrast("引导主按钮焦点 accent_text on wash_strong@card", accentText, washStrongOnCard, 4.5)
-        // 设置页检查更新按钮 19px（bg_btn_accent 焦点底 = wash 上界 @ bg）
-        assertContrast("设置页按钮焦点 accent_text on wash_strong@bg", accentText, washStrongOnBg, 4.5)
+        // 焦点底统一 accent-wash 淡青底（决策 50-②）：bg_chip_highlight / bg_key_done /
+        // bg_side_button / bg_key 焦点态 = accent_wash_strong @ card；设置页 / 测试页按钮 = @ bg
+        val focusOnCard = over(accentWashStrong, card)
+        val focusOnBg = over(accentWashStrong, bg)
+        // 焦点文字统一 #E8EEF5（决策 50-②：#7DD3FC 焦点青字废止）
+        assertContrast("候选 chip 焦点 text_body on wash_strong@card", textBody, focusOnCard, 4.5)
+        assertContrast("完成键焦点 text_body on wash_strong@card", textBody, focusOnCard, 4.5)
+        assertContrast("引导主按钮焦点 text_body on wash_strong@card", textBody, focusOnCard, 4.5)
+        assertContrast("退出远程按钮焦点 text_body on wash_strong@card", textBody, focusOnCard, 4.5)
+        // 设置页检查更新 / 测试打字 / 测试页填入示例 / 全选按钮 19px（bg_btn_accent 焦点底）
+        assertContrast("设置页与测试页按钮焦点 text_body on wash_strong@bg", textBody, focusOnBg, 4.5)
     }
 
     @Test
-    fun `退出远程按钮焦点态文字对比度达标`() {
-        // 「退出远程」按钮（ime_keyboard.xml）底 = bg_key（焦点态 key_hover）+ text_secondary 20px
-        assertContrast("退出远程按钮焦点 text_secondary on key_hover", textSecondary, keyHover, 4.5)
+    fun `状态键非当前态压暗字符对比度核查`() {
+        // T65 · 决策 46-② 拍板：非当前态 = 半透明白 50%（text_faint）压暗指示；
+        // 22px 普通文字实测 ≈ 4.47:1，属设计拍板压暗态——当前态信息由亮青加粗字符与
+        // contentDescription（含当前态全语义）承载，此处按 3:1 底线核查，不冒充 4.5 达标。
+        assertContrast("状态键非当前态 text_faint on key", over(textFaint, key), key, 3.0)
     }
 
     @Test
     fun `焦点描边与承载底色对比度达标`() {
         // WCAG 1.4.11 非文字组件 ≥ 3:1：焦点描边（border_accent）是 FR-A11 焦点态的边界标识，
-        // 辨识对象 = 相邻主卡底（描边跨键帽段合成底为 key_hover、跨卡底段为 card）
-        assertContrast("焦点描边(border over key_hover) vs card", over(borderAccent, keyHover), card, 3.0)
+        // 辨识对象 = 相邻主卡底（描边跨键帽焦点底段合成底为 wash_strong@card、跨卡底段为 card）
+        val focusOnCard = over(accentWashStrong, card)
+        assertContrast("焦点描边(border over wash_strong@card) vs card", over(borderAccent, focusOnCard), card, 3.0)
         assertContrast("焦点描边(border over card) vs card", over(borderAccent, card), card, 3.0)
     }
 

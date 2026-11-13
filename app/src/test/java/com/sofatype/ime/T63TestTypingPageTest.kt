@@ -67,13 +67,14 @@ class T63TestTypingPageTest {
             settingsLayout.contains("@+id/test_input\""),
         )
         val entry = viewBlock(settingsLayout, "btn_test_typing")
-        // 画板 7 第三行：样式与检查更新同款（bg_btn_accent = 常态 key 底无描边、焦点态 wash+描边）
+        // 画板 7 第三行：样式与检查更新同款（bg_btn_accent = 常态 key 底无描边、焦点态 wash+描边）；
+        // T65 · 决策 47-② 非选中键样式一致：文字 #E8EEF5 字重 400（青字与 600 字重废止）
         val checkUpdate = viewBlock(settingsLayout, "btn_check_update")
         for (attr in listOf(
             "android:background=\"@drawable/bg_btn_accent\"",
-            "android:textColor=\"@color/accent_text\"",
+            "android:textColor=\"@color/text_body\"",
             "android:textSize=\"@dimen/btn_text\"",
-            "android:textStyle=\"bold\"",
+            "android:textStyle=\"normal\"",
             "android:minWidth=\"0dp\"",
         )) {
             assertTrue("测试打字入口与检查更新样式须同款：缺 $attr", entry.contains(attr))

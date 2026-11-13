@@ -162,9 +162,9 @@
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:text="@string/btn_check_update"
-                android:textColor="@color/accent_text"
+                android:textColor="@color/text_body"
                 android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
+                android:textStyle="normal" />
 
             <Space
                 android:layout_width="0dp"
@@ -218,9 +218,9 @@
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:text="@string/btn_test_typing"
-                android:textColor="@color/accent_text"
+                android:textColor="@color/text_body"
                 android:textSize="@dimen/btn_text"
-                android:textStyle="bold" />
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- 更新说明（T21 · FR-D4 发现新版态：release notes；默认隐藏） -->

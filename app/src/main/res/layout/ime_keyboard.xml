@@ -132,7 +132,7 @@
                         android:background="@drawable/bg_key"
                         android:gravity="center"
                         android:maxLines="1"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/text_body"
                         android:textSize="@dimen/ime_remote_exit_text" />
                 </LinearLayout>
 

@@ -50,8 +50,13 @@ class AccessibilityLabelsTest {
         assertEquals("删除", byId.getValue("backspace").contentDescription)
         assertEquals("光标左移", byId.getValue("cursor_left").contentDescription)
         assertEquals("光标右移", byId.getValue("cursor_right").contentDescription)
-        // FR-A3 上档键大写态提示（画板② aria-label）
-        assertEquals("大写已开启，点按切回小写", KeyboardLayout.shiftContentDescription(CaseState.UPPER))
+        // T65 · 决策 46-② / 47-① / 48-①：上档与状态键运行态描述含当前态 + 动作
+        assertEquals("上档切换，当前大写", KeyboardLayout.shiftContentDescription(CaseState.UPPER))
+        assertEquals("上档切换，当前小写", KeyboardLayout.shiftContentDescription(CaseState.LOWER))
+        assertEquals("中英文切换，当前为中文", KeyboardLayout.langContentDescription(chinese = true))
+        assertEquals("中英文切换，当前为英文", KeyboardLayout.langContentDescription(chinese = false))
+        assertEquals("全角半角切换，当前为半角", SymbolsLayout.widthContentDescription(halfWidth = true))
+        assertEquals("全角半角切换，当前为全角", SymbolsLayout.widthContentDescription(halfWidth = false))
         // 功能键动作语义（与 SymbolsLayout 返回键「返回字母键盘」同构的动作描述口径）
         assertEquals("中英文切换", byId.getValue("lang").contentDescription)
         assertEquals("进入符号键盘", byId.getValue("symbols").contentDescription)

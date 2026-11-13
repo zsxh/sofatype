@@ -53,6 +53,12 @@ object SymbolsLayout {
         DONE_ID to doneKeyCells,
     )
 
+    /**
+     * [全/半] 状态键态提示（T65 · 决策 46-② 方案 C：含当前态 + 动作，指示随切换实时随动）。
+     */
+    fun widthContentDescription(halfWidth: Boolean): String =
+        if (halfWidth) "全角半角切换，当前为半角" else "全角半角切换，当前为全角"
+
     /** 键盘显示时的初始焦点格位：键区左上角（数字「1」）。 */
     val initialCell: Pair<Int, Int> = 1 to 1
 
@@ -83,6 +89,8 @@ object SymbolsLayout {
             label = "全/半",
             textSize = KeyTextSize.SMALL,
             contentDescription = "全角半角切换",
+            // T65 · 决策 46-② 方案 C：斜杠排版显示当前态（当前态由视图层依全/半角状态判定）
+            stateOptions = "全" to "半",
         ),
     )
 

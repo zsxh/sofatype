@@ -1,11 +1,15 @@
-// T5 · 字母键盘（小写）键位模型（画板①「字母键盘·小写」，FR-A2）。
+// T5 · 字母键盘键位模型（designs/20261110 画板 1「键盘 · 默认态」，FR-A2）。
 // T7 · 大小写状态语义（FR-A3）与文本输出值（FR-A9）。
+// T65 · 决策 46：默认态英文输入 + 大写、[完成] 键常态不高亮、[中/英] 状态键方案 C 当前态指示。
 // 纯 Kotlin，不依赖 Android 类，可脱离模拟器独立单元测试（TASKS T5 施工口径）。
 // 范围边界：符号键盘属 T8；拼音与候选词属 T9/T10。本模型只描述画板①键位结构、键面语义
 // 与大小写相关的键面/输出变换；Android 侧视图生成与事件处理在 SofatypeImeService。
 package com.sofatype.ime
 
-/** 大小写状态（FR-A3，T7）。上档键在两态间切换；键盘记忆属 FR-A13（P2）不做，每次键盘创建复位小写。 */
+/**
+ * 大小写状态（FR-A3，T7）。上档键在两态间切换；⇧ 触发态是唯一大小写指示（决策 48-②）。
+ * 默认大写（T65 · 决策 48-①）；键盘记忆属 FR-A13（P2）不做，每次键盘视图创建复位默认态。
+ */
 enum class CaseState { LOWER, UPPER }
 
 /** 键帽视觉变体（PRD 6.3 / 画板①）：普通字符键 / 功能键 / 强调键（完成键）。 */
@@ -16,7 +20,10 @@ enum class KeyVariant {
     /** 功能键：key 底 + 功能键文字色（画板① .bkey-fn）。 */
     FUNCTION,
 
-    /** 强调键（完成键）：accent-wash 底 + 主色描边 + 描边文字色（PRD 6.3）。 */
+    /**
+     * 强调键（完成键）：T65 · 决策 46-① 常态不高亮（键帽同款 key 底、文字 #E8EEF5），
+     * 焦点态 = accent-wash 上界底 + border-accent 描边（决策 50-②，bg_key_done 承载）。
+     */
     ACCENT,
 }
 
@@ -95,10 +102,19 @@ data class Key(
     /**
      * 无障碍标注（PRD 第 8 章，T26 全键位口径）。
      * 全部键位必填：图标键与功能键为动作语义描述（画板 aria-label）；
-     * 字符键 = 键面文字（TalkBack 朗读同文）。字母键大写态由视图层随键面同步刷新
-     * （SofatypeImeService.applyCaseState）。
+     * 字符键 = 键面文字（TalkBack 朗读同文）。字母键标注随键面恒显大写形态
+     *（T65 · 决策 48-②），视图层经 [displayLabel] 统一生成，
+     * [KeyboardLayout.langContentDescription] / [SymbolsLayout.widthContentDescription] 提供
+     *（T65 · 决策 46-②：含当前态 + 动作）。
      */
     val contentDescription: String,
+
+    /**
+     * 状态键两态字符（T65 · 决策 46-② 方案 C）：first / second 按「中/英」「全/半」斜杠排版，
+     * 当前态字符亮青加粗 + 下划线、另一态压暗，指示随切换实时随动；null = 普通文字键。
+     * 当前态下标由视图层依服务状态（语言模式 / 全半角）判定。
+     */
+    val stateOptions: Pair<String, String>? = null,
 )
 
 /** 行内格子：键位或列间隔占位（画板① kspacer 42px）。 */
@@ -117,7 +133,7 @@ sealed interface Cell {
 /** 一行键位：cells 依序水平排布。 */
 data class KeyRow(val cells: List<Cell>)
 
-/** 字母键盘（小写）完整键位（画板①）。键帽视图由本模型驱动生成。 */
+/** 字母键盘完整键位（designs/20261110 画板 1「键盘 · 默认态」）。键帽视图由本模型驱动生成。 */
 object KeyboardLayout {
 
     /**
@@ -137,7 +153,18 @@ object KeyboardLayout {
         KeyRow(
             digitCells('4', '6') + Cell.Spacer + letterCells('h', 'n') + Cell.Spacer +
                 listOf(
-                    fnCell("lang", "中/英", KeyAction.ToggleLanguage, "中英文切换"),
+                    Cell.KeyCell(
+                        Key(
+                            id = "lang",
+                            action = KeyAction.ToggleLanguage,
+                            variant = KeyVariant.FUNCTION,
+                            label = "中/英",
+                            textSize = KeyTextSize.SMALL,
+                            contentDescription = "中英文切换",
+                            // T65 · 决策 46-② 方案 C：斜杠排版显示当前态（当前态由视图层依语言模式判定）
+                            stateOptions = "中" to "英",
+                        ),
+                    ),
                     iconCell("backspace", KeyIcon.BACKSPACE, "删除"),
                 ),
         ),
@@ -232,11 +259,11 @@ object KeyboardLayout {
     }
 
     /**
-     * 大写态键面（FR-A3）：字母键显示大写，其余键面不变。
-     * 画板②「字母键盘·大写」口径。
+     * 键面文字（T65 · 决策 48-②）：字母键恒显大写形态——中 / 英两模式键面一律大写，
+     * 键面不随大小写输出状态或输入模式变化，大小写输出仅由 ⇧ 触发态表达；非字母键键面原样。
      */
-    fun displayLabel(key: Key, case: CaseState): String? = when {
-        case == CaseState.UPPER && key.id in letterKeyIds -> key.label?.uppercase()
+    fun displayLabel(key: Key): String? = when {
+        key.id in letterKeyIds -> key.label?.uppercase()
         else -> key.label
     }
 
@@ -250,12 +277,19 @@ object KeyboardLayout {
     }
 
     /**
-     * 上档键态提示（FR-A3 原文文案；画板② aria-label「大写已开启，点按切回小写」）。
+     * 上档键态提示（T65 · 决策 47-① 触发态统一 / 决策 48-① ⇧ 触发态为唯一大小写指示）：
+     * contentDescription 含当前态 + 动作。
      */
     fun shiftContentDescription(case: CaseState): String = when (case) {
-        CaseState.LOWER -> "上档切换"
-        CaseState.UPPER -> "大写已开启，点按切回小写"
+        CaseState.LOWER -> "上档切换，当前小写"
+        CaseState.UPPER -> "上档切换，当前大写"
     }
+
+    /**
+     * [中/英] 状态键态提示（T65 · 决策 46-② 方案 C：含当前态 + 动作，指示随切换实时随动）。
+     */
+    fun langContentDescription(chinese: Boolean): String =
+        if (chinese) "中英文切换，当前为中文" else "中英文切换，当前为英文"
 
     // ---- 键位构建辅助（保持键位表紧凑；均返回 Cell） ----
 

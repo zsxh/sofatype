@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 键帽图标 · 上档切换（画板① SVG 线条，24×24 viewBox；色走功能键文字 Token） -->
+<!-- 键帽图标 · 上档切换（T65 · 决策 46-④：⇧ 图标 24→32px、笔画加粗 1.8→2；
+     24×24 viewBox 线条不变，色走功能键文字 Token，触发态亮青由视图层 tint 承载） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -8,6 +9,6 @@
     <path
         android:pathData="M12,4 L19,11.2 L14.8,11.2 L14.8,18 L9.2,18 L9.2,11.2 L5,11.2 Z"
         android:strokeColor="@color/text_secondary"
-        android:strokeWidth="1.8"
+        android:strokeWidth="2"
         android:strokeLineJoin="round" />
 </vector>

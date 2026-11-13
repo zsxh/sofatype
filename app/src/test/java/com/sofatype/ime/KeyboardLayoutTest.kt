@@ -150,19 +150,26 @@ class KeyboardLayoutTest {
     }
 
     @Test
-    fun displayLabelFollowsCaseState() {
+    fun displayLabelIsAlwaysUppercase() {
         val byId = KeyboardLayout.keyById
-        // 小写态：键面原样
-        assertEquals("a", KeyboardLayout.displayLabel(byId.getValue("a"), CaseState.LOWER))
-        // 大写态：字母键面大写（FR-A3「字母区全部显示大写」）
-        assertEquals("A", KeyboardLayout.displayLabel(byId.getValue("a"), CaseState.UPPER))
-        assertEquals("H", KeyboardLayout.displayLabel(byId.getValue("h"), CaseState.UPPER))
-        assertEquals("Z", KeyboardLayout.displayLabel(byId.getValue("z"), CaseState.UPPER))
-        // 非字母键不受大小写影响
-        assertEquals("5", KeyboardLayout.displayLabel(byId.getValue("digit_5"), CaseState.UPPER))
-        assertEquals(".com", KeyboardLayout.displayLabel(byId.getValue("dot_com"), CaseState.UPPER))
-        assertEquals("@", KeyboardLayout.displayLabel(byId.getValue("at"), CaseState.UPPER))
-        assertEquals("空格", KeyboardLayout.displayLabel(byId.getValue("space"), CaseState.UPPER))
+        // T65 · 决策 48-② 键面恒显大写：中 / 英模式、⇧ 触发与否，字母键面一律大写形态
+        assertEquals("A", KeyboardLayout.displayLabel(byId.getValue("a")))
+        assertEquals("H", KeyboardLayout.displayLabel(byId.getValue("h")))
+        assertEquals("Z", KeyboardLayout.displayLabel(byId.getValue("z")))
+        // 非字母键键面不受大小写影响（无大小写参数：键面与输出解耦）
+        assertEquals("5", KeyboardLayout.displayLabel(byId.getValue("digit_5")))
+        assertEquals(".com", KeyboardLayout.displayLabel(byId.getValue("dot_com")))
+        assertEquals("@", KeyboardLayout.displayLabel(byId.getValue("at")))
+        assertEquals("空格", KeyboardLayout.displayLabel(byId.getValue("space")))
+    }
+
+    @Test
+    fun faceAndOutputAreDecoupled() {
+        // T65 · 决策 48-② 键面与输出解耦：键面恒 A，输出大小写仅随 ⇧ 触发态（触发 = 大写 / 未触发 = 小写）
+        val a = KeyboardLayout.keyById.getValue("a")
+        assertEquals("A", KeyboardLayout.displayLabel(a))
+        assertEquals("a", KeyboardLayout.outputValue(a, CaseState.LOWER))
+        assertEquals("A", KeyboardLayout.outputValue(a, CaseState.UPPER))
     }
 
     @Test
@@ -181,9 +188,19 @@ class KeyboardLayoutTest {
 
     @Test
     fun shiftContentDescriptionMatchesPrdWording() {
-        // FR-A3 原文态提示文案（画板② aria-label 同文）
-        assertEquals("上档切换", KeyboardLayout.shiftContentDescription(CaseState.LOWER))
-        assertEquals("大写已开启，点按切回小写", KeyboardLayout.shiftContentDescription(CaseState.UPPER))
+        // T65 · 决策 47-① / 48-①：contentDescription 含当前态 + 动作（⇧ 触发态为唯一大小写指示）
+        assertEquals("上档切换，当前小写", KeyboardLayout.shiftContentDescription(CaseState.LOWER))
+        assertEquals("上档切换，当前大写", KeyboardLayout.shiftContentDescription(CaseState.UPPER))
+    }
+
+    @Test
+    fun langStateKeyHasSchemeCOptionsAndStateDescription() {
+        // T65 · 决策 46-② 方案 C：[中/英] 斜杠排版两态字符 + 含当前态的无障碍描述
+        val lang = KeyboardLayout.keyById.getValue("lang")
+        assertEquals("中" to "英", lang.stateOptions)
+        assertEquals("中英文切换", lang.contentDescription)
+        assertEquals("中英文切换，当前为中文", KeyboardLayout.langContentDescription(chinese = true))
+        assertEquals("中英文切换，当前为英文", KeyboardLayout.langContentDescription(chinese = false))
     }
 
     // ---- 列节奏（画板① 口径，T28 锁定） ----

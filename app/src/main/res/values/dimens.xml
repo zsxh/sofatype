@@ -85,11 +85,21 @@
     <dimen name="ime_done_key_top">104dp</dimen>
     <!-- 符号键盘空格键（T8，决策 3）：84×196 跨两行高键与完成键对称（画板③ col11 原点 1028px） -->
     <dimen name="ime_space_key_start">514dp</dimen>
-    <!-- 键帽图标尺寸：上档 24px / 下屏 28px / 删除 32px / 光标 28px（画板① SVG 尺寸） -->
-    <dimen name="ime_icon_shift">12dp</dimen>
-    <dimen name="ime_icon_hide">14dp</dimen>
+    <!-- 键帽图标尺寸：上档 32px（T65 · 决策 46-④ 24→32px）/ 下屏 30px（T65 · 决策 46-⑤ 画板 30px）/
+         删除 32px / 光标 28px（画板 SVG 尺寸） -->
+    <dimen name="ime_icon_shift">16dp</dimen>
+    <dimen name="ime_icon_hide">15dp</dimen>
     <dimen name="ime_icon_backspace">16dp</dimen>
     <dimen name="ime_icon_cursor">14dp</dimen>
+    <!-- 键面下划线条（T65 · 决策 47-① 触发态统一）：条高 3px、圆角 2px；
+         上档触发态短条 36×3px（trig-bar）、与图标间距 7px；状态键当前态下划线随字符等宽、
+         偏移 6px（画板 text-underline-offset） -->
+    <dimen name="ime_state_underline_height">1.5dp</dimen>
+    <dimen name="ime_underline_corner">1dp</dimen>
+    <dimen name="ime_shift_underline_width">18dp</dimen>
+    <dimen name="ime_shift_underline_gap">3.5dp</dimen>
+    <dimen name="ime_state_underline_offset">3dp</dimen>
+    <dimen name="ime_state_sep_margin">1dp</dimen>
     <!-- 符号键盘行步进窗口边界暗示箭头（T64 · 画板 3/10；28×14px，色 text_faint）：
          下箭头挂显示第 4 行底部居中（svg top 412px，行区高 404px）、上箭头挂显示第 1 行上方
         （svg top -16px）；margin 相对键区（行区高 202dp），溢出键区显示（clipChildren=false） -->

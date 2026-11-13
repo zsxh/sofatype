@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 候选 chip 焦点底（FR-A7 / 决策 30：高亮仅表达遥控器焦点态，无常亮高亮；PRD 6.4 焦点态 =
-     accent-wash 底 + border-accent 描边）。非焦点 chip 无底色（画板① .bchip）。 -->
+<!-- 候选 chip 焦点底（FR-A7 / 决策 30：高亮仅表达遥控器焦点态，无常亮高亮；T65 · 决策 50-② 焦点底 =
+     accent-wash 淡青底 rgba(56,189,248,.16) + border-accent 描边，焦点文字 #E8EEF5）。非焦点 chip 无底色。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/accent_wash" />
+    <solid android:color="@color/accent_wash_strong" />
     <stroke
         android:width="@dimen/stroke_width"
         android:color="@color/border_accent" />

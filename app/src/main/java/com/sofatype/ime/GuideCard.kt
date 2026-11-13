@@ -166,13 +166,15 @@ object GuideCard {
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
         )
 
-        // 主按钮（FR-B1「远程输入」/ PRD 6.3 高 60px accent-wash + border-accent 字 21px；画板①「远 程 输 入」）
+        // 主按钮（FR-B1「远程输入」/ PRD 6.3 高 60px 字 21px，画板「远 程 输 入」）；
+        // T65 · 决策 47-②：非选中键样式一致——无高亮（常态 key 底无描边，bg_side_button）、
+        // 文字 #E8EEF5 字重 400（青字与 600 字重废止）；焦点态底形由 bg_side_button 承载（决策 50-②）
         val button = TextView(context).apply {
             text = RemoteUiText.GUIDE_BUTTON_LABEL
             contentDescription = RemoteUiText.GUIDE_BUTTON_DESCRIPTION
             gravity = Gravity.CENTER
             maxLines = 1
-            setTextColor(context.getColor(R.color.accent_text))
+            setTextColor(context.getColor(R.color.text_body))
             setTextSize(TypedValue.COMPLEX_UNIT_PX, dimension(context, R.dimen.ime_guide_button_text))
             setBackgroundResource(R.drawable.bg_side_button)
             tag = BUTTON_TAG
