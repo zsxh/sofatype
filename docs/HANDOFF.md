@@ -24,15 +24,16 @@
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务状态（逐任务以 TASKS 状态行为准，明细见对应 issue）：**已归档（closed）任务的结果不在本文复述**——T1~T62 与 T64 已全部归档（T54、T62 并案修复于 2026-11-13 真机复验 PASS 后经户主拍板归档；T64 于同日真机复验 PASS 后经户主拍板归档），通过/归档明细见各 closed issue。进行中 **T63**（2026-11-13 户主批准开工，dev-review 双 Agent 闭环）：
-  - **T63**：设置页「测试打字」入口＋独立测试打字页（feature，2026-11-12 立项、2026-11-13 批准开工；PRD 批次 docs/PRD_20261112.md；原型已定稿 designs/20261110 画板 7/9）；明细见 open/T63。
-- 设备态：**sofatype 已卸载**（2026-11-13 T64 收口后户主指令清理＋卸载：包/进程/监听口核验零残留，default_input_method 回落机内搜狗，enabled_input_methods 条目随卸载自动清除）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；仓库 `screenshots/T64/` 全部截图证据（模拟器轮 t64-/qa-r1-＋真机轮 t64m-）已于 2026-11-13 经户主拍板清除，其余任务目录证据处置由户主自理；下次真机批次需重新装机。
+- 任务状态（逐任务以 TASKS 状态行为准，明细见对应 issue）：**已归档（closed）任务的结果不在本文复述**——T1~T63 与 T64 已全部归档（T54、T62 并案修复于 2026-11-13 真机复验 PASS 后经户主拍板归档；T63 于同日经 dev-review 闭环、模拟器 + 真机双 PASS 后经户主拍板归档；T64 于同日真机复验 PASS 后经户主拍板归档），通过/归档明细见各 closed issue。进行中**无**；T65 已立项 open（键盘键面五项调整，实现待户主批准开工，明细见 open/T65）。
+- 设备态：**sofatype 未装机**（2026-11-13 T63 真机复验经户主拍板重新装机并验证，同日归档拍板后再次卸载：包/监听口核验零残留，default_input_method 回落机内搜狗，enabled_input_methods 随卸载自动清除、只余搜狗与 tvkeyboard）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；真机无线 adb 连接态保持（192.168.1.210:5555 device，未 kill-server）；截图处置：`screenshots/T64/` 与 `screenshots/T63/` 全部走查证据均已按户主拍板删除，其余任务目录证据处置由户主自理；下次真机批次需重新装机。
 - 遗留观察（挂账，不影响功能）：
   - 设置页 BACK 退出沿 default_input_method 被夺回搜狗（2026-11-13 真机批次 3/3 稳定复现，坑 5 同族，机制未查明、ime set 即恢复）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
   - UPPER 态收起重弹后首键 OK 输出大写 A（FR-A13 P2 记忆边界）。
   - 换网段子分支与安卓 Chrome 走查户主拍板不测（issue T19）。
+  - TestTypingActivity exported=true（沿 T2 走查先例，第三方可显式拉起调试页；debug 门控、风险低，2026-11-13 review-qa 建议挂账，走查通道收敛时拍板是否收紧，issue T63 审查记录）。
+  - 模拟器 `/data/local/tmp` 约 100 个历史走查遗留文件（2026-11-13 review-qa 报备，非本轮产物；按文件名前缀列清单经户主确认后分批删，DEV-GUIDE 口径）。
 
 ## 关键决策速查（全文以 PRD 第 12 章为准）
 
