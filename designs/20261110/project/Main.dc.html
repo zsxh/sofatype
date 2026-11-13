@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>键盘 · 小写（空输入态）</title>
+<title>键盘 · 默认态（英文 · 大写 · 空输入态）</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -17,6 +17,11 @@ button{font-family:inherit}
 .bkey-fn{font-size:22px;color:#C9D4E2}
 .bkey-acc{background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.5);color:#7DD3FC}
 .bkey-acc:hover{background:rgba(56,189,248,.2)}
+.bkey-st .st{color:rgba(232,239,246,.5)}
+.bkey-st .st-on{color:#7DD3FC;font-weight:700;text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:6px}
+.bkey-st .st-sep{color:rgba(232,239,246,.35);margin:0 2px}
+.bkey-trig{flex-direction:column;gap:7px}
+.trig-bar{width:36px;height:3px;background:#7DD3FC;border-radius:2px}
 .krow{display:flex;gap:12px;align-items:flex-start}
 .kspacer{width:42px;flex:none}
 </style>
@@ -36,35 +41,35 @@ button{font-family:inherit}
         <div class="krow">
           <button class="bkey">1</button><button class="bkey">2</button><button class="bkey">3</button>
           <div class="kspacer"></div>
-          <button class="bkey" style="background:#242C39;border:1px solid rgba(56,189,248,.5)" aria-label="字母 a（焦点 · 打开键盘默认焦点）">a</button><button class="bkey">b</button><button class="bkey">c</button><button class="bkey">d</button><button class="bkey">e</button><button class="bkey">f</button><button class="bkey">g</button>
+          <button class="bkey" style="background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.5)" aria-label="字母 A（焦点 · 打开键盘默认焦点）">A</button><button class="bkey">B</button><button class="bkey">C</button><button class="bkey">D</button><button class="bkey">E</button><button class="bkey">F</button><button class="bkey">G</button>
           <div class="kspacer"></div>
-          <button class="bkey bkey-fn" aria-label="上档切换"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l7 7.2h-4.2V18h-5.6v-6.8H5z"/></svg></button>
-          <button class="bkey bkey-fn" aria-label="下屏，收起键盘"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7 14.5h10"/></svg></button>
+          <button class="bkey bkey-trig" aria-label="上档切换，当前大写（默认态）"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7DD3FC" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l7 7.2h-4.2V18h-5.6v-6.8H5z"/></svg><span class="trig-bar" aria-hidden="true"></span></button>
+          <button class="bkey bkey-fn" aria-label="下屏，收起键盘"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="11" rx="2"/><path d="M6.5 7.5h.01M10 7.5h.01M13.5 7.5h.01M17 7.5h.01" stroke-width="2"/><path d="M6.5 11.5h11"/><path d="M8 17.5l4 3.5 4-3.5" stroke-width="2.2"/></svg></button>
         </div>
         <div class="krow" style="margin-top:12px">
           <button class="bkey">4</button><button class="bkey">5</button><button class="bkey">6</button>
           <div class="kspacer"></div>
-          <button class="bkey">h</button><button class="bkey">i</button><button class="bkey">j</button><button class="bkey">k</button><button class="bkey">l</button><button class="bkey">m</button><button class="bkey">n</button>
+          <button class="bkey">H</button><button class="bkey">I</button><button class="bkey">J</button><button class="bkey">K</button><button class="bkey">L</button><button class="bkey">M</button><button class="bkey">N</button>
           <div class="kspacer"></div>
-          <button class="bkey bkey-fn">中/英</button>
+          <button class="bkey bkey-fn bkey-st" aria-label="中英文切换，当前为英文"><span class="st">中</span><span class="st-sep">/</span><span class="st st-on">英</span></button>
           <button class="bkey bkey-fn" aria-label="删除"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8.5 5h11A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-11L3 12z"/><path d="M11.5 9.5l5 5"/><path d="M16.5 9.5l-5 5"/></svg></button>
         </div>
         <div class="krow" style="margin-top:12px">
           <button class="bkey">7</button><button class="bkey">8</button><button class="bkey">9</button>
           <div class="kspacer"></div>
-          <button class="bkey">o</button><button class="bkey">p</button><button class="bkey">q</button><button class="bkey">r</button><button class="bkey">s</button><button class="bkey">t</button><button class="bkey">u</button>
+          <button class="bkey">O</button><button class="bkey">P</button><button class="bkey">Q</button><button class="bkey">R</button><button class="bkey">S</button><button class="bkey">T</button><button class="bkey">U</button>
           <div class="kspacer"></div>
           <button class="bkey bkey-fn">123_!</button>
         </div>
         <div class="krow" style="margin-top:12px">
           <button class="bkey bkey-fn">.com</button><button class="bkey">0</button><button class="bkey">@</button>
           <div class="kspacer"></div>
-          <button class="bkey">v</button><button class="bkey">w</button><button class="bkey">x</button><button class="bkey">y</button><button class="bkey">z</button><button class="bkey" aria-label="光标左移"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button><button class="bkey" aria-label="光标右移"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+          <button class="bkey">V</button><button class="bkey">W</button><button class="bkey">X</button><button class="bkey">Y</button><button class="bkey">Z</button><button class="bkey" aria-label="光标左移"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button><button class="bkey" aria-label="光标右移"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
           <div class="kspacer"></div>
           <button class="bkey" style="font-size:22px">空格</button>
         </div>
-        <!-- 完成键：跨两行强调键（截图焦点所在，样式即常驻强调态） -->
-        <button class="bkey bkey-acc" style="position:absolute;left:1120px;top:208px;width:84px;height:196px;font-size:26px">完成</button>
+        <!-- 完成键：跨两行，样式与普通键一致（不高亮） -->
+        <button class="bkey" style="position:absolute;left:1120px;top:208px;width:84px;height:196px;font-size:26px">完成</button>
       </div>
     </div>
   </section>
@@ -89,7 +94,7 @@ button{font-family:inherit}
         <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5);color:#7DD3FC;font-size:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">2</span><span style="font-size:17px;color:rgba(232,239,246,.75)">点按「远程输入」出示二维码</span></div>
         <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5);color:#7DD3FC;font-size:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">3</span><span style="font-size:17px;color:rgba(232,239,246,.75)">手机扫码，即可远程打字</span></div>
       </div>
-      <button class="bkey" style="position:absolute;left:36px;right:36px;bottom:92px;width:auto;height:60px;background:#1D242F;border:1px solid rgba(255,255,255,.06);color:#7DD3FC;font-size:21px" aria-label="进入远程输入模式">远 程 输 入</button>
+      <button class="bkey" style="position:absolute;left:36px;right:36px;bottom:92px;width:auto;height:60px;background:#1D242F;border:1px solid rgba(255,255,255,.06);color:#E8EEF5;font-size:21px" aria-label="进入远程输入模式">远 程 输 入</button>
       <div style="position:absolute;left:36px;right:36px;bottom:34px;font-size:16px;color:rgba(232,239,246,.45)">进入后：左侧显示手机输入内容，此卡变为二维码</div>
     </div>
   </aside>
