@@ -1,0 +1,18 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-14T10:50:00+08:00" },
+  "title": "输入法键盘 · 底部单板原型对比",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1920, "h": 1080, "title": "现状 · 左右双卡悬浮（键 80×92 竖长 · 窗高 596）" },
+    "PlanA.dc.html": { "x": 2000, "y": 0, "w": 1920, "h": 1080, "title": "方案 A · 单板直出 · 副卡并入板右（键 96×64 · 板高 392）" },
+    "PlanB.dc.html": { "x": 4000, "y": 0, "w": 1920, "h": 1080, "title": "方案 B · 单板直出 · 更扁（键 100×56 · 板高 348）" },
+    "PlanC.dc.html": { "x": 6000, "y": 0, "w": 1920, "h": 1080, "title": "方案 C · 单板全宽 · 副卡改候选栏入口（键 128×64 · 板高 392）" }
+  },
+  "order": ["Main.dc.html", "PlanA.dc.html", "PlanB.dc.html", "PlanC.dc.html"],
+  "notes": {
+    "kbd-flat-title": { "x": 0, "y": -280, "text": "键盘形态原型对比 · 单板底部直出", "kind": "title1", "maxW": 7920 }
+  },
+  "designSystems": []
+}

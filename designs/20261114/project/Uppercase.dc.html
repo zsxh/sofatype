@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>键盘 · 中文组合态（键面恒大写 · 候选单行 · 翻页暗示）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+.bkey{all:unset;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;width:96px;height:64px;background:#1D242F;border-radius:12px;color:#E8EEF5;font-size:24px;cursor:pointer}
+.bkey:hover{background:#242C39}
+.bkey-fn{font-size:18px;color:#C9D4E2}
+.bkey-st .st{color:rgba(232,239,246,.5)}
+.bkey-st .st-on{color:#7DD3FC;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.bkey-st .st-sep{color:rgba(232,239,246,.35);margin:0 2px}
+.krow{display:flex;gap:10px;align-items:flex-start}
+.kspacer{width:48px;flex:none}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <!-- 宿主应用示意（抽象布景 · 不代表具体应用） -->
+  <div aria-hidden="true" style="position:absolute;top:0;left:0;width:1920px;height:1080px">
+    <div style="position:absolute;top:48px;left:72px;display:flex;align-items:center;gap:16px">
+      <span style="display:block;width:36px;height:36px;border-radius:10px;background:#12161E;border:1px solid rgba(255,255,255,.08)"></span>
+      <span style="font-size:24px;font-weight:700;color:rgba(232,239,246,.8)">示例应用</span>
+    </div>
+    <div style="position:absolute;top:132px;left:72px;width:840px;height:76px;box-sizing:border-box;display:flex;align-items:center;gap:16px;padding:0 30px;background:#12161E;border:2px solid rgba(56,189,248,.55);border-radius:16px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(232,239,246,.5)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16.2 16.2l4.3 4.3"/></svg>
+      <span style="font-size:26px;color:#E8EEF5">你好<span style="display:inline-block;width:2px;height:30px;background:#7DD3FC;margin-left:6px;vertical-align:-4px"></span></span>
+    </div>
+    <div style="position:absolute;top:300px;left:72px;display:flex;gap:24px">
+      <span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span>
+    </div>
+    <div style="position:absolute;top:576px;left:72px;display:flex;gap:24px">
+      <span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span>
+    </div>
+  </div>
+
+  <!-- 单板直出（2026-11-14 拍板）：铺满底部全宽 1920×392，键区 + 跨屏输入分区同板、无分隔线 -->
+  <section style="position:absolute;left:0;bottom:0;width:1920px;height:392px;box-sizing:border-box;background:#12161E;border-top:1px solid rgba(255,255,255,.08);box-shadow:0 -16px 40px rgba(0,0,0,.45)">
+    <!-- 键区（候选栏 + 4 行键区，排版与 20261110 一致） -->
+    <div style="position:absolute;top:20px;left:48px;width:1378px">
+      <!-- 候选栏：中文组合态示意（决策 1 不显示拼音串、决策 30 chips 无常亮高亮；占位几何恒定 决策 41/42）。候选栏单行（FR-A15「更多」废止）：按候选词 = 上屏；左右翻页箭头固定于候选框两侧（< > 字符样式、装饰暗示、不进焦点链），能翻页方向提亮（#E8EEF5）、不能翻页变暗（35% 白）；行尾按[右]翻页、行首按[左]回翻；翻页后焦点落页首第一候选；空格 = 选当前页第一候选；本页为首页：< 暗、> 亮 -->
+      <div style="height:52px;display:flex;align-items:center;gap:10px">
+        <span aria-hidden="true" style="flex:none;width:28px;text-align:center;font-size:30px;font-weight:700;color:rgba(232,239,246,.35);line-height:1">&lt;</span>
+        <span style="box-sizing:border-box;height:40px;padding:0 20px;display:flex;align-items:center;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:10px;font-size:20px;color:#E8EEF5">你好</span>
+        <span style="box-sizing:border-box;height:40px;padding:0 20px;display:flex;align-items:center;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:10px;font-size:20px;color:#E8EEF5">你号</span>
+        <span style="box-sizing:border-box;height:40px;padding:0 20px;display:flex;align-items:center;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:10px;font-size:20px;color:#E8EEF5">你哈</span>
+        <span style="box-sizing:border-box;height:40px;padding:0 20px;display:flex;align-items:center;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:10px;font-size:20px;color:#E8EEF5">尼好</span>
+        <span style="box-sizing:border-box;height:40px;padding:0 20px;display:flex;align-items:center;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:10px;font-size:20px;color:#E8EEF5">你</span>
+        <span aria-hidden="true" style="flex:1"></span>
+        <span aria-hidden="true" style="flex:none;width:28px;text-align:center;font-size:30px;font-weight:700;color:#E8EEF5;line-height:1">&gt;</span>
+      </div>
+      <div style="position:relative;width:1378px;margin-top:14px">
+        <div class="krow">
+          <button class="bkey">1</button><button class="bkey">2</button><button class="bkey">3</button>
+          <div class="kspacer"></div>
+          <button class="bkey">A</button><button class="bkey">B</button><button class="bkey">C</button><button class="bkey">D</button><button class="bkey">E</button><button class="bkey">F</button><button class="bkey">G</button>
+          <div class="kspacer"></div>
+          <button class="bkey bkey-fn" aria-label="分词：组合态内切分拼音（如 xi'an），选词后不上屏；无组合态时忽略">分词</button>
+          <button class="bkey bkey-fn" aria-label="下屏，收起键盘"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="11" rx="2"/><path d="M6.5 7.5h.01M10 7.5h.01M13.5 7.5h.01M17 7.5h.01" stroke-width="2"/><path d="M6.5 11.5h11"/><path d="M8 17.5l4 3.5 4-3.5" stroke-width="2.2"/></svg></button>
+        </div>
+        <div class="krow" style="margin-top:10px">
+          <button class="bkey">4</button><button class="bkey">5</button><button class="bkey">6</button>
+          <div class="kspacer"></div>
+          <button class="bkey">H</button><button class="bkey">I</button><button class="bkey">J</button><button class="bkey">K</button><button class="bkey">L</button><button class="bkey">M</button><button class="bkey">N</button>
+          <div class="kspacer"></div>
+          <button class="bkey bkey-fn bkey-st" aria-label="中英文切换，当前为中文"><span class="st st-on">中</span><span class="st-sep">/</span><span class="st">英</span></button>
+          <button class="bkey bkey-fn" aria-label="删除"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8.5 5h11A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-11L3 12z"/><path d="M11.5 9.5l5 5"/><path d="M16.5 9.5l-5 5"/></svg></button>
+        </div>
+        <div class="krow" style="margin-top:10px">
+          <button class="bkey">7</button><button class="bkey">8</button><button class="bkey">9</button>
+          <div class="kspacer"></div>
+          <button class="bkey">O</button><button class="bkey">P</button><button class="bkey">Q</button><button class="bkey">R</button><button class="bkey">S</button><button class="bkey">T</button><button class="bkey">U</button>
+          <div class="kspacer"></div>
+          <button class="bkey bkey-fn">123_!</button>
+        </div>
+        <div class="krow" style="margin-top:10px">
+          <button class="bkey bkey-fn">.com</button><button class="bkey">0</button><button class="bkey">@</button>
+          <div class="kspacer"></div>
+          <button class="bkey">V</button><button class="bkey">W</button><button class="bkey">X</button><button class="bkey">Y</button><button class="bkey">Z</button><button class="bkey" aria-label="光标左移"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button><button class="bkey" aria-label="光标右移"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+          <div class="kspacer"></div>
+          <button class="bkey" style="font-size:18px">空格</button>
+        </div>
+        <!-- 完成键：跨两行，样式与普通键一致（不高亮） -->
+        <button class="bkey" style="position:absolute;left:1278px;top:148px;width:100px;height:138px;font-size:22px">完成</button>
+      </div>
+    </div>
+
+    <!-- 跨屏输入区（引导 · 未连接；并入板右分区，无分隔线；说明文字放大 2026-11-14 户主：标题 20→24、状态行 14→17、三步指引 13→17 + 序号圆 22→26、按钮 18→20、按钮下提示 12→14） -->
+    <aside style="position:absolute;top:24px;bottom:24px;left:1506px;width:366px;box-sizing:border-box;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7DD3FC" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3z"/><path d="M20.5 14v.01M20.5 17.5v.01M17 20.5h3.5M14 20.5v.01" stroke-linecap="round"/></svg>
+        <span style="font-size:24px;font-weight:700;color:#F2F6FB">跨屏输入</span>
+      </div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+        <span style="width:8px;height:8px;border-radius:50%;background:rgba(232,239,246,.35)"></span>
+        <span style="font-size:17px;color:rgba(232,239,246,.55)">未连接</span>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5);color:#7DD3FC;font-size:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">1</span><span style="font-size:17px;color:rgba(232,239,246,.75)">手机与电视连接同一 Wi-Fi</span></div>
+        <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5);color:#7DD3FC;font-size:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">2</span><span style="font-size:17px;color:rgba(232,239,246,.75)">点按「远程输入」出示二维码</span></div>
+        <div style="display:flex;align-items:center;gap:12px"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5);color:#7DD3FC;font-size:14px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">3</span><span style="font-size:17px;color:rgba(232,239,246,.75)">手机扫码，即可远程打字</span></div>
+      </div>
+      <button class="bkey" style="margin-top:auto;width:100%;height:52px;background:#1D242F;border:1px solid rgba(255,255,255,.06);color:#E8EEF5;font-size:20px" aria-label="进入远程输入模式">远 程 输 入</button>
+      <div style="margin-top:10px;font-size:14px;color:rgba(232,239,246,.45)">进入后：左侧显示手机输入内容，此卡变为二维码</div>
+    </aside>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

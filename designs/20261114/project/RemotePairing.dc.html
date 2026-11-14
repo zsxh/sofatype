@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>远程模式 · 等待扫码（配对卡）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+.bkey{all:unset;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;background:#1D242F;border-radius:12px;color:#E8EEF5;cursor:pointer}
+.bkey:hover{background:#242C39}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <!-- 宿主应用示意（抽象布景 · 不代表具体应用） -->
+  <div aria-hidden="true" style="position:absolute;top:0;left:0;width:1920px;height:1080px">
+    <div style="position:absolute;top:48px;left:72px;display:flex;align-items:center;gap:16px">
+      <span style="display:block;width:36px;height:36px;border-radius:10px;background:#12161E;border:1px solid rgba(255,255,255,.08)"></span>
+      <span style="font-size:24px;font-weight:700;color:rgba(232,239,246,.8)">示例应用</span>
+    </div>
+    <div style="position:absolute;top:132px;left:72px;width:840px;height:76px;box-sizing:border-box;display:flex;align-items:center;gap:16px;padding:0 30px;background:#12161E;border:2px solid rgba(56,189,248,.55);border-radius:16px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(232,239,246,.5)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16.2 16.2l4.3 4.3"/></svg>
+      <span style="font-size:26px;color:rgba(232,239,246,.4)">搜索影视、应用</span>
+      <span style="display:block;width:2px;height:36px;background:#7DD3FC"></span>
+    </div>
+    <div style="position:absolute;top:300px;left:72px;display:flex;gap:24px">
+      <span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span>
+    </div>
+    <div style="position:absolute;top:576px;left:72px;display:flex;gap:24px">
+      <span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span><span style="display:block;flex:none;width:170px;height:240px;border-radius:12px;background:#10151D;border:1px solid rgba(255,255,255,.05)"></span>
+    </div>
+  </div>
+
+  <!-- 远程模式单板直出（2026-11-14 拍板）：铺满底部全宽 1920×392（与键盘板高一致），远程模式区 + 二维码区同板、无分隔线；二维码随板高自适应（376→316） -->
+  <section style="position:absolute;left:0;bottom:0;width:1920px;height:392px;box-sizing:border-box;background:#12161E;border-top:1px solid rgba(255,255,255,.08);box-shadow:0 -16px 40px rgba(0,0,0,.45)">
+    <!-- 远程模式区（状态行 + 大字区 + 底部提示，排版与 20261110 一致） -->
+    <div style="position:absolute;top:28px;left:48px;width:1444px;bottom:24px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:8px;height:8px;border-radius:50%;background:#38BDF8"></span>
+        <span style="font-size:20px;font-weight:500;color:#F2F6FB">等待手机扫码</span>
+        <!-- [退出远程] 为远程模式默认焦点键（决策 50） -->
+        <button class="bkey" style="margin-left:auto;width:120px;height:52px;font-size:18px;background:rgba(56,189,248,.28);border:1px solid rgba(56,189,248,.5);color:#E8EEF5" aria-label="退出远程模式（默认焦点）">退出远程</button>
+      </div>
+      <div style="margin-top:96px;display:flex;align-items:center;gap:4px"></div>
+      <div style="position:absolute;left:0;right:0;bottom:4px;font-size:18px;color:rgba(232,239,246,.45)">在手机上打字，内容将实时显示在这里；手机端点「上屏」后写入电视输入框</div>
+    </div>
+
+    <!-- 二维码配对区（决策 4/32：整卡面 = 二维码 + 网址一行；并入板右分区，无分隔线） -->
+    <aside style="position:absolute;top:24px;left:1556px;width:316px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:10px">
+      <img src="/_blob/8ac5bbbc1ce3543366b0306d5d346302" alt="跨屏输入配对二维码" style="width:316px;height:316px;flex:none;display:block;border-radius:32px">
+      <div style="font-size:12px;line-height:16px;color:#7DD3FC;letter-spacing:.2px;white-space:nowrap">http://10.0.2.15:41373/?token=_9qnJovtFV5T2fxr14yn7g</div>
+    </aside>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

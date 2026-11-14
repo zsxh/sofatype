@@ -24,7 +24,7 @@
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务状态（逐任务以 TASKS 状态行为准）：T1~T66 全部收口归档（closed），通过/归档明细见各 closed issue。进行中**无**。
+- 任务状态（逐任务以 TASKS 状态行为准）：T1~T66 全部收口归档（closed），通过/归档明细见各 closed issue；T68 已立项未开工（2026-11-14 户主拍板键盘单板直出改版、指示只建 issue 暂不实现，明细见 open/T68 与 PRD 决策 58）。
 - 设备态：**sofatype 已装机且为默认输入法**（default_input_method=sofatype；过夜空闲期搜狗夺回形态见遗留观察与设备档案坑 5）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；真机无线 adb 连接态保持（192.168.1.210:5555 device，未 kill-server），后续真机批次可直接复用现装机。
 - 遗留观察（挂账，不影响功能）：
   - 设置页 BACK 退出沿 default_input_method 被夺回搜狗（2026-11-13 真机批次 3/3 稳定复现，坑 5 同族，机制未查明、ime set 即恢复）。
