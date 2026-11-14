@@ -18,8 +18,13 @@
 //（40px 文本 + 超宽滚动末尾 + 青色光标；候选栏/键区随显隐切换）；完整远程模式状态机随 T17。
 // T16 接线：上屏闭环（FR-B6/C6 · 决策 9/10）——Manager.onCommitRequested 注册上屏写入：
 // commit 在电视输入框光标处插入（不覆盖其余文字，有选中区间替换该区间，InputConnection
-// commitText 框架语义）；写入成功 Manager 停服（清缓冲 + token 作废），
-// 大字区随 onRemoteTextChanged(null) 隐藏回键盘态、副卡配对卡随之清空（R-4 自动收起远程）。
+// commitText 框架语义）；~~写入成功 Manager 停服，大字区随 onRemoteTextChanged(null) 隐藏
+// 回键盘态、副卡配对卡随之清空（R-4 自动收起远程）~~（→ 被 T70 · 决策 59 取代：写入成功
+// 不再停服，WS 连接与远程模式保持——大字区随 onRemoteTextChanged(null) 清空回等待输入态，
+// 远程模式框架与状态行「已连接」保持，手机端可继续编辑再次上屏；退出回键盘态沿既有停服回调链）。
+// T70 接线（决策 59 · 上屏保活的远程模式渲染适配）：上屏成功的大字区清空经既有
+// onRemoteTextChanged(null) 回调承载（renderRemoteText 只清内容、不动模式显隐），
+// 退出回键盘态沿既有 stop 回调链路；本层无新增分支——保活语义全部收口在 Manager。
 // T17 接线：引导副卡与跨屏状态机（FR-B1/B2/B9 · 决策 32/33/34）——副卡三卡面整卡切换
 //（引导卡 GUIDE / 配对卡 PAIRING / 已连接卡面 CONNECTED，RemoteUiState 由 Manager 可观测值推导）；
 // 引导卡「远程输入」主按钮启动服务进入远程模式（FR-B2），主卡切远程模式框架（FR-B3：
@@ -358,8 +363,9 @@ class SofatypeImeService : InputMethodService() {
         //（Manager 保证回调在主线程；键盘重建后旧视图引用随回调闭包失效，此处重新绑定）
         renderRemoteText(RemoteInputServerManager.remoteTextSnapshot())
         RemoteInputServerManager.onRemoteTextChanged = { renderRemoteText(it) }
-        // T16 上屏写入（FR-B6）：commit 经 Manager 主线程派发，写入结果决定回执与停服；
-        // 键盘重建后旧闭包随引用失效，此处重新绑定（与 onRemoteTextChanged 同口径）
+        // T16 上屏写入（FR-B6）：commit 经 Manager 主线程派发，写入结果决定回执；
+        // T70（决策 59）：成功不再触发停服——Manager 回执后清缓冲并通知本层清大字区，
+        // 远程模式与连接保持；键盘重建后旧闭包随引用失效，此处重新绑定（与 onRemoteTextChanged 同口径）
         RemoteInputServerManager.onCommitRequested = { text -> commitRemoteText(text) }
         // T25 空闲自动退出（第 8 章电量资源）：远程模式空闲（无手机连接）满阈值时 Manager 走
         // stop() 既有完整清理链路（通知手机 / 关监听 / 清 token·缓冲·设备名，主卡随停服回调
@@ -609,14 +615,16 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 远程上屏写入（T16 · FR-B6/C6 · 决策 9/10）：把手机上屏内容写入电视输入框光标处。
-     * commitText 框架语义即满足 R-3 口径：无选中区间 = 光标处插入、不覆盖其余已有文字；
-     * 有选中区间 = 替换该区间。写入前先落定本地组合串（finishComposingText）：
-     * 组合串是 IME 自身挂起的编辑区，不先落定会与上屏文本在光标处交叠；随后组合态复位。
+     * 远程上屏写入（T16 · FR-B6/C6 · 决策 9/10 · T70 决策 59 保活适配）：把手机上屏内容写入
+     * 电视输入框光标处。commitText 框架语义即满足 R-3 口径：无选中区间 = 光标处插入、
+     * 不覆盖其余已有文字；有选中区间 = 替换该区间。写入前先落定本地组合串
+     *（finishComposingText）：组合串是 IME 自身挂起的编辑区，不先落定会与上屏文本在光标处
+     * 交叠；随后组合态复位。会话保持下连续上屏（决策 59）重复走本函数：每次写入都落在
+     * 「当前焦点输入连接」的光标处——焦点切到另一输入框后，IC 随输入会话切换、内容落新框。
      * 候选栏显隐不在此重算（T17：远程模式候选栏由 renderRemoteUi 驱动保持隐藏，防止重算把
      * 空态占位顶出来压低状态行；退出远程回键盘态时由 renderRemoteUi 按无组合态重算清空 chips）。
-     * 返回 true = 已写入（Manager 据此回执并停服）；
-     * false = 无焦点输入框或写入异常（远程模式保持，手机端提示失败）。
+     * 返回 true = 已写入（Manager 据此回执并清缓冲，不停服——决策 59）；
+     * false = 无焦点输入框或写入异常（远程模式与缓冲保持，手机端提示失败可重试）。
      * 任何异常吞掉不外抛（可靠性口径：不得阻塞宿主应用）；内容不入日志（隐私红线）。
      */
     private fun commitRemoteText(text: String): Boolean {

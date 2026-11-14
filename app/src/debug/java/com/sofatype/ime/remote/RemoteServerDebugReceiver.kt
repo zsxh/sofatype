@@ -23,6 +23,9 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
             // T18 · 决策 21 口径 debug 走查通道：模拟「运行中网络丢失后恢复」，走真实判定与重建路径
             //（模拟器 eth0 默认网络无法经 shell 注销，真实回调触发随 T19 真机验证）
             ACTION_SIMULATE_NETWORK_CHANGE -> RemoteInputServerManager.debugNetworkChange()
+            // T70 · 决策 21 口径 debug 走查通道：模拟「已连接无活动超时」到期，走真实判定与
+            // 停服清理路径（活动回拨一个完整窗口后立即到期，正式 10 分钟阈值不改动）
+            ACTION_SIMULATE_CONNECTED_IDLE_EXPIRE -> RemoteInputServerManager.debugConnectedIdleExpire()
             ACTION_STATUS -> {
                 val url = RemoteInputServerManager.addressUrl()
                 val pairingUrl = RemoteInputServerManager.pairingUrl()
@@ -50,5 +53,8 @@ class RemoteServerDebugReceiver : BroadcastReceiver() {
 
         /** T18 debug 走查通道：模拟网络丢失后恢复，触发真实判定与重建路径。 */
         const val ACTION_SIMULATE_NETWORK_CHANGE = "com.sofatype.ime.debug.action.SIMULATE_NETWORK_CHANGE"
+
+        /** T70 debug 走查通道：模拟「已连接无活动超时」到期，触发真实判定与停服清理路径。 */
+        const val ACTION_SIMULATE_CONNECTED_IDLE_EXPIRE = "com.sofatype.ime.debug.action.SIMULATE_CONNECTED_IDLE_EXPIRE"
     }
 }

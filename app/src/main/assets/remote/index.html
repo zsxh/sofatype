@@ -5,6 +5,10 @@
      清空发 clear 同步 TV（FR-C5）；单次上限 200 字符（state.charLimit 下发），达限停输入并轻提示（FR-C7）。
      T16 · 上屏闭环（FR-C6 · 决策 10）：内容非空「上屏」可点，空内容置灰不可点；点击发 commit { text }，
      收到 TV 回执 committed { ok:true } 后草稿清空并轻提示「已上屏」；ok:false 提示失败可重试。
+     T70 · 上屏保活（FR-C6 · 决策 59 修订决策 10 / R-4）：TV 端上屏成功不再拆会话——
+     committed { ok:true } 后草稿清空提示「已上屏」，WS 连接保持、textarea 保持可输入态，
+     可直接继续编辑（input 照常实时推送）并再次上屏；ok:false 提示失败可重试不变。
+     本页 JS 行为无改动：保活由 TV 端保持连接承载，本页既有「清草稿 + 提示 + 输入态不关」实现即满足。
      T35 · 被顶替（FR-B11 / 决策 35）：收 replaced 后状态行「连接已被替换」，关闭后不被覆盖。
      T24 · 未连接引导页（FR-C9）：hello 被拒（state connected:false + 4001，token 缺失 / 无效 /
      已使用 / 会话超期遗留）→ 整页未连接引导呈现，提示重新扫码；输入面禁用（引导页为唯一内容面）。
@@ -668,7 +672,8 @@
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (!msg || !msg.type) { return; }
-      /* T16 · FR-B6/C6：TV 上屏回执——成功：草稿清空 + 提示「已上屏」（决策 10 / R-4）；
+      /* T16 · FR-B6/C6：TV 上屏回执——成功：草稿清空 + 提示「已上屏」（决策 59 修订决策 10 / R-4：
+         TV 端不停服，连接保持，清空后可继续编辑再次上屏）；
          失败：草稿保留，提示可重试（TV 端无焦点输入框等写入失败场景） */
       if (msg.type === 'committed') {
         if (msg.ok) {

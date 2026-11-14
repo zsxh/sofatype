@@ -9,7 +9,8 @@
 // 本层是唯一的 android.* 依赖面：地址收集（ConnectivityManager / NetworkInterface）、TV 名与日志。
 // T16 增量（FR-B6/C6 · 决策 9/10）：commit 上屏闭环——commit 经主线程交给 IME 写入
 //（onCommitRequested → InputConnection 光标处插入），写入结果经 ack 回发 committed 给手机端；
-// 写入成功即 stop()：关服务、清缓冲、自动收起远程模式回键盘态（FR-B6 / R-4）。
+// ~~写入成功即 stop()：关服务、清缓冲、自动收起远程模式回键盘态（FR-B6 / R-4）~~
+//（→ 被决策 59 / T70 取代：写入成功不再停服，见下方 T70 增量）。
 // T17 增量（FR-B9 / 决策 32/34）：配对成功经 onPaired 驻留 hello.deviceName（会话内存，
 // 停止即清、不持久化、不入日志）并通知 UI 刷新状态机。
 // T35 增量（决策 35 · FR-B11 提前 / FR-B8 修订）：token 滚动签发——配对成功即签发新 token
@@ -41,6 +42,21 @@
 //  排程在主线程（mainHandler.postDelayed），任何线程的进入/解除统一 post 到主线程串行化；
 //  到期回调以任务身份比对作废陈旧排程（同 T22 连删 job 模式），并以运行态 + 已配对会话
 //  复核竞态（连接与到期同刻竞争时不误退）。
+// T70 增量（决策 59 · 远程输入上屏保活）：
+// ① commit 上屏成功不再 stop()——处置收口 RemoteCommitAftermath（单一事实源）：回执
+//  committed { ok:true } 后清空远程缓冲并经主线程通知 UI（大字区清空、远程模式与连接保持，
+//  状态行保持「已连接」）；写入失败路径不变（远程模式与缓冲保持，手机端提示失败可重试）。
+//  停服仅由显式退出（FR-B7）、空闲到期、网络重建触发。
+// ② 新增「已连接无活动」空闲跟踪（判定单一事实源 RemoteConnectedIdlePolicy，正式 10 分钟）：
+//  连接保持期间无任何 WS 消息收发满阈值 → 走既有 [stop] 完整清理链路（先向手机回发
+//  disconnect { reason:"tv-exit" } 再按 1000 关连接后停服，FR-B7 通知链）+ onRemoteIdleExpired
+//  收起键盘。活动口径 = 已配对会话上的协议消息收发（onPaired / onRemoteInput / onRemoteClear /
+//  onRemoteCommit 处登记）；排程沿用主线程 post 串行化 + 任务身份比对（T22/T25 模式），
+//  到期以运行态 + 已配对会话复核竞态（断连与到期同刻不误退，回退交 T25 无连接空闲口径）。
+//  与 T25「无手机连接」30 分钟空闲并存互不干扰：有连接看本跟踪，无连接看 T25。
+//  验证通道 debugConnectedIdleExpire()（决策 21 debug 门控）：活动时刻回拨一个完整窗口后
+//  立即到期，走与真实到期完全相同的判定与清理路径（正式阈值不改动）。
+// ③ 断连清缓冲、回等待扫码卡、网络重建、token 滚动签发等既有链路不改。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -367,6 +383,7 @@ object RemoteInputServerManager {
             sessionControls.clear()
             pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
             cancelIdleExit() // T25：远程模式结束，撤销空闲退出排程（手动退出 / 上屏停服 / 空闲到期自退共用）
+            cancelConnectedIdleWatch() // T70：远程模式结束，撤销「已连接无活动」排程（幂等）
             instance.stop()
             Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
             // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态。
@@ -410,6 +427,7 @@ object RemoteInputServerManager {
             }
             pairedDeviceName = deviceName
             cancelIdleExit() // T25：手机已连接即退出空闲（空闲口径 = 无手机连接，连接期间不判空闲）
+            markRemoteActivity() // T70：配对成功 = 首次 WS 活动，已连接无活动窗口自此起算
         }
         mainHandler.post { onPairingStateChanged?.invoke() }
     }
@@ -444,6 +462,9 @@ object RemoteInputServerManager {
             Log.i(TAG, "已配对连接断开，回等待扫码态（配对码仍有效）")
             // T25：回到「无手机连接」态，空闲窗口自断开时刻重新起算
             armIdleExit(System.currentTimeMillis())
+            // T70：已配对会话已结束，「已连接无活动」窗口一并解除（断连不触发该超时退出，
+            // 回退交 T25 无连接空闲口径）
+            cancelConnectedIdleWatch()
             mainHandler.post {
                 // R2（评审建议 3 采纳）：延迟任务带时效快照——停服 / 新提示已覆盖该截止值时，
                 // 到期任务不再重复清零与重渲染（快速断连-重连-再断连窗口不误清新提示）
@@ -463,36 +484,48 @@ object RemoteInputServerManager {
 
     /** input 消息（WS 读线程）：缓冲兜底限长后经主线程通知 UI；内容不入日志（隐私红线）。 */
     private fun onRemoteInput(text: String) {
+        markRemoteActivity() // T70：业务消息到达 = WS 活动，已连接无活动窗口重新起算
         val stored = remoteBuffer.set(text)
         mainHandler.post { onRemoteTextChanged?.invoke(stored) }
     }
 
     /** clear 消息（WS 读线程）：清缓冲并通知 UI 回空态。 */
     private fun onRemoteClear() {
+        markRemoteActivity() // T70：业务消息到达 = WS 活动，已连接无活动窗口重新起算
         remoteBuffer.clear()
         mainHandler.post { onRemoteTextChanged?.invoke(null) }
     }
 
     /**
-     * commit 消息（T16 · FR-B6/C6，WS 读线程；T18 异步化重写）：主线程只执行 IME 上屏写入，
-     * 回执与停服移交 teardown 线程串行执行——
+     * commit 消息（T16 · FR-B6/C6，WS 读线程；T18 异步化 · T70 决策 59 保活重写）：
+     * 主线程只执行 IME 上屏写入，回执移交 teardown 线程串行执行——
      * ① IME 在电视输入框光标处插入（onCommitRequested；null = 键盘侧未就绪，按失败处理）；
-     * ② 写入结果经 ack 回发 committed { ok } 给手机端（成功后手机清草稿并提示「已上屏」）；
-     * ③ 写入成功即 [stop]：先向手机回发 disconnect 通知（验收 2：TV 退出提示手机），随后
-     *    停服关监听、清缓冲，TV 端自动收起远程模式回键盘态（R-4）。
-     * 时序保证：ack 先于 stop、帧序 committed → disconnect，由单线程 teardown + 各连接
-     * 单线程 ConnectionWriter 保住；主线程不再同步等待回执写完成（T16 评审遗留「上限 2s
-     * 阻塞主线程」评估项，本任务落地异步化）。
-     * 写入失败（无焦点输入框）保持远程模式与缓冲，手机端提示失败可重试。
+     * ② 处置结论收口 [RemoteCommitAftermath]（决策 59 单一事实源）：写入结果经 ack 回发
+     *    committed { ok } 给手机端；
+     * ③ 写入成功：**不再停服**（决策 59 废止 R-4 自动收起）——回执后清空远程缓冲并经主线程
+     *    通知 UI 清大字区；WS 连接与远程模式保持、状态行保持「已连接」，手机端清草稿提示
+     *    「已上屏」后可继续编辑、再次上屏（多输入框表单只扫一次码，内容落当前焦点输入框）；
+     * ④ 写入失败：缓冲与远程模式保持，手机端提示失败可重试（FR-C6 既有口径不变）。
+     * 停服仅由显式退出（FR-B7）、空闲到期（T25 / T70）、网络重建触发。
+     * 时序保证：ack 先于缓冲清理与 UI 通知（单线程 teardown 顺序执行）；
+     * 主线程不同步等待回执写完成（T18 既有异步化口径不变）。
      * 内容不入日志（隐私红线）。
      */
     private fun onRemoteCommit(text: String, ack: (Boolean) -> Unit) {
+        markRemoteActivity() // T70：commit 到达 = WS 活动，已连接无活动窗口重新起算
         mainHandler.post {
             val ok = onCommitRequested?.invoke(text) ?: false
+            val aftermath = RemoteCommitAftermath.of(ok)
             teardown.execute {
-                ack(ok) // 回执必须先于 stop：stop 关闭连接后回发不可达
-                if (ok) {
-                    stop()
+                ack(aftermath.acknowledge) // 回执先行：手机端据此清草稿 / 提示失败
+                if (aftermath.clearRemoteBuffer) {
+                    // 上屏成功（决策 59）：TV 端立即清远程缓冲回等待输入态（大字区随 UI 通知清空，
+                    // 远程模式框架与状态行不动）；缓冲清空与 UI 通知回主线程派发（主线程契约）
+                    remoteBuffer.clear()
+                    mainHandler.post { onRemoteTextChanged?.invoke(null) }
+                }
+                if (aftermath.stopService) {
+                    stop() // 决策 59 后两分支恒 false；保留分支使停服决策收口于处置模型
                 }
             }
         }
@@ -572,6 +605,93 @@ object RemoteInputServerManager {
         Log.i(TAG, "远程模式空闲超时（无手机连接），自动退出并收起键盘")
         stop()
         mainHandler.post { onRemoteIdleExpired?.invoke() }
+    }
+
+    // ---- T70 · 已连接无活动自动退出（决策 59 · 第 8 章电量与资源行） ----
+
+    /**
+     * 已连接无活动判定模型（单一事实源）：正式阈值 10 分钟
+     * （RemoteConnectedIdlePolicy.DEFAULT_CONNECTED_IDLE_TIMEOUT_MS，验证允许临时缩短、验后恢复；
+     * debug 验证通道 debugConnectedIdleExpire 走活动回拨，不改动正式阈值）。
+     * 状态变更仅发生在主线程（见 markRemoteActivity / cancelConnectedIdleWatch 的 post 收口），无锁。
+     */
+    private val connectedIdlePolicy = RemoteConnectedIdlePolicy()
+
+    /** 在途「已连接无活动」到期任务（仅主线程读写；null = 无排程）。到期经身份比对作废（T22/T25 模式）。 */
+    private var connectedIdleJob: Runnable? = null
+
+    /**
+     * 登记一次已配对会话上的 WS 消息收发（T70，任意线程可调，统一 post 到主线程串行化）：
+     * 活动时刻记入 [connectedIdlePolicy]，窗口重新起算并重排到期任务（排满阈值）。
+     * 服务已停 / 无已配对会话（断连竞态）不排程——前者无跟踪意义，后者回退交 T25 无连接口径。
+     */
+    private fun markRemoteActivity() {
+        mainHandler.post {
+            if (!isRunning()) return@post
+            connectedIdlePolicy.onActivity(System.currentTimeMillis())
+            if (!pairedSessions.hasPairedSession) return@post
+            scheduleConnectedIdleCheck(connectedIdlePolicy.connectedIdleTimeoutMs)
+        }
+    }
+
+    /** 重排「已连接无活动」到期任务（仅主线程调用）：旧任务身份作废，新任务延迟 [delayMs] 执行。 */
+    private fun scheduleConnectedIdleCheck(delayMs: Long) {
+        connectedIdleJob?.let { mainHandler.removeCallbacks(it) }
+        val job = object : Runnable {
+            override fun run() {
+                onConnectedIdleDeadlineReached(this)
+            }
+        }
+        connectedIdleJob = job
+        mainHandler.postDelayed(job, delayMs)
+    }
+
+    /** 解除「已连接无活动」跟踪（T70）：会话断开 / 远程模式结束时调用；幂等，任意线程可调。 */
+    private fun cancelConnectedIdleWatch() {
+        mainHandler.post {
+            connectedIdlePolicy.onSessionEnded()
+            connectedIdleJob?.let { mainHandler.removeCallbacks(it) }
+            connectedIdleJob = null
+        }
+    }
+
+    /**
+     * 已连接无活动到期检查（T70，主线程）：任务身份比对不在途 → 忽略；窗口判定未满阈值 → 忽略
+     * （窗口状态与排程不一致的防御）；复核运行态与已配对会话（断连与到期同刻竞争时不得误退，
+     * 断连清理与回退由断连链路 / T25 口径负责）→ 命中则走 [stop] 既有完整清理链路
+     *（先向手机回发 disconnect { reason:"tv-exit" } 再按 1000 关连接后停服，FR-B7 通知链），
+     * 并经主线程通知 IME 收起键盘。
+     */
+    private fun onConnectedIdleDeadlineReached(job: Runnable) {
+        if (connectedIdleJob !== job) return
+        connectedIdleJob = null
+        if (!connectedIdlePolicy.shouldExit(System.currentTimeMillis())) return
+        val paired = synchronized(this) { pairedSessions.hasPairedSession }
+        if (!isRunning() || !paired) return
+        Log.i(TAG, "已连接无活动超时（决策 59），自动退出并收起键盘")
+        stop()
+        mainHandler.post { onRemoteIdleExpired?.invoke() }
+    }
+
+    /**
+     * 已连接无活动超时的 debug 验证通道（T70 · 决策 21 口径，仅 debug 构建可达）：把活动时刻
+     * 回拨一个完整窗口并立即排程到期——走与真实到期完全相同的身份比对 / 窗口判定 / 运行态与
+     * 已配对会话复核 / [stop] 清理链（通知手机 tv-exit + 1000 关连接 + 停服 + 收起键盘），
+     * 正式 10 分钟阈值不改动；验后无需恢复。无已配对会话时忽略（该态归 T25 无连接口径）。
+     */
+    fun debugConnectedIdleExpire() {
+        if (!BuildConfig.DEBUG) {
+            Log.w(TAG, "已连接无活动模拟入口仅 debug 构建可用（决策 21）")
+            return
+        }
+        mainHandler.post {
+            if (!isRunning() || !pairedSessions.hasPairedSession) {
+                Log.i(TAG, "已连接无活动模拟忽略：无已配对会话")
+                return@post
+            }
+            connectedIdlePolicy.onActivity(System.currentTimeMillis() - connectedIdlePolicy.connectedIdleTimeoutMs)
+            scheduleConnectedIdleCheck(0L)
+        }
     }
 
     // ---- T18 · 网络变化自动重建（Q2 lead 拍板 A · PRD 5.3「二维码 IP 失效时自动重建服务并刷新二维码」） ----
