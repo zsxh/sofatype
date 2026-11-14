@@ -25,6 +25,9 @@
      ③b R2 修复：配对被拒（state connected:false + 4001）的「配对失败…请重新扫码」文案
        在 onclose 后保持，不被断连覆盖（T14/T15 口径回归）。
      ④ 页面卸载（关闭 / 刷新前）best-effort 发送 disconnect { reason }（PRD 第 7 章 disconnect 双向）。
+     T69 · 编辑面原生可见（FR-C3 长按粘贴修复）：废止「透明输入层 + 自绘回显」双层面——textarea
+       作为唯一编辑面原生可见（长按出系统粘贴/选择菜单、光标可点选定位文字中间），原显示层降级为
+       隐藏镜像，仅用于未聚焦态末尾假光标定位（聚焦后隐藏、原生插入符接管）；推送/钳制/清空口径不变。
      JS 口径（微信内置浏览器初测 O-4）：ES5 语法 + 通用 API，无 URLSearchParams / 箭头函数 / 模板字符串；
      字符按 Unicode 码点处理（emoji 不拆散）；不使用任何持久化存储。 -->
 <html lang="zh-CN">
@@ -159,7 +162,11 @@
       padding: 20px;
       cursor: text;
     }
+    /* T69 · 编辑内容镜像：不可见（visibility:hidden 保持排版），仅用于测量文字末尾坐标、
+       定位未聚焦假光标；字体规格与 .ghost-input 逐项一致（22px/34px w500、同 word-break、
+       同内容宽 299px），测量才对位。滚动随输入层同步（positionCursor） */
     .editor-content {
+      visibility: hidden;
       font-size: 22px;
       font-weight: 500;
       color: var(--text-primary);
@@ -167,12 +174,13 @@
       word-break: break-word;
       white-space: pre-wrap;
       min-height: 34px;
-      /* 200 字满卡时卡内滚动（卡固定 342×336，PRD 6.3；正文不溢出卡外） */
+      /* 200 字满卡时镜像与输入层同步滚动（卡固定 342×336，PRD 6.3） */
       max-height: 100%;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    /* 末尾光标（画板：2×26px accent 圆角 1，与文字间隙 3px） */
+    /* 镜像内联末尾标记（T69）：JS 读其坐标落到 .fake-cursor 呈现；规格 = 画板 2×26 accent 圆角 1、
+       与文字间隙 3px（margin-left 承担） */
     .cursor {
       display: inline-block;
       width: 2px;
@@ -182,6 +190,16 @@
       background: var(--accent);
       border-radius: 1px;
     }
+    /* T69 · 未聚焦态末尾光标：绝对定位落在镜像标记坐标；聚焦后隐藏让位原生插入符 */
+    .fake-cursor {
+      position: absolute;
+      width: 2px;
+      height: 26px;
+      background: var(--accent);
+      border-radius: 1px;
+      pointer-events: none;
+      z-index: 1;
+    }
     .char-counter {
       position: absolute;
       right: 16px;
@@ -189,6 +207,8 @@
       font-size: 12px;
       color: var(--text-muted-40);
       z-index: 1;
+      /* T69：计数为展示件，不拦截输入层点击/长按 */
+      pointer-events: none;
     }
     /* 达限轻提示（FR-C7）：卡内顶部居中浮现，不挤压布局 */
     .limit-hint {
@@ -209,8 +229,9 @@
       z-index: 2;
     }
     .limit-hint.show { opacity: 1; }
-    /* 唤起系统键盘的透明输入层：铺满编辑卡，点击即聚焦（FR-C3）；
-       font-size 16px 防 iOS 聚焦缩放；文字与插入符透明（内容由上方卡面渲染） */
+    /* T69 · 输入层（FR-C3）：铺满编辑卡的唯一编辑面，原生可见——长按出系统粘贴/选择菜单、
+       光标可点选定位。视觉按 PRD 6.3 复刻：22px/34px w500、text-primary 文字、accent 插入符、
+       内边距 20px 与卡一致；font-size ≥16px 防 iOS 聚焦缩放；表单控件不继承字体，显式 inherit */
     .ghost-input {
       position: absolute;
       top: 0;
@@ -219,14 +240,18 @@
       height: 100%;
       margin: 0;
       border: 0;
-      padding: 0;
+      padding: 20px;
       background: transparent;
-      color: transparent;
-      caret-color: transparent;
-      opacity: 0;
-      font-size: 16px;
+      color: var(--text-primary);
+      caret-color: var(--accent);
+      font-family: inherit;
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 34px;
+      word-break: break-word;
       outline: none;
       resize: none;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* 删除 / 清空（PRD 6.3 手机次级按钮 165×56 圆角 14 key 底 文字 15px） */
@@ -381,7 +406,8 @@
     </div>
 
     <div class="editor-card" id="editor-card">
-      <div class="editor-content" id="editor-scroll"><span id="content-text"></span><span class="cursor" aria-hidden="true"></span></div>
+      <div class="editor-content" id="editor-scroll"><span id="content-text"></span><span class="cursor" id="cursor-marker" aria-hidden="true"></span></div>
+      <span class="fake-cursor" id="fake-cursor" aria-hidden="true"></span>
       <div class="char-counter" id="char-counter">0 / 200</div>
       <div class="limit-hint" id="limit-hint" role="status" aria-live="polite"></div>
       <textarea class="ghost-input" id="ghost-input" rows="3" aria-label="远程输入内容"
@@ -434,7 +460,9 @@
 
     function byId(id) { return document.getElementById(id); }
     var contentEl = byId('content-text');
-    var scrollEl = byId('editor-scroll'); // 卡内滚动容器（.editor-content div；inline span 无 scrollTop）
+    var scrollEl = byId('editor-scroll'); // 编辑内容镜像（visibility:hidden；测量末尾坐标用）
+    var cursorEl = byId('cursor-marker'); // 镜像内联末尾标记（坐标来源）
+    var fakeCursorEl = byId('fake-cursor'); // 未聚焦态末尾光标
     var counterEl = byId('char-counter');
     var hintEl = byId('limit-hint');
     var inputEl = byId('ghost-input');
@@ -473,13 +501,27 @@
     }
 
     function render() {
+      /* T69：值相等不赋值，保留原生光标位置（超限截断时才落值，光标随截断回末尾） */
+      if (inputEl.value !== text) { inputEl.value = text; }
       contentEl.textContent = text;
       counterEl.textContent = codePointLength(text) + ' / ' + charLimit;
       // T16 · FR-C6：空内容上屏置灰不可点；非空恢复可点（disabled 元素天然不触发 click）
       commitBtn.disabled = codePointLength(text) === 0;
-      // 卡内滚动跟随末尾（滚动容器 = .editor-content；末字符与光标保持可见）
-      scrollEl.scrollTop = scrollEl.scrollHeight;
+      positionCursor();
     }
+
+    /* T69 · 未聚焦态末尾假光标：镜像滚动随输入层同步，读镜像标记坐标落到 .fake-cursor；
+       聚焦时隐藏假光标，原生插入符接管（可点选定位、长按选择）。焦点切换即时切换形态 */
+    function positionCursor() {
+      scrollEl.scrollTop = inputEl.scrollTop;
+      var r = cursorEl.getBoundingClientRect();
+      var c = cardEl.getBoundingClientRect();
+      fakeCursorEl.style.left = (r.left - c.left) + 'px';
+      fakeCursorEl.style.top = (r.top - c.top) + 'px';
+      fakeCursorEl.style.display = (document.activeElement === inputEl) ? 'none' : 'block';
+    }
+    inputEl.addEventListener('focus', positionCursor);
+    inputEl.addEventListener('blur', positionCursor);
 
     /* FR-C4：每次编辑立即推送（input 全量文本）；断连期间静默（重连随 T18） */
     function pushInput() {
@@ -504,8 +546,8 @@
       }
     }
 
-    /* FR-C3：点击卡片任意位置唤起系统键盘（透明输入层已铺满卡片，此处兜底聚焦）；
-       T18：电视已退出后输入禁用，点击不再聚焦 */
+    /* FR-C3：点击卡片任意位置唤起系统键盘（T69：输入层即可见编辑面，铺满卡片；此兜底覆盖
+       点击落在卡描边等未命中 textarea 的情形）；T18：电视已退出后输入禁用，点击不再聚焦 */
     cardEl.addEventListener('click', function () {
       if (exited) { return; }
       inputEl.focus();
@@ -530,16 +572,17 @@
       var chars = toChars(text);
       chars.pop();
       text = chars.join('');
-      inputEl.value = text;
       render();
       pushInput();
+      /* T69：按钮改值后原生不自动滚动，手动跟随末尾（镜像坐标随 positionCursor 同步） */
+      inputEl.scrollTop = inputEl.scrollHeight;
+      positionCursor();
     });
 
     /* FR-C5：清空全部内容，同步 clear 消息（TV 端同时移除，无需二次确认） */
     clearBtn.addEventListener('click', function () {
       if (!text) { return; }
       text = '';
-      inputEl.value = '';
       render();
       pushClear();
     });
@@ -630,7 +673,6 @@
       if (msg.type === 'committed') {
         if (msg.ok) {
           text = '';
-          inputEl.value = '';
           render();
           showHint('已上屏');
         } else {

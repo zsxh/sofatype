@@ -24,7 +24,7 @@
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务状态（逐任务以 TASKS 状态行为准）：T1~T68 全部收口归档（closed，2026-11-14 T67 / T68 验收归档），通过/归档明细见各 closed issue。
+- 任务状态（逐任务以 TASKS 状态行为准）：T1~T69 全部收口归档（closed，2026-11-14 T69 手机 H5 长按粘贴修复随批验收归档），通过/归档明细见各 closed issue。
 - 设备态：**sofatype 已装机且为默认输入法**（default_input_method=sofatype；过夜空闲期搜狗夺回形态见遗留观察与设备档案坑 5）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；2026-11-14 户主指令关机真机：`adb shell reboot -p` 实测未关机（等同重启、设备回在线），关机改由户主遥控执行——下次真机批次先 `adb connect 192.168.1.210:5555`（HOME 用 `.MiTV4-adbhome`）。
 - 遗留观察（挂账，不影响功能）：
   - 设置页 BACK 退出沿 default_input_method 被夺回搜狗（2026-11-13 真机批次 3/3 稳定复现，坑 5 同族，机制未查明、ime set 即恢复）。
@@ -35,7 +35,6 @@
   - WS 配对成功后已连接 UI 切换有秒级延迟（首帧约 3.5s 未切、约 6s 帧已切；renderRemoteUi 未被 T65 触碰，T65 走查发现，如需查证另立任务）。
   - 换网段子分支与安卓 Chrome 走查户主拍板不测（issue T19）。
   - TestTypingActivity exported=true（沿 T2 走查先例，第三方可显式拉起调试页；debug 门控、风险低，2026-11-13 review-qa 建议挂账，走查通道收敛时拍板是否收紧，issue T63 审查记录）。
-  - 模拟器 `/data/local/tmp` 约 100 个历史走查遗留文件（2026-11-13 review-qa 报备，非本轮产物；按文件名前缀列清单经户主确认后分批删，DEV-GUIDE 口径；2026-11-14 户主指令暂缓清理）。
   - 设置页 BACK finish 退出后 27ms 出现一次新实例即时重建（2026-11-14 T67 真机批次，此后语义全正确；疑似坑 8 家族注入病理 artifact，下次真机批次复测，明细见 closed/T67）。
 
 ## 关键决策速查（全文以 PRD 第 12 章为准）

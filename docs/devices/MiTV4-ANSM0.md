@@ -190,6 +190,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **补充（2026-11-12，真机批次 review-qa 实测）**：默认 IME 为 sofatype 时同型复现——新进程 `am start` 自动弹出 **sofatype 键盘**（a 键初始焦点），行为同族；副卡（跨屏输入卡）随键盘窗口可见。
 
+**补充（2026-11-14，T69 真机批次实测）**：同轮 `am start` 设置页**未**自动弹键盘（一轮未复现）——走查改走 [测试打字] 页经输入框焦点弹键盘后副卡可见；该坑非必现，走查计划不依赖自动弹键盘。
+
 ### 坑 19：无线 adb 断连新形态——网络层通但 adbd 会话僵死（2026-11-12，真机批次 review-qa 实测）
 
 **现象**：15:16 起设备 `offline`：Mac 侧 ping 电视 0% 丢包（网络层通）、TCP 可连，但 `adb devices` 恒 offline；`adb kill-server` + 多轮 disconnect/connect（间隔 30s~90s）约 8 分钟不恢复，15:25 前后自行恢复为 `device`（恢复瞬间伴随部分服务进程 inode 更换，系统未整机重启）。与坑 8「偶发 offline 断连，`adb connect` 即恢复」不同型——本型 connect 不恢复、需等待。
