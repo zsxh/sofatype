@@ -154,11 +154,17 @@ class T65KeyFaceDefaultsTest {
             shiftIcon.contains("android:strokeWidth=\"2\""),
         )
         val dimens = mainSource("res/values/dimens.xml")
-        assertTrue("⇧ 图标须 32px（决策 46-④：24→32px）", dimens.contains("<dimen name=\"ime_icon_shift\">16dp</dimen>"))
+        // 图标尺寸随 T68 · 决策 58 视觉基准 designs/20261114 重定（26px，原 32px 废止）；
+        // 触发态语义（图标亮青 + 下划线条）不回归（决策 47-①）
+        assertTrue("⇧ 图标须 26px（T68 画板 SVG 尺寸）", dimens.contains("<dimen name=\"ime_icon_shift\">13dp</dimen>"))
         assertTrue(
-            "⇧ 触发态短条 36×3px（画板 trig-bar）",
-            dimens.contains("<dimen name=\"ime_shift_underline_width\">18dp</dimen>") &&
+            "⇧ 触发态短条 30×3px（T68 画板 trig-bar）",
+            dimens.contains("<dimen name=\"ime_shift_underline_width\">15dp</dimen>") &&
                 dimens.contains("<dimen name=\"ime_state_underline_height\">1.5dp</dimen>"),
+        )
+        assertTrue(
+            "状态键当前态下划线 2px（T68 画板 st-on thickness:2px，与 ⇧ 3px 短条分列）",
+            dimens.contains("<dimen name=\"ime_state_char_underline_height\">1dp</dimen>"),
         )
         val underline = mainSource("res/drawable/bg_key_underline.xml")
         assertTrue(
@@ -373,7 +379,8 @@ class T65KeyFaceDefaultsTest {
             hideIcon.contains("M8,17.5 L12,21 L16,17.5") && hideIcon.contains("android:strokeWidth=\"2.2\""),
         )
         val dimens = mainSource("res/values/dimens.xml")
-        assertTrue("下屏图标键面 30px（画板 SVG 尺寸）", dimens.contains("<dimen name=\"ime_icon_hide\">15dp</dimen>"))
+        // 图标尺寸随 T68 · 决策 58 视觉基准重定（24px，原 30px 废止）；图标语义不回归（决策 46-⑤）
+        assertTrue("下屏图标键面 24px（T68 画板 SVG 尺寸）", dimens.contains("<dimen name=\"ime_icon_hide\">12dp</dimen>"))
     }
 
     @Test

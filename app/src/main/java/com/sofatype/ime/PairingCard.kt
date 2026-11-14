@@ -1,12 +1,12 @@
-// T14/T35 · 配对卡视图装配（FR-B4 / 决策 4 / 决策 35）：
-// 等待扫码态：副卡整卡 = 配对二维码（376×376，圆角 38）+ 下方访问地址一行，地址与二维码内容一致
-//（同源 pairingUrl，含一次性 token），二维码下方不显示其他文案（决策 4）。
-// 已连接态（决策 35）：二维码卡保留，二维码为配对成功后滚动签发的新 token 有效码，
+// T14/T35/T68 · 配对二维码分区装配（FR-B4 / 决策 4 / 决策 35 / 决策 58，画板 RemotePairing/
+// RemoteConnected 20261114）：
+// 等待扫码态：二维码分区整区 = 配对二维码（316×316 随板高自适应，圆角 32）+ 下方访问地址一行，
+// 地址与二维码内容一致（同源 pairingUrl，含一次性 token），二维码下方不显示其他文案（决策 4）。
+// 已连接态（决策 35）：二维码分区保留，二维码为配对成功后滚动签发的新 token 有效码，
 // 下方网址行**原位换成**绿点状态行「已连接 · 设备名」（决策 32 独立已连接卡面废止）；
-// 决策 4 只约束等待态配对卡。几何依据（决策 35）：548 = 40×2 + 376 + 10 + 22，余量 60px，
-// 单行状态行直接放得下。
+// 决策 4 只约束等待态配对卡。
 // 规格全部走 Token（dimens.xml / colors.xml）；二维码黑模块白底为扫码对比度所需
-//（画板⑤ 二维码资产同形），属功能性用色，不入主题 Token 方案（不新增配色方案）。
+//（画板资产同形），属功能性用色，不入主题 Token 方案（不新增配色方案）。
 package com.sofatype.ime
 
 import android.content.Context
@@ -30,8 +30,12 @@ object PairingCard {
     /** 二维码无障碍标注（画板⑤ img alt 原文）。 */
     private const val QR_CONTENT_DESCRIPTION = "跨屏输入配对二维码"
 
-    /** 地址行字号自适应下限（sp）：token 拼入后地址变长，基准字号放不下时逐步缩小，守「一行 + 地址一致」。 */
-    private const val URL_MIN_TEXT_SP = 6
+    /**
+     * 地址行字号自适应下限（sp）：token 拼入后地址变长，基准字号放不下二维码分区内容宽时逐步缩小，
+     * 守「一行 + 地址一致」。T68 分区宽 316px + 基准 12px 下典型 URL 超 ~1 字符宽（Android 字形
+     * 比画板字体宽，模拟器实测整行裁尾），下限自 6sp 放宽到 5sp 让自适应收缩生效；基准字号仍 12px。
+     */
+    private const val URL_MIN_TEXT_SP = 5
 
     /** 二维码模块色 / 静区底色：黑模块白底（扫码对比度所需，画板⑤ 资产同形）。 */
     private const val QR_MODULE_COLOR = Color.BLACK
@@ -63,7 +67,7 @@ object PairingCard {
             setImageBitmap(renderQrBitmap(pairingUrl, qrSizePx))
             contentDescription = QR_CONTENT_DESCRIPTION
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-            // FR-B4 圆角 38px（Token = ime_card_corner）：轮廓裁剪实现
+            // FR-B4 圆角 32px（T68 Token = ime_qr_corner）：轮廓裁剪实现
             clipToOutline = true
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
@@ -104,8 +108,8 @@ object PairingCard {
             maxLines = 1
             gravity = Gravity.CENTER
             setTextColor(context.getColor(R.color.accent_text))
-            // 画板⑤ 地址行 letter-spacing .5px @22px ≈ 0.023em（em 相对字号，缩字号后按比例生效）
-            letterSpacing = 0.023f
+            // 画板 RemotePairing 地址行 letter-spacing .2px @12px ≈ 0.017em（em 相对字号，缩字号后按比例生效）
+            letterSpacing = 0.017f
             // 未挂载视图必须有 LayoutParams 再 measure（T10 坑口径）
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -140,16 +144,16 @@ object PairingCard {
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { marginStart = context.resources.getDimensionPixelSize(R.dimen.ime_remote_status_gap) },
+            ).apply { marginStart = context.resources.getDimensionPixelSize(R.dimen.ime_pairing_status_text_gap) },
         )
         return row
     }
 
-    /** 二维码圆角半径 px（FR-B4 圆角 38 = 悬浮卡片圆角 Token）。 */
+    /** 二维码圆角半径 px（T68 · 决策 58 画板 RemotePairing 圆角 32px = Token ime_qr_corner）。 */
     private fun cornerRadiusPx(context: Context): Float =
-        context.resources.getDimension(R.dimen.ime_card_corner)
+        context.resources.getDimension(R.dimen.ime_qr_corner)
 
-    /** BitMatrix → 位图：白底黑模块（376×376 ARGB_8888，一次性渲染成本约 14 万像素写入）。 */
+    /** BitMatrix → 位图：白底黑模块（316×316 ARGB_8888，一次性渲染成本约 10 万像素写入）。 */
     private fun renderQrBitmap(content: String, sizePx: Int): Bitmap {
         val matrix = QrCodeEncoder.encode(content, sizePx)
         val bitmap = Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
@@ -164,13 +168,13 @@ object PairingCard {
 
     /**
      * 地址一行自适应（FR-B4「地址与二维码内容一致」+ 决策 4「网址一行」）：
-     * 基准字号（Token 11sp）测量放不下副卡内容宽时按 1px 步进缩小（下限 [URL_MIN_TEXT_SP] sp），
-     * 不换行、不截断。正常 IP 长度下保持基准字号，不触发缩小。
+     * 基准字号（Token 6sp，T68 · 决策 58 画板 12px）测量放不下二维码分区内容宽时按 1px 步进缩小
+     *（下限 [URL_MIN_TEXT_SP] sp），不换行、不截断。正常 IP 长度下保持基准字号，不触发缩小。
      */
     private fun fitUrlTextSize(context: Context, view: TextView) {
         val basePx = context.resources.getDimensionPixelSize(R.dimen.ime_pairing_url_text)
         val minPx = spToPx(context, URL_MIN_TEXT_SP.toFloat())
-        val available = context.resources.getDimensionPixelSize(R.dimen.ime_side_card_width) -
+        val available = context.resources.getDimensionPixelSize(R.dimen.ime_qr_zone_width) -
             2 * context.resources.getDimensionPixelSize(R.dimen.ime_pairing_padding)
         var sizePx = basePx.toFloat()
         while (sizePx > minPx) {

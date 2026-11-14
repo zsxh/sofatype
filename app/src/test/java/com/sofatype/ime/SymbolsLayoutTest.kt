@@ -255,7 +255,7 @@ class SymbolsLayoutTest {
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
             val backCol = navigator(width).positionsOf(SymbolsLayout.BACK_ID).single()
             assertEquals("返回键应位于第二行（决策 3）", 2, backCol.first)
-            assertEquals("返回键应位于功能列 col11（画板③）", 11, backCol.second)
+            assertEquals("返回键应位于功能列 col11（画板 20261114）", 11, backCol.second)
         }
     }
 
@@ -418,20 +418,20 @@ class SymbolsLayoutTest {
         assertTrue(normal.all { it.textSize == KeyTextSize.NORMAL })
     }
 
-    // ---- ⑤ 列节奏 x 原点断言（HANDOFF 模拟器坑 7 口径，随新布局补充） ----
+    // ---- ⑤ 列节奏 x 原点断言（T68 · 决策 58 画板 designs/20261114 口径） ----
 
     /** 键区水平排布口径（1080p px，与 KeyboardLayoutTest.cellOriginPxs 一致）：
-     *  键 80 + 键距 12；spacer 42 + 右侧键距 12（列间隔实宽 = 12+42+12 = 66px）。
-     *  返回每个 cell 的 x 原点（相对键区左缘；屏坐标 = +108px 键区偏移）。 */
+     *  键 96 + 键距 10；spacer 48 + 右侧键距 10（列间隔实宽 = 10+48+10 = 68px）。
+     *  返回每个 cell 的 x 原点（相对键区左缘；屏坐标 = +48px 键区列锚点）。 */
     private fun cellOriginPxs(row: KeyRow): List<Int> {
         val origins = mutableListOf<Int>()
         var x = 0
         for (cell in row.cells) {
             origins.add(x)
             x += when (cell) {
-                is Cell.KeyCell -> 80 + 12
-                Cell.Spacer -> 42 + 12
-                Cell.EmptyCell -> 80 + 12
+                is Cell.KeyCell -> 96 + 10
+                Cell.Spacer -> 48 + 10
+                Cell.EmptyCell -> 96 + 10
             }
         }
         return origins
@@ -439,19 +439,19 @@ class SymbolsLayoutTest {
 
     @Test
     fun columnRhythmMatchesArtboard() {
-        // 画板③ 列原点（相对键区）：数字列 0 / 符号列 330-882（col4-10）/
-        // 功能列 1028（屏 1136，= 浮层空格 1028）/ 图标列 1120（屏 1228，= 浮层完成键左缘）
+        // 画板（designs/20261114 Symbols*）列原点（相对键区）：数字列 0 / 符号列 376-1012（col4-10）/
+        // 功能列 1176（屏 1224，= 浮层空格左缘近邻）/ 图标列 1282（屏 1330，= 浮层完成键左缘）
         for (width in listOf(SymbolsWidth.FULL_WIDTH, SymbolsWidth.HALF_WIDTH)) {
             for (offset in 0..SymbolsLayout.MAX_WINDOW_OFFSET) {
                 val rows = SymbolsLayout.rows(width, offset)
                 val row1 = cellOriginPxs(rows[0])
-                assertEquals("符号区首键应落 col4 原点 330（$width offset=$offset）", 330, row1[4])
-                assertEquals("符号区末键应落 col10 原点 882", 882, row1[10])
-                assertEquals("全/半应在功能列原点 1028（与浮层空格同列线）", 1028, row1[12])
-                assertEquals("下屏应在图标列原点 1120（与浮层完成键左缘对齐）", 1120, row1[13])
+                assertEquals("符号区首键应落 col4 原点 376（$width offset=$offset）", 376, row1[4])
+                assertEquals("符号区末键应落 col10 原点 1012", 1012, row1[10])
+                assertEquals("全/半应在功能列原点 1176（与浮层空格同列线近邻）", 1176, row1[12])
+                assertEquals("下屏应在图标列原点 1282（与浮层完成键左缘近邻）", 1282, row1[13])
                 val row2 = cellOriginPxs(rows[1])
-                assertEquals("返回应在功能列原点 1028", 1028, row2[12])
-                assertEquals("删除应在图标列原点 1120", 1120, row2[13])
+                assertEquals("返回应在功能列原点 1176", 1176, row2[12])
+                assertEquals("删除应在图标列原点 1282", 1282, row2[13])
                 // 与字母键盘同构：行 1/2 列原点逐位一致（数字列/符号区/两道列间隔/功能区全同节奏）
                 assertEquals("符号行 1 与字母行 1 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[0]), row1)
                 assertEquals("符号行 2 与字母行 2 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[1]), row2)
@@ -469,8 +469,8 @@ class SymbolsLayoutTest {
                     lettersRow4.take(4),
                     cellOriginPxs(rows[3]).take(4),
                 )
-                assertEquals("行 4 符号区首键应落 col4 原点 330", 330, cellOriginPxs(rows[3])[4])
-                assertEquals("行 4 符号区末键应落 col10 原点 882", 882, cellOriginPxs(rows[3])[10])
+                assertEquals("行 4 符号区首键应落 col4 原点 376", 376, cellOriginPxs(rows[3])[4])
+                assertEquals("行 4 符号区末键应落 col10 原点 1012", 1012, cellOriginPxs(rows[3])[10])
             }
         }
     }

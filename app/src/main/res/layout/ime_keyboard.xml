@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  T5 · 键盘悬浮层静态布局（画板①「字母键盘·小写」/ FR-A2 / 决策 7 R-1）。
-  根容器 = 覆盖区 322dp：停靠屏幕底部，透明底透出宿主内容（悬浮卡片形态）。
-  主卡 = 候选栏占位 + 键盘区（数字列/字母区/功能键区）+ 远程模式框架（T17 · FR-B3 / 决策 33：
-  状态行 + 大字折行区 + 底部提示 + 「退出远程」，默认 GONE）；键帽由 KeyboardLayout
-  模型驱动程序化生成（SofatypeImeService），跨两行完成键也在代码中挂载到键区。
-  副卡 = 跨屏引导/配对/已连接三卡面容器（T17 · 决策 32，卡面内容由服务层装配，FR-B1/B4/B9）。
-  主/副卡均含底部柔影垫层（PRD 6.3「黑 55% 模糊 30」的近似实现，见 bg_card_shadow）。
+  T68 · 键盘单板直出布局（决策 58，视觉基准 designs/20261114 画板；T5 双悬浮卡片形态废止）。
+  根容器 = 窗口覆盖区（板高 392px + 上方柔影带）：板体（bg_panel：card 底 + 顶缘 1px 描边）
+  铺满屏幕底部全宽直出，柔影带画在板外上方透出宿主内容。
+  板内容三区并排（无分隔线，非独立卡片）：
+  ① 键区列（左锚 48px/顶 20px，宽 1378px）= 候选栏占位 + 4 行键区；键帽由 KeyboardLayout /
+     SymbolsLayout 模型驱动程序化生成（SofatypeImeService），跨两行浮层键（完成/空格）也在代码中挂载；
+  ② 远程模式区（左锚 48px/顶 28px，宽 1444px）：状态行 + 大字折行区 + 底部提示 +「退出远程」
+     （T17 · FR-B3 / 决策 33，默认 GONE），进入远程模式时替代键区列显示；
+  ③ 右分区（右锚 48px）：跨屏引导分区（宽 366px，FR-B1）/ 配对二维码分区（宽 316px，FR-B4 ·
+     决策 32，二维码随板高自适应），卡面内容由服务层装配并按卡面切换分区几何。
   全部色值/规格走 Token（colors.xml / dimens.xml），本文件不出现字面值。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -15,44 +18,30 @@
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- 卡片行：主卡 + 副卡，贴底排布 -->
-    <LinearLayout
+    <!-- 板体（含柔影垫层包装：柔影带在板体外上方，靠外层 clipChildren=false 放行） -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="@dimen/ime_card_margin_bottom"
         android:clipChildren="false"
-        android:clipToPadding="false"
-        android:orientation="horizontal"
-        android:paddingStart="@dimen/ime_card_margin_h"
-        android:paddingEnd="@dimen/ime_card_margin_h">
+        android:clipToPadding="false">
 
-        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行 -->
+        <!-- 向上柔影带（画板 box-shadow 0 -16px 40px 的垫层近似，bg_panel_shadow 渐变） -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/ime_panel_shadow_height"
+            android:layout_gravity="top"
+            android:background="@drawable/bg_panel_shadow" />
+
+        <!-- 单板：card 底 + 顶缘 1px 描边，全宽 392px 铺底直出 -->
         <FrameLayout
-            android:id="@+id/main_card_wrap"
-            android:layout_width="@dimen/ime_main_card_width"
-            android:layout_height="@dimen/ime_card_height"
-            android:clipChildren="false">
-
-            <!-- 底部柔影（PRD 6.3 黑 55% 模糊 30 的垫层近似，画板① 柔影层）：垫在卡体之下 -->
-            <View
-                android:id="@+id/main_card_shadow"
-                android:layout_width="@dimen/ime_card_shadow_width"
-                android:layout_height="@dimen/ime_card_shadow_height"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_card_shadow" />
-
-            <!-- 主卡：候选栏 + 展开行（T11，默认 GONE）+ 键盘区 -->
-            <LinearLayout
-                android:id="@+id/main_card"
-                android:layout_width="@dimen/ime_main_card_width"
-                android:layout_height="@dimen/ime_card_height"
-                android:background="@drawable/bg_card"
-                android:clipChildren="false"
-                android:orientation="vertical"
-                android:paddingStart="@dimen/ime_card_padding_h"
-                android:paddingTop="@dimen/ime_card_padding_v"
-                android:paddingEnd="@dimen/ime_card_padding_h">
+            android:id="@+id/ime_panel"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/ime_panel_height"
+            android:layout_gravity="bottom"
+            android:background="@drawable/bg_panel"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
             <!-- 候选词栏（T10 · FR-A7；T66 · 决策 53 单行行内翻页：chips + 两端 < > 翻页箭头
                  （装饰件，服务层程序化生成），「更多⌄」展开行机制废止（FR-A15 删除，more_bar 移除）。
@@ -63,19 +52,26 @@
                  远程模式候选栏显隐由服务层 renderRemoteUi 驱动（T17） -->
             <LinearLayout
                 android:id="@+id/candidates_bar"
-                android:layout_width="match_parent"
+                android:layout_width="@dimen/ime_key_zone_width"
                 android:layout_height="@dimen/ime_candidates_height"
+                android:layout_marginStart="@dimen/ime_panel_padding_h"
+                android:layout_marginTop="@dimen/ime_panel_padding_top"
                 android:orientation="horizontal" />
 
-            <!-- 远程模式主卡框架（T17 · FR-B3 / 决策 33，画板⑤）：状态行（点 + 状态文字 + 来自·设备名 +
-                 「退出远程」按钮）+ 40px 大字自动折行区（T33 决策 31 口径不变）+ 底部提示。
-                 进入远程模式时显示（候选栏/键区隐藏），退出（上屏成功自动收起 / 「退出远程」/ 服务停止）回键盘态；
+            <!-- 远程模式区（T17 · FR-B3 / 决策 33，画板 RemotePairing/RemoteConnected）：
+                 状态行（点 + 状态文字 + 来自·设备名 + 「退出远程」按钮）+ 40px 大字自动折行区
+                 （T33 决策 31 口径不变）+ 底部提示。进入远程模式时显示（候选栏/键区隐藏），
+                 退出（上屏成功自动收起 / 「退出远程」/ 服务停止）回键盘态；
                  状态行三态（未连接灰 / 等待扫码青 / 已连接绿，FR-B9）由服务层依状态机刷新。默认 GONE。 -->
             <LinearLayout
                 android:id="@+id/remote_mode_area"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginStart="@dimen/ime_panel_padding_h"
+                android:layout_marginTop="@dimen/ime_remote_zone_margin_top"
+                android:layout_marginEnd="@dimen/ime_remote_zone_margin_end"
+                android:layout_marginBottom="@dimen/ime_remote_zone_margin_bottom"
+                android:baselineAligned="false"
                 android:orientation="vertical"
                 android:visibility="gone">
 
@@ -136,7 +132,7 @@
                     android:layout_weight="1"
                     android:scrollbars="none">
 
-                    <!-- 折行文本（宽度 = 卡内容区宽，无 maxLines 自动折行；末尾光标为文本尾 Span） -->
+                    <!-- 折行文本（宽度 = 分区内容宽，无 maxLines 自动折行；末尾光标为文本尾 Span） -->
                     <TextView
                         android:id="@+id/remote_text"
                         android:layout_width="match_parent"
@@ -145,25 +141,28 @@
                         android:textSize="@dimen/ime_remote_text_size"
                         android:letterSpacing="0.025" />
                 </ScrollView>
+
+                <!-- 远程模式底部提示（T17 · FR-B3 原文，文案由服务层装载；画板提示距分区底 4px） -->
+                <TextView
+                    android:id="@+id/remote_bottom_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="2dp"
+                    android:textColor="@color/text_hint"
+                    android:textSize="@dimen/ime_remote_hint_text"
+                    android:visibility="gone" />
             </LinearLayout>
 
-            <!-- 远程模式主卡底部提示（T17 · FR-B3 原文，文案由服务层装载），随远程模式显隐 -->
-            <TextView
-                android:id="@+id/remote_bottom_hint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_hint"
-                android:textSize="@dimen/ime_remote_hint_text"
-                android:visibility="gone" />
-
-            <!-- 键盘区：4 行键（模型驱动）+ 跨两行完成键（代码挂载） -->
+            <!-- 键盘区：4 行键（模型驱动）+ 跨两行浮层键（代码挂载）+ T64 行步进暗示箭头；
+                 顶距板顶 86px 恒定（候选栏占位恒在 + 静态边距，决策 42） -->
             <FrameLayout
                 android:id="@+id/key_area"
-                android:layout_width="@dimen/ime_key_area_width"
+                android:layout_width="@dimen/ime_key_zone_width"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
+                android:layout_marginStart="@dimen/ime_panel_padding_h"
                 android:layout_marginTop="@dimen/ime_key_area_margin_top"
-                android:clipChildren="false">
+                android:clipChildren="false"
+                android:clipToPadding="false">
 
                 <LinearLayout
                     android:layout_width="wrap_content"
@@ -205,30 +204,20 @@
                         android:orientation="horizontal" />
                 </LinearLayout>
             </FrameLayout>
-        </LinearLayout>
-        </FrameLayout>
 
-        <!-- 副卡（含柔影垫层）：跨屏三卡面容器（T17 · 决策 32）——引导卡（未连接，FR-B1）/
-             配对卡（等待扫码，T14 · FR-B4）/ 已连接卡面（FR-B9 / 决策 32）；卡面内容由服务层装配；
-             底对齐：主卡展开态加高时主/副卡保持底缘对齐（T11） -->
-        <FrameLayout
-            android:layout_width="@dimen/ime_side_card_width"
-            android:layout_height="@dimen/ime_card_height"
-            android:layout_gravity="bottom"
-            android:layout_marginStart="@dimen/ime_card_gap"
-            android:clipChildren="false">
-
-            <View
-                android:layout_width="@dimen/ime_side_card_shadow_width"
-                android:layout_height="@dimen/ime_card_shadow_height"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_card_shadow" />
-
+            <!-- 板内右分区（T68 · 决策 58：跨屏引导 / 配对二维码并入单板，无分隔线非独立卡片）：
+                 默认几何 = 引导分区（宽 366px、上下距板缘 24px）；配对/已连接卡面由服务层
+                 renderSideCard 切换为二维码分区几何（宽 316px、顶距板顶 24px、高度随内容）。 -->
             <FrameLayout
                 android:id="@+id/side_card"
-                android:layout_width="@dimen/ime_side_card_width"
-                android:layout_height="@dimen/ime_card_height"
-                android:background="@drawable/bg_card" />
+                android:layout_width="@dimen/ime_guide_zone_width"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:layout_marginTop="@dimen/ime_side_zone_margin_v"
+                android:layout_marginEnd="@dimen/ime_panel_padding_h"
+                android:layout_marginBottom="@dimen/ime_side_zone_margin_v"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
         </FrameLayout>
-    </LinearLayout>
+    </FrameLayout>
 </FrameLayout>

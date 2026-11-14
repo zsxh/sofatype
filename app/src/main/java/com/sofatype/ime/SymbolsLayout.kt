@@ -23,7 +23,7 @@ object SymbolsLayout {
     /** 返回键 id（FR-A5：回到字母键盘）。 */
     const val BACK_ID = "back"
 
-    /** 空格键 id（画板③ 跨两行高键，决策 3）。 */
+    /** 空格键 id（画板 20261114 跨两行高键，决策 3）。 */
     const val SPACE_ID = "space"
 
     /** 完成键 id（跨两行高键，与空格对称，决策 3）。 */
@@ -41,10 +41,10 @@ object SymbolsLayout {
     /** 窗口偏移上限（0 起计）：显示窗顶行在真实矩阵中的行下标上限，边界外不越界。 */
     const val MAX_WINDOW_OFFSET = MATRIX_ROWS - VISIBLE_ROWS
 
-    /** 空格键格位（col11 跨行 3/4，画板③ ABS 1028,208 84×196）。 */
+    /** 空格键格位（col11 跨行 3/4，画板 20261114 ABS 1178,148 96×138）。 */
     val spaceKeyCells: List<Pair<Int, Int>> = listOf(3 to 11, 4 to 11)
 
-    /** 完成键格位（col12 跨行 3/4，画板③ ABS 1120,208 84×196）。 */
+    /** 完成键格位（col12 跨行 3/4，画板 20261114 ABS 1282,148 96×138）。 */
     val doneKeyCells: List<Pair<Int, Int>> = listOf(3 to 12, 4 to 12)
 
     /** 焦点导航浮层格位（空格/完成键跨行 3/4，供 FocusNavigator 构造）。 */
@@ -62,7 +62,7 @@ object SymbolsLayout {
     /** 键盘显示时的初始焦点格位：键区左上角（数字「1」）。 */
     val initialCell: Pair<Int, Int> = 1 to 1
 
-    /** 空格键（画板③：普通键帽样式 + 功能键字号，跨两行 84×196）。 */
+    /** 空格键（画板 20261114：普通键帽样式 + 功能键字号，跨两行 96×138）。 */
     val spaceKey: Key = Key(
         id = SPACE_ID,
         action = KeyAction.Space,
@@ -164,8 +164,8 @@ object SymbolsLayout {
         val windowed = matrixKeys(width).drop(windowOffset).take(VISIBLE_ROWS)
         return listOf(
             // 显示行 1：数字 1-3 ｜ 符号 7 ｜ 全/半 ｜ 下屏
-            // 符号区后的 Spacer 与字母键盘同构（画板③ kspacer）：全/半、下屏回位功能列 1028 / 图标列 1120，
-            // 与浮层空格（1028）/完成（1120）同列线（T29 回归修复口径延续）
+            // 符号区后的 Spacer 与字母键盘同构（画板 kspacer）：全/半、下屏回位功能列 1176 / 图标列 1282，
+            // 与浮层空格（1178 近邻）/完成（1282）同列线近邻（T29 回归修复口径延续）
             KeyRow(
                 digitCells('1', '3') + Cell.Spacer + symbolCells(windowed[0]) + Cell.Spacer +
                     listOf(toggleWidthKey(), hideKey()),

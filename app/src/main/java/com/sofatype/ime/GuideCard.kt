@@ -1,7 +1,8 @@
-// T17 · 引导副卡视图装配（FR-B1 / 决策 32「未连接」卡面，画板①「字母键盘」右侧副卡）：
-// 标题「跨屏输入」+ 图标；状态行（灰点 + 未连接）；三步指引（① 同一 Wi-Fi ② 点按「远程输入」
-// 出示二维码 ③ 手机扫码，即可远程打字）；底部「远程输入」主按钮（高 60px、accent-wash 底 +
-// border-accent 描边、文字 21px，PRD 6.3）；按钮下提示文案。
+// T17/T68 · 跨屏引导分区视图装配（FR-B1 / 决策 32「未连接」卡面 / 决策 58 单板右分区，
+// 画板 Main 20261114）：标题「跨屏输入」+ 图标；状态行（灰点 + 未连接）；三步指引
+//（① 同一 Wi-Fi ② 点按「远程输入」出示二维码 ③ 手机扫码，即可远程打字）；
+// 底部「远程输入」主按钮（高 52px、key 底无描边、文字 20px，T65 · 决策 47-② 非选中键样式一致）；
+// 按钮下提示文案。分区无内边距（T68 画板 aside 无 padding）。
 // 文案单一事实源在 RemoteUiText（单测锁定 FR-B1 原文）；规格全部走 Token（dimens/colors）。
 // 主按钮可聚焦、OK 触发（FR-A10 焦点口径 = bg_side_button 主色描边 + 提亮，PRD 6.4）；
 // 触发回调由服务层注入（启动服务 → 进入远程模式，FR-B2）。
@@ -160,13 +161,13 @@ object GuideCard {
             ).apply { topMargin = context.resources.getDimensionPixelSize(R.dimen.ime_guide_steps_margin_top) },
         )
 
-        // 弹性占位：把主按钮与提示压到卡底（画板① 按钮距卡底 92px / 提示距卡底 34px，含卡 padding 换算见 Token 注释）
+        // 弹性占位：把主按钮与提示压到分区底（画板 Main：按钮贴底、提示行随后 margin-top 10px）
         content.addView(
             View(context),
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
         )
 
-        // 主按钮（FR-B1「远程输入」/ PRD 6.3 高 60px 字 21px，画板「远 程 输 入」）；
+        // 主按钮（FR-B1「远程输入」，画板 Main 高 52px 字 20px，全分区宽）；
         // T65 · 决策 47-②：非选中键样式一致——无高亮（常态 key 底无描边，bg_side_button）、
         // 文字 #E8EEF5 字重 400（青字与 600 字重废止）；焦点态底形由 bg_side_button 承载（决策 50-②）
         val button = TextView(context).apply {

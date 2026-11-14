@@ -29,8 +29,9 @@
 // T36 接线：候选装载完成 debug 专用 trace（决策 22 · FR-A8 ≤200ms 直测）——onKeyDown 入口落
 // 计时起点，bindCandidates 完成处出耗时 trace（trace 内 BuildConfig.DEBUG 门控，release 静默，
 // 只记耗时与结构计数不含输入内容）。
-// T37 接线：候选行可用宽度口径改为刷新当轮（T12 坑 3）——candidatesAvailablePx 按主卡内容区宽
-// 计算（固定 Token 同源），不再读候选栏上一次布局遗留宽 bar.width，首行 chips 数不随上轮行内容漂移。
+// T37 接线：候选行可用宽度口径改为刷新当轮（T12 坑 3）——candidatesAvailablePx 读固定 Token 同源；
+// T68 · 决策 58 单板修订：候选栏宽 = 键区列宽静态 Token（父容器已是全宽板体，不再作可用宽来源），
+// 首行 chips 数不随上轮行内容漂移。
 // T22 接线：删除键长按连删（FR-A12「先慢后快」）——确认键按下命中删除键（主键盘 backspace /
 // 符号键盘 delete，两处同源 KeyAction.Delete）即武装连删排程：首删后 400ms 出第二删，其后间隔
 // 自 200ms 分级加速至 50ms 下限（节奏单一事实源 DeleteRepeatRhythm 纯模型，单测锁定；
@@ -256,7 +257,11 @@ class SofatypeImeService : InputMethodService() {
     /** 候选词栏引用（onCreateInputView 绑定；chips 由 refreshCandidatesBar 装载）。 */
     private var candidatesBar: LinearLayout? = null
 
-    /** 副卡容器（T17：跨屏三卡面容器，决策 32；卡面内容由 renderRemoteUi 依状态机装配）。 */
+    /**
+     * 板内右分区容器（T17 三卡面 + T68 · 决策 58 单板右分区）：跨屏引导分区（FR-B1）/
+     * 配对分区（T14 · FR-B4）/ 已连接分区（FR-B9 / 决策 32）；卡面内容由 renderRemoteUi
+     * 依状态机装配，分区几何随卡面切换（applySideZoneGeometry）。
+     */
     private var sideCard: FrameLayout? = null
 
     /** 远程模式主卡框架容器（T17 · FR-B3 / 决策 33）：状态行 + 大字折行区，随远程模式显隐。 */
@@ -396,13 +401,16 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 副卡三卡面装配（T17/T35 · 决策 32/35）：
-     * 未连接 → 引导卡（FR-B1）；等待扫码 → 配对卡整卡（FR-B4 / 决策 4，该卡面即等待态）；
-     * 已连接 → 二维码卡保留：二维码为配对成功后滚动签发的新 token 有效码，
+     * 副卡三卡面装配（T17/T35/T68 · 决策 32/35/58）：
+     * 未连接 → 引导分区（FR-B1）；等待扫码 → 配对二维码整分区（FR-B4 / 决策 4，该卡面即等待态）；
+     * 已连接 → 二维码分区保留：二维码为配对成功后滚动签发的新 token 有效码，
      * 网址行原位换成绿点状态行「已连接 · 设备名」（决策 32 独立已连接卡面废止）。
+     * 分区几何随卡面切换（T68 · 决策 58 单板右分区）：引导分区宽 366px 纵向撑满、
+     * 二维码分区宽 316px 顶部锚定高度随内容。
      */
     private fun renderSideCard(state: RemoteUiState) {
         val container = sideCard ?: return
+        applySideZoneGeometry(state.sideCardFace)
         guideButtonView = null
         when (state.sideCardFace) {
             RemoteSideCardFace.GUIDE -> showGuideFace(container)
@@ -411,7 +419,7 @@ class SofatypeImeService : InputMethodService() {
                 if (url != null) {
                     PairingCard.show(this, container, url)
                 } else {
-                    // 防御：运行中无配对地址（理论不可达）回引导卡，不留空卡
+                    // 防御：运行中无配对地址（理论不可达）回引导分区，不留空分区
                     showGuideFace(container)
                 }
             }
@@ -425,12 +433,39 @@ class SofatypeImeService : InputMethodService() {
                         statusLineText = RemoteUiText.connectedFaceText(state.deviceName),
                     )
                 } else {
-                    // 防御：运行中无配对地址（理论不可达，配对成功即滚动签发）回引导卡
+                    // 防御：运行中无配对地址（理论不可达，配对成功即滚动签发）回引导分区
                     showGuideFace(container)
                 }
             }
         }
         if (state.sideCardFace != RemoteSideCardFace.GUIDE) guideReturnKey = null
+    }
+
+    /**
+     * 板内右分区几何随卡面切换（T68 · 决策 58）：引导分区 = 宽 366px + 上下距板缘 24px 纵向撑满
+     *（画板 Main aside top/bottom 24px）；二维码分区 = 宽 316px + 顶距板顶 24px、高度随内容
+     *（画板 RemotePairing aside top 24px，二维码 316px 随板高自适应）。幂等可重复调用。
+     */
+    private fun applySideZoneGeometry(face: RemoteSideCardFace) {
+        val zone = sideCard ?: return
+        val lp = zone.layoutParams as? FrameLayout.LayoutParams ?: return
+        when (face) {
+            RemoteSideCardFace.GUIDE -> {
+                lp.width = resources.getDimensionPixelSize(R.dimen.ime_guide_zone_width)
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.topMargin = resources.getDimensionPixelSize(R.dimen.ime_side_zone_margin_v)
+                lp.bottomMargin = resources.getDimensionPixelSize(R.dimen.ime_side_zone_margin_v)
+                lp.gravity = Gravity.END or Gravity.FILL_VERTICAL
+            }
+            RemoteSideCardFace.PAIRING, RemoteSideCardFace.CONNECTED -> {
+                lp.width = resources.getDimensionPixelSize(R.dimen.ime_qr_zone_width)
+                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                lp.topMargin = resources.getDimensionPixelSize(R.dimen.ime_side_zone_margin_v)
+                lp.bottomMargin = 0
+                lp.gravity = Gravity.END or Gravity.TOP
+            }
+        }
+        zone.layoutParams = lp
     }
 
     /** 装配引导卡面（FR-B1）并捕获主按钮视图（焦点导航进出用）。 */
@@ -1043,9 +1078,11 @@ class SofatypeImeService : InputMethodService() {
 
     /**
      * 跨行浮层键绑定（绝对定位挂键区）：字母键盘 = 完成键；符号键盘 = 空格键 + 完成键
-     * （决策 3：跨行 3/4，col11/12，画板③ 84×196 对称）+ T64 行步进边界暗示箭头
-     * （下方还有真实行 = 显示第 4 行底部下箭头；上方还有真实行 = 显示第 1 行上方上箭头；
-     * 灰色装饰件、无障碍不标注、不进焦点链）。布局切换时先移除旧浮层视图。
+     * （决策 3：跨行 3/4，col11/12；T68 · 决策 58 画板 20261114 几何：字母完成键 100×138 @1278px、
+     * 符号空格 96×138 @1178px、符号完成键 96×138 @1282px，键区右缘 1378px）
+     * + T64 行步进边界暗示箭头（下方还有真实行 = 显示第 4 行底部下箭头；上方还有真实行 =
+     * 显示第 1 行上方上箭头；灰色装饰件、无障碍不标注、不进焦点链）。
+     * 布局切换时先移除旧浮层视图。
      */
     private fun bindOverlayKeys(root: View) {
         val keyArea = root.findViewById<FrameLayout>(R.id.key_area)
@@ -1053,27 +1090,28 @@ class SofatypeImeService : InputMethodService() {
             keyArea.removeView(view)
         }
         overlayViews.clear()
-        val overlays: List<Pair<Key, Int>> = when (keyboardMode) {
-            // 完成键：键区内偏移 1120px（T28 对齐口径）
-            KeyboardMode.LETTERS -> listOf(KeyboardLayout.doneKey to R.dimen.ime_done_key_start)
-            // 空格键：col11 原点 1028px；完成键：col12 原点 1120px
+        // 浮层键：键 + 键区内 x 偏移 Token + 键宽 Token（键高/顶距两板一致，共用浮层键 Token）
+        val overlays: List<Triple<Key, Int, Int>> = when (keyboardMode) {
+            KeyboardMode.LETTERS -> listOf(
+                Triple(KeyboardLayout.doneKey, R.dimen.ime_done_key_start, R.dimen.ime_done_key_width),
+            )
             KeyboardMode.SYMBOLS -> listOf(
-                SymbolsLayout.spaceKey to R.dimen.ime_space_key_start,
-                SymbolsLayout.doneKey to R.dimen.ime_done_key_start,
+                Triple(SymbolsLayout.spaceKey, R.dimen.ime_space_key_start, R.dimen.ime_space_key_width),
+                Triple(SymbolsLayout.doneKey, R.dimen.ime_symbols_done_key_start, R.dimen.ime_symbols_done_key_width),
             )
         }
-        for ((key, startRes) in overlays) {
+        for ((key, startRes, widthRes) in overlays) {
             val view = createKeyView(key)
             overlayViews.add(view)
             keyArea.addView(
                 view,
                 FrameLayout.LayoutParams(
-                    resources.getDimensionPixelSize(R.dimen.ime_done_key_width),
-                    resources.getDimensionPixelSize(R.dimen.ime_done_key_height),
+                    resources.getDimensionPixelSize(widthRes),
+                    resources.getDimensionPixelSize(R.dimen.ime_overlay_key_height),
                     Gravity.TOP or Gravity.START,
                 ).apply {
                     marginStart = resources.getDimensionPixelSize(startRes)
-                    topMargin = resources.getDimensionPixelSize(R.dimen.ime_done_key_top)
+                    topMargin = resources.getDimensionPixelSize(R.dimen.ime_overlay_key_top)
                 },
             )
         }
@@ -1222,7 +1260,9 @@ class SofatypeImeService : InputMethodService() {
             setOnFocusChangeListener { v, _ -> applyStateKeyAppearance(v) }
         }
         val textPx = resources.getDimension(R.dimen.ime_key_fn_text)
-        val barHeight = resources.getDimensionPixelSize(R.dimen.ime_state_underline_height)
+        // 状态键当前态下划线 2px（T68 画板 .st-on text-decoration-thickness:2px；与 ⇧ 触发态
+        // 3px 短条分列两 Token，见 ime_state_char_underline_height / ime_state_underline_height）
+        val barHeight = resources.getDimensionPixelSize(R.dimen.ime_state_char_underline_height)
         val barOffset = resources.getDimensionPixelSize(R.dimen.ime_state_underline_offset)
         val charOptions = listOf(options.first, options.second)
         charOptions.forEachIndexed { index, option ->
@@ -1283,10 +1323,10 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 上档键视图（T65 · 决策 47-① 触发态统一 / 决策 46-④）：⇧ 图标 32px + 图标下方 3px 短
-     * 下划线条（宽 36px、圆角 2px）；触发态（大写）= 图标亮青 + 下划线条可见（激活底色与描边
-     * 废止，bg 恒为 bg_key，焦点态由 selector 表达），未触发 = 图标功能键色、条隐藏
-     *（applyCaseState 刷新）。
+     * 上档键视图（T65 · 决策 47-① 触发态统一 / 决策 46-④；尺寸随 T68 · 决策 58 画板 20261114）：
+     * ⇧ 图标 26px + 图标下方 3px 短下划线条（宽 30px、圆角 2px、间距 5px）；
+     * 触发态（大写）= 图标亮青 + 下划线条可见（激活底色与描边废止，bg 恒为 bg_key，焦点态由
+     * selector 表达），未触发 = 图标功能键色、条隐藏（applyCaseState 刷新）。
      */
     private fun createShiftKey(key: Key): View {
         val container = LinearLayout(this).apply {
@@ -1759,19 +1799,18 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 候选行可用宽度（T37 · 刷新当轮口径）：按主卡（候选栏父容器）内容区宽计算——主卡已布局
-     * 取其当轮实宽减水平 padding；未布局（键盘重建后首次装载）按主卡 Token 推算，数值与布局后一致。
-     * 主卡宽为固定 Token、与候选行内容无关，同一轮内分页取同一来源；
-     * 不再读候选栏上一次布局遗留宽（bar.width，T12 坑 3 的状态依赖源）——
-     * 同一组合串任意轮次分页输入同源稳定，页容量不随上轮行内容漂移。
+     * 候选行可用宽度（T37 口径 · T68 单板修订）：候选栏宽 = 键区列宽 Token（栏宽为固定静态值，
+     * 与行内容无关）——栏已布局取其实宽；未布局（键盘重建后首次装载）按 Token 推算，数值一致。
+     * 单板布局下候选栏父容器 = 全宽板体（1920px），不可再作可用宽来源（父容器宽 ≠ 候选行宽，
+     * T68 模拟器实测 availablePx 误得 1920、chips 溢出键区列）——改读候选栏自身宽：
+     * 栏宽内容无关，无 T12 坑 3 的「随上轮行内容漂移」问题。
      */
     private fun candidatesAvailablePx(): Int {
-        val parent = candidatesBar?.parent as? ViewGroup
-        if (parent != null && parent.width > 0) {
-            return parent.width - parent.paddingStart - parent.paddingEnd
+        val bar = candidatesBar
+        if (bar != null && bar.width > 0) {
+            return bar.width
         }
-        return resources.getDimensionPixelSize(R.dimen.ime_main_card_width) -
-            2 * resources.getDimensionPixelSize(R.dimen.ime_card_padding_h)
+        return resources.getDimensionPixelSize(R.dimen.ime_key_zone_width)
     }
 
     /**

@@ -1,5 +1,5 @@
 // T5 · 键位模型单元测试（JUnit 4，纯 Kotlin，不依赖 Android UI 与模拟器）。
-// 锁定画板①（字母键盘）的静态键位结构：行列结构、字符完整性、功能键与动作语义。
+// 锁定画板 designs/20261114（字母键盘）的静态键位结构：行列结构、字符完整性、功能键与动作语义。
 // T66 · 决策 51：键位结构随语言模式分化——中文态行 1 头键 = 分词键（无 ⇧）、英文态 = ⇧ 上档，
 // 两态其余键位同构；键面随语言模式 / 大小写输出状态（中文恒显大写、英文两态）。
 package com.sofatype.ime
@@ -16,7 +16,7 @@ class KeyboardLayoutTest {
     private val englishRows = KeyboardLayout.rows(LanguageMode.ENGLISH)
     private val chineseRows = KeyboardLayout.rows(LanguageMode.CHINESE)
 
-    // ---- 行列结构（画板①；T66 两态同构性） ----
+    // ---- 行列结构（画板 20261114；T66 两态同构性） ----
 
     @Test
     fun rowsAreFourWithArtboardStructure() {
@@ -68,7 +68,7 @@ class KeyboardLayoutTest {
 
     @Test
     fun lowercaseLettersCompleteAndInArtboardOrder() {
-        // 字母区按画板①行序 a-g / h-n / o-u / v-z 连续排列，26 个小写字母齐全
+        // 字母区按画板 20261114 行序 a-g / h-n / o-u / v-z 连续排列，26 个小写字母齐全
         val letters = keys.mapNotNull { key ->
             val text = (key.action as? KeyAction.Text)?.value
             if (text != null && text.length == 1 && text[0] in 'a'..'z') text[0] else null
@@ -88,7 +88,7 @@ class KeyboardLayoutTest {
 
     @Test
     fun letterZoneRowFourHasCursorKeys() {
-        // 行 4 字母区：v-z 5 个字母 + 光标左/右 2 键（画板①）
+        // 行 4 字母区：v-z 5 个字母 + 光标左/右 2 键（画板 20261114）
         val row4 = englishRows[3].cells.filterIsInstance<Cell.KeyCell>().map { it.key }
         val zone = row4.drop(3).dropLast(1) // 去掉数字列 3 键与末尾空格
         assertEquals(listOf("v", "w", "x", "y", "z"), zone.take(5).map { it.label })
@@ -142,7 +142,7 @@ class KeyboardLayoutTest {
         assertTrue("完成键不应出现在行键位中", inRowIds.none { it == "done" })
     }
 
-    // ---- 键面样式语义（画板① 规格） ----
+    // ---- 键面样式语义（画板 20261114 规格） ----
 
     @Test
     fun functionVariantKeysUseSmallTextSize() {
@@ -154,12 +154,12 @@ class KeyboardLayoutTest {
             }
         }
         val space = keys.first { it.id == "space" }
-        assertEquals("空格键帽底色与字符键一致（画板① .bkey）", KeyVariant.CHARACTER, space.variant)
+        assertEquals("空格键帽底色与字符键一致（画板 .bkey）", KeyVariant.CHARACTER, space.variant)
     }
 
     @Test
     fun dotComKeyUsesFunctionStyle() {
-        // `.com` 与画板① .bkey-fn 一致（评审第 1 轮 Major 1）：功能键变体 + 小字号 + 直出文本动作
+        // `.com` 与画板 .bkey-fn 一致（评审第 1 轮 Major 1）：功能键变体 + 小字号 + 直出文本动作
         val dotCom = keys.first { it.id == "dot_com" }
         assertEquals(KeyVariant.FUNCTION, dotCom.variant)
         assertEquals(KeyTextSize.SMALL, dotCom.textSize)
@@ -248,21 +248,21 @@ class KeyboardLayoutTest {
         assertEquals("中英文切换，当前为英文", KeyboardLayout.langContentDescription(chinese = false))
     }
 
-    // ---- 列节奏（画板① 口径，T28 锁定） ----
+    // ---- 列节奏（T68 · 决策 58 画板 designs/20261114 口径，T28 锁定） ----
 
-    /** 键区水平排布口径（1080p px，与画板① .krow 一致）：键 80 + 键距 12；spacer 42 + 右侧键距 12
-     *  （左侧键距由前一键 margin 提供，列间隔实宽 = 12 + 42 + 12 = 66px）。
-     *  返回每个 cell 的 x 原点（相对键区左缘）。 */
+    /** 键区水平排布口径（1080p px，与画板 .krow 一致）：键 96 + 键距 10；spacer 48 + 右侧键距 10
+     *  （左侧键距由前一键 margin 提供，列间隔实宽 = 10 + 48 + 10 = 68px）。
+     *  返回每个 cell 的 x 原点（相对键区左缘；屏坐标 = +48px 键区列锚点）。 */
     private fun cellOriginPxs(row: KeyRow): List<Int> {
         val origins = mutableListOf<Int>()
         var x = 0
         for (cell in row.cells) {
             origins.add(x)
             x += when (cell) {
-                is Cell.KeyCell -> 80 + 12
-                Cell.Spacer -> 42 + 12
-                // 空格位：占一个键格（T8 Cell.EmptyCell；画板① 无此 cell，口径与键一致）
-                Cell.EmptyCell -> 80 + 12
+                is Cell.KeyCell -> 96 + 10
+                Cell.Spacer -> 48 + 10
+                // 空格位：占一个键格（T8 Cell.EmptyCell；画板 无此 cell，口径与键一致）
+                Cell.EmptyCell -> 96 + 10
             }
         }
         return origins
@@ -270,26 +270,27 @@ class KeyboardLayoutTest {
 
     @Test
     fun columnRhythmMatchesArtboard() {
-        // 画板① 列原点（相对键区，屏坐标 = +108px 键区偏移）：
-        // 数字列 0(屏 108) / 字母列 330(屏 438) / 功能列 1028(屏 1136) / 图标列 1120(屏 1228)
+        // 画板（designs/20261114）列原点（相对键区，屏坐标 = +48px 键区列锚点）：
+        // 数字列 0(屏 48) / 字母列 376(屏 424) / 功能列 1176(屏 1224) / 图标列 1282(屏 1330)
         // 两态行 1 头键格位同构（T66 · 决策 51），列节奏任取一态锁口径
         for (rows in listOf(englishRows, chineseRows)) {
             val row1 = cellOriginPxs(rows[0])
-            assertEquals("字母列原点（屏 438）", 330, row1[4])
-            assertEquals("功能列原点（屏 1136）", 1028, row1[12])
-            assertEquals("图标列原点（屏 1228）", 1120, row1[13])
+            assertEquals("字母列原点（屏 424）", 376, row1[4])
+            assertEquals("功能列原点（屏 1224）", 1176, row1[12])
+            assertEquals("图标列原点（屏 1330）", 1282, row1[13])
 
-            // spacer 列间隔步进 = 66px（数字列右缘 264 → 字母列 330）：两道键距 12 + spacer 42
-            assertEquals("列间隔步进（12+42+12）", 330 - 264, 66)
-            assertEquals("列间隔步进（962 → 1028）", 1028 - 962, 66)
+            // spacer 列间隔步进 = 68px（数字列右缘 308 → 字母列 376）：两道键距 10 + spacer 48
+            assertEquals("列间隔步进（10+48+10）", 376 - 308, 68)
+            assertEquals("列间隔步进（1108 → 1176）", 1176 - 1108, 68)
 
-            // 行 3/4 功能区单键列：123_! 与空格均在功能列 1028
-            assertEquals("行 3 功能列（123_!）", 1028, cellOriginPxs(rows[2])[12])
-            assertEquals("行 4 功能列（空格）", 1028, cellOriginPxs(rows[3])[12])
+            // 行 3/4 功能区单键列：123_! 与空格均在功能列 1176
+            assertEquals("行 3 功能列（123_!）", 1176, cellOriginPxs(rows[2])[12])
+            assertEquals("行 4 功能列（空格）", 1176, cellOriginPxs(rows[3])[12])
 
-            // 完成键画板① 定位（键区内 1120px）= 图标列原点：与下屏/删除列左缘对齐（T28 回归点）
-            assertEquals("完成键与图标列左缘对齐", 1120, row1[13])
-            assertEquals("空格列到完成键列间距 = 1120 − 1028 − 80 = 12px 键距", 1120 - (1028 + 80), 12)
+            // 完成键（字母键盘）画板 20261114 定位：键区内 1278px、宽 100px —— 右缘 1378 = 键区列右缘、
+            // 距功能列（col11 右缘 1272）6px；col12 格位原点 1282（下屏/删除列），完成键左移 4px 为画板口径
+            assertEquals("完成键左缘与功能列右缘间距 = 1278 − 1272 = 6px", 6, 1278 - (1176 + 96))
+            assertEquals("完成键右缘贴键区列右缘（1278 + 100 = 1378）", 1378, 1278 + 100)
         }
     }
 

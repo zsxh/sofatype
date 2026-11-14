@@ -1,7 +1,8 @@
 // T6 · 遥控器焦点导航模型（FR-A11）：纯 Kotlin，不依赖 Android 类，可脱离模拟器独立单元测试。
-// 口径：画板① 全表键位恰构成 12 列 × 4 行完整网格（各行键中心集合完全一致），
-// 行内键格位由 x 原点推导（步进与 T28 列节奏单测同口径：键 80 + 键距 12 = 92、spacer 42 + 键距 12 = 54，
-// 1080p px 基准）；跨两行完成键按绝对定位（左缘 1120px = 图标列原点，T28 回归点）显式声明占据行 3/4 的图标列格位。
+// 口径：全表键位恰构成 12 列 × 4 行完整网格（各行键中心集合完全一致），
+// 行内键格位由 x 原点推导（步进与 T28 列节奏单测同口径：键 96 + 键距 10 = 106、spacer 48 + 键距 10 = 58，
+// 1080p px 基准，T68 · 决策 58 画板 designs/20261114）；跨两行完成键按绝对定位
+//（字母键盘左缘 1278px / 符号键盘 1282px，画板 absolute 定位）显式声明占据行 3/4 的图标列格位。
 // 导航规则（FR-A11「符合视觉行列关系，不跳变」）：
 //   左/右 = 同行向该方向的最近实键（空格位无键格越空直达，T58：不越任何实键，仍是视觉相邻键）；
 //   上/下 = 同列向该方向的最近实键（现行布局各列全实键，语义与逐格一致）；
@@ -117,11 +118,12 @@ class FocusNavigator(
     }
 
     companion object {
-        // 画板① 几何常量（1080p px；与 dimens.xml Token 的 ÷2 换算基准一致，模型侧独立锁定，
-        // 列节奏一致性由 KeyboardLayoutTest.columnRhythmMatchesArtboard 交叉验证）
-        private const val KEY_PX = 80
-        private const val KEY_GAP_PX = 12
-        private const val SPACER_PX = 42
+        // 画板几何常量（1080p px；与 dimens.xml Token 的 ÷2 换算基准一致，模型侧独立锁定，
+        // 列节奏一致性由 KeyboardLayoutTest.columnRhythmMatchesArtboard 交叉验证。
+        // T68 · 决策 58 起视觉基准 = designs/20261114：键 96 + 键距 10、spacer 48 + 键距 10）
+        private const val KEY_PX = 96
+        private const val KEY_GAP_PX = 10
+        private const val SPACER_PX = 48
 
         // 格网规模（画板① 4 行 × 12 列；越空寻路与表缘判定的边界，T58。
         // GRID_COLS 开放：服务层最右列判定用——T67 · 决策 56 最右列全部按键按[右]直达远程输入）

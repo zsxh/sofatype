@@ -33,22 +33,21 @@
     <dimen name="btn_gap">7dp</dimen>
     <!-- 描边宽：PRD 6.1 卡片描边 1~1.5px，取 1.5px -->
     <dimen name="stroke_width">0.75dp</dimen>
-
-    <!-- ═══ 键盘悬浮层（T5，画板①「字母键盘·小写」/ FR-A2 / 决策 7 R-1；1080p px ÷ 2 = dp/sp） ═══ -->
-    <!-- 覆盖区：停靠屏幕底部、覆盖高 644px（决策 7 / R-1），透明底透出宿主内容 -->
-    <dimen name="ime_panel_height">322dp</dimen>
-    <!-- 悬浮卡片：主卡 1272×548、副卡 472×548，圆角 38（PRD 6.3），距底 48px、左右 72px、卡间 32px -->
-    <dimen name="ime_card_height">274dp</dimen>
+    <!-- 设置/测试页卡片圆角（PRD 6.3 平滑大圆角 38px；bg_card 承载。
+         T68 起键盘单板直出不再使用卡片圆角，本 Token 归设置页卡片口径） -->
     <dimen name="ime_card_corner">19dp</dimen>
-    <dimen name="ime_card_margin_h">36dp</dimen>
-    <dimen name="ime_card_margin_bottom">24dp</dimen>
-    <dimen name="ime_card_gap">16dp</dimen>
-    <dimen name="ime_main_card_width">636dp</dimen>
-    <dimen name="ime_side_card_width">236dp</dimen>
-    <!-- 主卡内边距 26px/32px（画板① padding 26px 32px） -->
-    <dimen name="ime_card_padding_v">13dp</dimen>
-    <dimen name="ime_card_padding_h">16dp</dimen>
-    <!-- 候选词栏：高 52px（PRD 6.3 候选 chip 行），chips 内容属 T10 -->
+
+    <!-- ═══ 键盘单板直出（T68 · 决策 58，视觉基准 designs/20261114 画板；1080p px ÷ 2 = dp/sp） ═══
+         单板铺满屏幕底部全宽直出（左右双悬浮卡片废止）：板高随内容排版，4 行键盘板高 392px；
+         板 = card 底 + 顶缘 1px 描边（bg_panel），板上缘另有向上柔影带（bg_panel_shadow）。
+         窗口覆盖高 = 板高 + 柔影带（柔影带画在板外上方、透出宿主内容，T5 悬浮层同口径）。 -->
+    <dimen name="ime_panel_height">196dp</dimen>
+    <dimen name="ime_panel_shadow_height">10dp</dimen>
+    <dimen name="ime_panel_border_h">0.5dp</dimen>
+    <!-- 板内锚点：键区列（候选栏 + 键区共用）距板左 48px、距板顶 20px -->
+    <dimen name="ime_panel_padding_h">24dp</dimen>
+    <dimen name="ime_panel_padding_top">10dp</dimen>
+    <!-- 候选词栏：高 52px（占位恒定，决策 42；chips 内容属 T10） -->
     <dimen name="ime_candidates_height">26dp</dimen>
     <!-- 候选 chip（T10 · PRD 6.3：高 52px=候选栏高、圆角 12、文字 28px、水平内边距 22px；
          chips 间距 16px（画板① 候选行 flex gap）） -->
@@ -61,119 +60,126 @@
     <dimen name="ime_cand_arrow_width">14dp</dimen>
     <dimen name="ime_cand_arrow_text">15sp</dimen>
     <dimen name="ime_cand_arrow_gap">5dp</dimen>
-    <!-- 键盘区：宽 1200px、距候选栏 18px（画板① margin 18px auto 0） -->
-    <dimen name="ime_key_area_width">600dp</dimen>
-    <dimen name="ime_key_area_margin_top">9dp</dimen>
-    <!-- 键帽：80×92、圆角 14、字符 30px；功能键文字 22px（PRD 6.3） -->
-    <dimen name="ime_key_width">40dp</dimen>
-    <dimen name="ime_key_height">46dp</dimen>
-    <dimen name="ime_key_corner">7dp</dimen>
-    <dimen name="ime_key_text">15sp</dimen>
-    <dimen name="ime_key_fn_text">11sp</dimen>
-    <!-- 键间 12px、行距 12px、列间隔本体 42px（画板① gap/spacer）。
-         列间隔实宽 = 键距 12 + spacer 42 + 键距 12 = 66px：.krow 的 flex gap 对 spacer 两侧均生效，
-         24px 键距由代码侧键 margin 与 spacer margin 合成，此处只存 spacer 本体宽 -->
-    <dimen name="ime_key_spacing">6dp</dimen>
-    <dimen name="ime_row_spacing">6dp</dimen>
-    <dimen name="ime_column_spacer">21dp</dimen>
-    <!-- 完成键：84×196 跨两行高键（FR-A10），字 26px，键区内偏移 1120px/208px（画板①） -->
-    <dimen name="ime_done_key_width">42dp</dimen>
-    <dimen name="ime_done_key_height">98dp</dimen>
-    <dimen name="ime_done_key_text">13sp</dimen>
-    <dimen name="ime_done_key_start">560dp</dimen>
-    <dimen name="ime_done_key_top">104dp</dimen>
-    <!-- 符号键盘空格键（T8，决策 3）：84×196 跨两行高键与完成键对称（画板③ col11 原点 1028px） -->
-    <dimen name="ime_space_key_start">514dp</dimen>
-    <!-- 键帽图标尺寸：上档 32px（T65 · 决策 46-④ 24→32px）/ 下屏 30px（T65 · 决策 46-⑤ 画板 30px）/
-         删除 32px / 光标 28px（画板 SVG 尺寸） -->
-    <dimen name="ime_icon_shift">16dp</dimen>
-    <dimen name="ime_icon_hide">15dp</dimen>
-    <dimen name="ime_icon_backspace">16dp</dimen>
-    <dimen name="ime_icon_cursor">14dp</dimen>
-    <!-- 键面下划线条（T65 · 决策 47-① 触发态统一）：条高 3px、圆角 2px；
-         上档触发态短条 36×3px（trig-bar）、与图标间距 7px；状态键当前态下划线随字符等宽、
-         偏移 6px（画板 text-underline-offset） -->
+    <!-- 键盘区：宽 1378px（键区列宽，与候选栏同宽同锚）、距板顶 86px（候选栏 20+52 + 间距 14，
+         画板 Main margin-top:14px；键区顶全模式恒定，决策 42） -->
+    <dimen name="ime_key_zone_width">689dp</dimen>
+    <dimen name="ime_key_area_margin_top">43dp</dimen>
+    <!-- 键帽：96×64（宽>高，T68 · 决策 58）、圆角 12、字符 24px；功能键文字 18px（画板 .bkey/.bkey-fn） -->
+    <dimen name="ime_key_width">48dp</dimen>
+    <dimen name="ime_key_height">32dp</dimen>
+    <dimen name="ime_key_corner">6dp</dimen>
+    <dimen name="ime_key_text">12sp</dimen>
+    <dimen name="ime_key_fn_text">9sp</dimen>
+    <!-- 键间 10px、行距 10px、列间隔本体 48px（画板 .krow gap:10 / .kspacer 48px，T68 · 决策 58）。
+         列间隔实宽 = 键距 10 + spacer 48 + 键距 10 = 68px：.krow 的 flex gap 对 spacer 两侧均生效，
+         20px 键距由代码侧键 margin 与 spacer margin 合成，此处只存 spacer 本体宽 -->
+    <dimen name="ime_key_spacing">5dp</dimen>
+    <dimen name="ime_row_spacing">5dp</dimen>
+    <dimen name="ime_column_spacer">24dp</dimen>
+    <!-- 浮层键（跨行 3/4，高 138px、顶 148px = 行 3 顶，画板 absolute top:148px）：
+         字母键盘完成键 100×138 @1278px（画板 Main/English* 键区 absolute 定位，右缘贴键区列 1378px）；
+         符号键盘空格 96×138 @1178px、完成键 96×138 @1282px（画板 Symbols* absolute，col11/12）。
+         键高/顶距两板一致共用浮层键 Token；键宽/横向偏移分列（字母完成键 100px、符号两键 96px） -->
+    <dimen name="ime_done_key_width">50dp</dimen>
+    <dimen name="ime_done_key_text">11sp</dimen>
+    <dimen name="ime_done_key_start">639dp</dimen>
+    <dimen name="ime_overlay_key_height">69dp</dimen>
+    <dimen name="ime_overlay_key_top">74dp</dimen>
+    <dimen name="ime_space_key_start">589dp</dimen>
+    <dimen name="ime_space_key_width">48dp</dimen>
+    <dimen name="ime_symbols_done_key_start">641dp</dimen>
+    <dimen name="ime_symbols_done_key_width">48dp</dimen>
+    <!-- 键帽图标尺寸（T68 · 决策 58 视觉基准 designs/20261114 画板 SVG 尺寸）：
+         上档 26px / 下屏 24px / 删除 26px / 光标 22px -->
+    <dimen name="ime_icon_shift">13dp</dimen>
+    <dimen name="ime_icon_hide">12dp</dimen>
+    <dimen name="ime_icon_backspace">13dp</dimen>
+    <dimen name="ime_icon_cursor">11dp</dimen>
+    <!-- 键面下划线条（T65 · 决策 47-① 触发态统一，尺寸随 T68 画板 20261114）：
+         状态键当前态下划线 2px、偏移 4px（画板 .st-on thickness:2px / offset:4px）；
+         上档触发态短条 30×3px（trig-bar）、与图标间距 5px（.bkey-trig gap:5px） -->
     <dimen name="ime_state_underline_height">1.5dp</dimen>
+    <dimen name="ime_state_char_underline_height">1dp</dimen>
     <dimen name="ime_underline_corner">1dp</dimen>
-    <dimen name="ime_shift_underline_width">18dp</dimen>
-    <dimen name="ime_shift_underline_gap">3.5dp</dimen>
-    <dimen name="ime_state_underline_offset">3dp</dimen>
+    <dimen name="ime_shift_underline_width">15dp</dimen>
+    <dimen name="ime_shift_underline_gap">2.5dp</dimen>
+    <dimen name="ime_state_underline_offset">2dp</dimen>
     <dimen name="ime_state_sep_margin">1dp</dimen>
     <!-- 符号键盘行步进窗口边界暗示箭头（T64 · 画板 3/10；28×14px，色 text_faint）：
-         下箭头挂显示第 4 行底部居中（svg top 412px，行区高 404px）、上箭头挂显示第 1 行上方
-        （svg top -16px）；margin 相对键区（行区高 202dp），溢出键区显示（clipChildren=false） -->
+          下箭头挂显示第 4 行底部居中（行区高 = 4×64+3×10 = 286px，svg top 294px）、
+          上箭头挂显示第 1 行上方（svg top -16px）；margin 相对键区（行区高 143dp），溢出键区显示 -->
     <dimen name="ime_row_arrow_width">14dp</dimen>
     <dimen name="ime_row_arrow_height">7dp</dimen>
-    <dimen name="ime_row_arrow_down_top">206dp</dimen>
+    <dimen name="ime_row_arrow_down_top">147dp</dimen>
     <dimen name="ime_row_arrow_up_top">-8dp</dimen>
-    <!-- 半角多字符符号键面（T64 · 画板 4 省略号与双短横线两键 font-size 24px） -->
-    <dimen name="ime_key_dense_text">12sp</dimen>
-    <!-- 底部柔影垫层（PRD 6.3 黑 55% 模糊 30 / 画板① rgba(0,0,0,.55) blur(30px)、圆角 48）：
-         尺寸 = 各自卡片 + 每侧 6dp 外扩（主卡 1272px / 副卡 472px，高 548px），近似 blur 扩散；
-         主副卡宽度不同，垫层宽 Token 分列，禁止互相复用（评审第 2 轮 Major：副卡复用主卡宽致左溢 412dp） -->
-    <dimen name="ime_card_shadow_width">648dp</dimen>
-    <dimen name="ime_side_card_shadow_width">248dp</dimen>
-    <dimen name="ime_card_shadow_height">286dp</dimen>
-    <dimen name="ime_card_shadow_corner">24dp</dimen>
+    <!-- 半角多字符符号键面（T64 · 画板 4 省略号与双短横线两键，T68 画板 19px） -->
+    <dimen name="ime_key_dense_text">9.5sp</dimen>
 
-    <!-- ═══ 配对卡（T14 · FR-B4，画板⑤「远程模式」副卡；1080p px ÷ 2 = dp/sp） ═══
-         二维码 376×376、圆角 38（圆角 Token 复用 ime_card_corner）；容器 padding 40px、
-         二维码与地址行间距 10px（画板⑤ flex 容器 padding/gap）；地址一行字 22px（色 accent_text，
-         PRD 6.1 URL 色，画板⑤ 原文）。二维码下方不显示其他文案（决策 4）。 -->
-    <dimen name="ime_qr_size">188dp</dimen>
-    <dimen name="ime_pairing_padding">20dp</dimen>
+    <!-- ═══ 二维码分区（T14 · FR-B4 / T68 · 决策 58，画板 RemotePairing/RemoteConnected 20261114；
+         1080p px ÷ 2 = dp/sp） ═══
+         二维码 316×316（随板高 392 自适应，原 376 废止）、圆角 32；容器无 padding（分区宽 = 二维码宽）、
+         二维码与地址行间距 10px（画板 flex gap）；地址一行字 12px（原 22px 废止，色 accent_text，
+         PRD 6.1 URL 色）。二维码下方不显示其他文案（决策 4）。 -->
+    <dimen name="ime_qr_size">158dp</dimen>
+    <dimen name="ime_qr_corner">16dp</dimen>
+    <dimen name="ime_pairing_padding">0dp</dimen>
     <dimen name="ime_pairing_gap">5dp</dimen>
-    <dimen name="ime_pairing_url_text">11sp</dimen>
-    <!-- T35 · 决策 35：已连接态二维码与下方状态行间距（比地址行更松，户主 2026-11-07 反馈
-         「已连接行太贴近二维码」后调整；1080p px ÷ 2 = dp） -->
-    <dimen name="ime_pairing_status_gap">16dp</dimen>
+    <dimen name="ime_pairing_url_text">6sp</dimen>
+    <!-- 已连接态二维码与下方状态行间距（画板 RemoteConnected flex gap 10px）；
+         状态行内部点与文字间距 8px（画板 status 行 flex gap 8px） -->
+    <dimen name="ime_pairing_status_gap">5dp</dimen>
+    <dimen name="ime_pairing_status_text_gap">4dp</dimen>
 
-    <!-- ═══ 远程模式主卡实时文本（T15 · FR-B3 显示部分，画板⑤；1080p px ÷ 2 = dp/sp） ═══
+    <!-- ═══ 远程模式区（T15/T17 · FR-B3，画板 RemotePairing/RemoteConnected 20261114；1080p px ÷ 2 = dp/sp） ═══
+         分区几何：距板左 48px、顶 28px、右距板右缘 432px（区宽 1444px）、距板底 24px；
          大字 40px → 20sp（text_primary，letter-spacing 1px@40px ≈ 0.025em 走布局属性）；
-         文本区顶距 88px（画板⑤ 状态行下方 margin-top）→ 44dp；光标 3×44px 圆角 2 → 1.5×22dp/1dp，
-         与文字间隙 2px → 1dp。完整远程主卡（状态行 / 退出远程 / 底部提示）随 T17。 -->
+         文本区顶距 96px（画板 margin-top:96px）；光标 3×44px 圆角 2 → 1.5×22dp/1dp，与文字间隙 1dp。
+         状态行：点 8px、间隙 10px、「等待手机扫码/实时接收中」20px 500、「来自 · 设备名」18px、
+         退出远程按钮 120×52px 字 18px（画板 bkey-fn）；底部提示 18px、距板底 28px（分区底 24px + 行内 4px）。 -->
+    <dimen name="ime_remote_zone_margin_top">14dp</dimen>
+    <dimen name="ime_remote_zone_margin_end">216dp</dimen>
+    <dimen name="ime_remote_zone_margin_bottom">12dp</dimen>
     <dimen name="ime_remote_text_size">20sp</dimen>
-    <dimen name="ime_remote_area_margin_top">44dp</dimen>
+    <dimen name="ime_remote_area_margin_top">48dp</dimen>
     <dimen name="ime_remote_cursor_width">1.5dp</dimen>
     <dimen name="ime_remote_cursor_height">22dp</dimen>
     <dimen name="ime_remote_cursor_gap">1dp</dimen>
-
-    <!-- ═══ 跨屏引导副卡（T17 · FR-B1，画板①「字母键盘」右侧副卡；1080p px ÷ 2 = dp/sp） ═══
-         卡内边距 32px/36px；标题 24px 700 + 图标 24px；状态行距标题 20px、点 8px（PRD 6.3 状态点直径 8）、
-         文字 17px；三步指引距状态行 28px、行距 16px、序号圆 26px、序号字 14px、指引文字 17px；
-         主按钮高 60px（PRD 6.3 副卡主按钮）、字 21px、距卡底 92px；按钮下提示 16px、距卡底 34px。 -->
-    <dimen name="ime_side_card_padding_v">16dp</dimen>
-    <dimen name="ime_side_card_padding_h">18dp</dimen>
-    <dimen name="ime_guide_icon">12dp</dimen>
-    <dimen name="ime_guide_title_gap">5dp</dimen>
-    <dimen name="ime_guide_title_text">12sp</dimen>
-    <dimen name="ime_guide_status_margin_top">10dp</dimen>
-    <dimen name="ime_guide_status_gap">4dp</dimen>
-    <dimen name="ime_guide_status_text">8.5sp</dimen>
-    <dimen name="ime_guide_steps_margin_top">14dp</dimen>
-    <dimen name="ime_guide_step_gap">8dp</dimen>
-    <dimen name="ime_guide_step_circle">13dp</dimen>
-    <dimen name="ime_guide_step_gap_h">6dp</dimen>
-    <dimen name="ime_guide_step_num_text">7sp</dimen>
-    <dimen name="ime_guide_step_text">8.5sp</dimen>
-    <dimen name="ime_guide_button_height">30dp</dimen>
-    <dimen name="ime_guide_button_text">10.5sp</dimen>
-    <dimen name="ime_guide_button_bottom_margin">30dp</dimen>
-    <dimen name="ime_guide_button_gap">18dp</dimen>
-    <dimen name="ime_guide_hint_text">8sp</dimen>
-
-    <!-- ═══ 远程模式主卡框架（T17 · FR-B3 / 决策 33，画板⑤；1080p px ÷ 2 = dp/sp） ═══
-         状态行：点 8px（复用 ime_status_dot_size）、间隙 10px、「实时接收中」20px 500、
-         「来自 · 设备名」18px、退出远程按钮 120×52px 字 22px（画板⑤ bkey-fn）；
-         底部提示 18px、距卡底 28px（卡 padding-bottom 26px 承担，见 ime_card_padding_v）。 -->
     <dimen name="ime_status_dot_size">4dp</dimen>
     <dimen name="ime_remote_status_gap">5dp</dimen>
     <dimen name="ime_remote_status_text">10sp</dimen>
     <dimen name="ime_remote_from_text">9sp</dimen>
     <dimen name="ime_remote_exit_width">60dp</dimen>
     <dimen name="ime_remote_exit_height">26dp</dimen>
-    <dimen name="ime_remote_exit_text">11sp</dimen>
+    <dimen name="ime_remote_exit_text">9sp</dimen>
     <dimen name="ime_remote_hint_text">9sp</dimen>
+
+    <!-- ═══ 板内右分区（T17/T68 · 决策 58，画板 Main/RemotePairing 20261114；1080p px ÷ 2 = dp/sp） ═══
+         右分区并入单板（无分隔线、非独立卡片）：引导分区宽 366px（跨屏输入引导，上下距板缘 24px）、
+         二维码分区宽 316px（= 二维码宽，顶距板顶 24px、高度随内容）；分区距板右缘 48px（= 板左锚点对称）。
+         引导卡（FR-B1，说明文字放大 2026-11-14 户主）：无内边距；标题 24px 700 + 图标 24px；
+         状态行距标题 10px、点 8px、文字 17px；三步指引距状态行 14px、行距 12px、序号圆 26px、
+         序号字 14px、指引文字 17px；主按钮高 52px、字 20px；按钮下提示 14px、与按钮间距 10px。 -->
+    <dimen name="ime_guide_zone_width">183dp</dimen>
+    <dimen name="ime_qr_zone_width">158dp</dimen>
+    <dimen name="ime_side_zone_margin_v">12dp</dimen>
+    <dimen name="ime_side_card_padding_v">0dp</dimen>
+    <dimen name="ime_side_card_padding_h">0dp</dimen>
+    <dimen name="ime_guide_icon">12dp</dimen>
+    <dimen name="ime_guide_title_gap">5dp</dimen>
+    <dimen name="ime_guide_title_text">12sp</dimen>
+    <dimen name="ime_guide_status_margin_top">5dp</dimen>
+    <dimen name="ime_guide_status_gap">4dp</dimen>
+    <dimen name="ime_guide_status_text">8.5sp</dimen>
+    <dimen name="ime_guide_steps_margin_top">7dp</dimen>
+    <dimen name="ime_guide_step_gap">6dp</dimen>
+    <dimen name="ime_guide_step_circle">13dp</dimen>
+    <dimen name="ime_guide_step_gap_h">6dp</dimen>
+    <dimen name="ime_guide_step_num_text">7sp</dimen>
+    <dimen name="ime_guide_step_text">8.5sp</dimen>
+    <dimen name="ime_guide_button_height">26dp</dimen>
+    <dimen name="ime_guide_button_text">10sp</dimen>
+    <dimen name="ime_guide_button_gap">5dp</dimen>
+    <dimen name="ime_guide_hint_text">7sp</dimen>
 
     <!-- ═══ 设置页补全（T20 · FR-D2/D3/D5，画板「设置页 · 方案 A 品牌暗夜」仅视觉参考，
          规格以 PRD 第 6 章为准；1080p px ÷ 2 = dp/sp） ═══
