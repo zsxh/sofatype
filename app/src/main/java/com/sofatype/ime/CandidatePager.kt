@@ -7,19 +7,23 @@
 //   下标，服务层勿再做首行偏移换算）；
 //   页内装载 = 首 chip 不留间距、后续 chip 加间距、放不下的不进本页；单个超宽 chip 强制
 //   独占一页（兜底不丢候选，防切页死循环）；
-//   翻页 = 行尾候选按[右]翻下一页、行首候选按[左]回上一页；翻页后焦点一律落页首第一个候选
-//   （决策 53，原展开行「回翻落页末」口径废止）；
+//   翻页 = 行尾候选按[右]翻下一页、行首候选按[左]回上一页；翻页后焦点落点随方向分向
+//   （T67 · 决策 55，修订决策 53「翻页后一律落页首」条款）：下翻落当页（新页）首候选、
+//   上翻落当页（回翻页）尾候选；
 //   行内上下语义 = 向上到顶不动（单行候选行之上无焦点目标）、向下出候选区回键盘（落点由
 //   服务层处理，本模型只管行内语义与页切换）。
 package com.sofatype.ime
 
-/** 候选行行内焦点移动结果（T66 · 决策 53）。 */
+/** 候选行行内焦点移动结果（T66 · 决策 53 单行行内翻页 × T67 · 决策 55 翻页落点分向）。 */
 sealed interface CandidatePagerMove {
 
     /** 页内焦点移到另一 chip（候选全局下标）。 */
     data class To(val index: Int) : CandidatePagerMove
 
-    /** 翻页：目标页号 + 翻页后焦点落点（= 目标页页首候选全局下标）。 */
+    /**
+     * 翻页：目标页号 + 翻页后焦点落点（T67 · 决策 55 落点分向：下翻 = 目标页首候选、
+     * 上翻 = 目标页尾候选；候选全局下标）。
+     */
     data class Flip(val page: Int, val index: Int) : CandidatePagerMove
 
     /** 向下出候选区，回键盘区（落点由服务层决定）。 */
@@ -60,7 +64,8 @@ object CandidatePager {
     }
 
     /**
-     * 候选行内焦点移动 + 页缘翻页（决策 53）。
+     * 候选行内焦点移动 + 页缘翻页（决策 53 行内翻页 × T67 · 决策 55 落点分向：下翻落目标页首、
+     * 上翻落目标页尾）。
      * @param currentIndex 当前焦点 chip 的候选全局下标
      * @param direction 遥控器方向
      * @param pages 分页区间（[paginate] 结果，候选全局下标坐标系）
@@ -72,11 +77,13 @@ object CandidatePager {
         return when (direction) {
             FocusDirection.LEFT -> when {
                 currentIndex > pages[page].first -> CandidatePagerMove.To(currentIndex - 1)
-                page > 0 -> CandidatePagerMove.Flip(page - 1, pages[page - 1].first)
+                // 行首按[左]回上一页：落回翻页尾候选（决策 55，修订决策 53 落点条款）
+                page > 0 -> CandidatePagerMove.Flip(page - 1, pages[page - 1].last)
                 else -> CandidatePagerMove.Stay
             }
             FocusDirection.RIGHT -> when {
                 currentIndex < pages[page].last -> CandidatePagerMove.To(currentIndex + 1)
+                // 行尾按[右]翻下一页：落新页首候选（决策 53 既有口径保留 × 决策 55）
                 page < pages.size - 1 -> CandidatePagerMove.Flip(page + 1, pages[page + 1].first)
                 else -> CandidatePagerMove.Stay
             }

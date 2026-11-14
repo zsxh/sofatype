@@ -23,6 +23,10 @@
 // TestTypingActivity（承载面 = 调试三件套所在页面）；本页 pre-IME 键分路保留
 // （BACK 退出 / OK 激活 / 方向键移焦为设置页既有宿主语义，与调试区无关）。
 // 范围边界：检查更新逻辑与三态呈现零改动（FR-D4 / 决策 36/39/40 口径不动）。
+// T67 · 决策 57：设置页 BACK 二次退出（修订 BACK 单击直退行为）——两条 BACK 路径
+//（pre-IME 分路 BACK 分支；冷实例经 IME 隐藏态透传落到 Activity 默认 BACK）收敛到同一
+// BackExitGate 裁决（纯决策，单测锁定）：首击只在屏幕下方弹系统 Toast 提示「再按一次返回
+// 退出sofatype设置页」（文案 back_exit_hint）、不退出；2 秒窗口内再击直接退出；超窗重新计。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -38,6 +42,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.FocusFinder
 import android.view.KeyEvent
@@ -48,6 +53,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import com.sofatype.ime.update.InstallChannel
 import com.sofatype.ime.update.InstallChannels
 import com.sofatype.ime.update.InstallReceipt
@@ -164,6 +170,12 @@ class SettingsActivity : Activity() {
      */
     private var lastImeShown: Boolean? = null
 
+    /**
+     * T67 · 决策 57 · BACK 二次退出守卫：两条 BACK 路径（pre-IME 分路 / Activity 默认 BACK）
+     * 共用同一实例，收敛同一裁决（首击 Toast 提示不退出、2 秒内次击退出、超窗重新计）。
+     */
+    private val backExitGate = BackExitGate(windowMs = BackExitGate.WINDOW_MS)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -195,8 +207,9 @@ class SettingsActivity : Activity() {
         // IME 侧消费语义属 T59 挂账面，本侧零改动）。宿主侧在框架 pre-IME 阶段
         // （ViewRootImpl 先把键送到根视图 dispatchKeyPreIme）按键盘可见性分路：
         // 显示态透传 IME；隐藏态按宿主语义路由——方向键=FocusFinder 焦点搜索、
-        // OK=焦点控件激活、BACK=退出设置页。（T63 起本页无输入框，调试走查链路移至
-        // TestTypingActivity，本分路服务设置页既有控件语义，行为零变化。）
+        // OK=焦点控件激活、BACK=二次退出裁决（T67 · 决策 57，与 Activity 默认 BACK 同守卫）。
+        //（T63 起本页无输入框，调试走查链路移至 TestTypingActivity，本分路服务设置页
+        // 既有控件语义。）
         findViewById<SettingsRootView>(R.id.settings_root).preImeKeyHandler = { handlePreImeKey(it) }
         applyState(UiState.IDLE)
         // 回执广播经本应用 PendingIntent 发出（发起身份=本应用），NOT_EXPORTED 可收；
@@ -330,8 +343,8 @@ class SettingsActivity : Activity() {
         if (event.action != KeyEvent.ACTION_DOWN) return route != SettingsKeyRouter.Route.PASS
         return when (route) {
             SettingsKeyRouter.Route.BACK -> {
-                Log.i(FOCUS_LOG_TAG, "pre-IME BACK：退出设置页")
-                finish()
+                // T67 · 决策 57：首击只提示不退出、2 秒内次击退出（与 Activity 默认 BACK 同守卫）
+                handleBackForExit("pre-IME")
                 true
             }
             SettingsKeyRouter.Route.CONFIRM -> {
@@ -361,6 +374,34 @@ class SettingsActivity : Activity() {
                 true
             }
         }
+    }
+
+    // ═══ T67 · 决策 57 · 设置页 BACK 二次退出（两条 BACK 路径统一裁决） ═══
+
+    /**
+     * BACK 二次退出统一裁决（决策 57 收敛点）：守卫判定首击 = 屏幕下方系统 Toast 提示
+     * 「再按一次返回退出sofatype设置页」、不退出；2 秒窗口内次击 = finish 退出；
+     * 超窗 = 重新计窗并再次提示（视同首击）。pre-IME 分路（[handlePreImeKey] BACK 分支）与
+     * 冷实例路径（[onBackPressed]，键经 IME 隐藏态透传落到 Activity 默认 BACK）都落本方法，
+     * 两路径行为结果一致。[fromPath] 仅入日志区分派发路径（走查取证用，不含用户输入内容）。
+     */
+    private fun handleBackForExit(fromPath: String) {
+        if (backExitGate.onBack(SystemClock.uptimeMillis()) == BackExitGate.Decision.EXIT) {
+            Log.i(FOCUS_LOG_TAG, "$fromPath BACK：二次返回退出设置页")
+            finish()
+        } else {
+            Log.i(FOCUS_LOG_TAG, "$fromPath BACK：首击提示（二次退出窗口开启）")
+            Toast.makeText(this, R.string.back_exit_hint, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 冷实例 BACK 路径（T59 派发口径）：am start 后从未弹过键盘时，键不经 pre-IME 分路，
+     * 经 IME 隐藏态透传落回框架默认返回处理 → 本回调。与 pre-IME 分路共用同一守卫裁决。
+     */
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        handleBackForExit("默认 BACK")
     }
 
     // ═══ FR-D4 交互入口 ═══

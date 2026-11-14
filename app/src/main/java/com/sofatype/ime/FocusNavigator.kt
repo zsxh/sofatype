@@ -123,8 +123,9 @@ class FocusNavigator(
         private const val KEY_GAP_PX = 12
         private const val SPACER_PX = 42
 
-        // 格网规模（画板① 4 行 × 12 列；越空寻路与表缘判定的边界，T58）
+        // 格网规模（画板① 4 行 × 12 列；越空寻路与表缘判定的边界，T58。
+        // GRID_COLS 开放：服务层最右列判定用——T67 · 决策 56 最右列全部按键按[右]直达远程输入）
         private const val GRID_ROWS = 4
-        private const val GRID_COLS = 12
+        const val GRID_COLS = 12
     }
 }

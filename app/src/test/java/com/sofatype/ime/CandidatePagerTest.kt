@@ -1,9 +1,11 @@
-// T66 · 候选栏单行行内翻页模型单元测试（决策 53，废止 FR-A15「更多⌄」展开行模型）。
+// T66 · 候选栏单行行内翻页模型单元测试（决策 53，废止 FR-A15「更多⌄」展开行模型；
+// T67 · 决策 55 翻页落点分向随改）。
 // 锁定五件事：
 // ① 分页区间 = 候选全局下标（HANDOFF 坑 10「分页区间相对坐标系」随本模型消除，勿再做首行偏移）；
 // ② 页容量按宽度自适应（首 chip 不留间距、后续 chip 加间距、放不下不进本页、超宽 chip 独占一页）；
 // ③ 行尾按[右]翻下一页、行首按[左]回上一页；
-// ④ 翻页后焦点一律落页首第一个候选（原展开行「回翻落页末」口径废止）；
+// ④ 翻页落点随方向分向（T67 · 决策 55，修订决策 53「翻页后一律落页首」条款）：下翻落当页首、
+//    上翻落当页尾；
 // ⑤ 行内上下语义：向上到顶不动、向下出候选区回键盘。
 // 纯 Kotlin，不依赖 Android UI 与模拟器（原 CandidateMoreRowTest 同口径）。
 package com.sofatype.ime
@@ -68,20 +70,24 @@ class CandidatePagerTest {
         // 行尾候选（chip 2）按[右] → 翻下一页
         assertEquals(CandidatePagerMove.Flip(1, 3), CandidatePager.move(2, FocusDirection.RIGHT, pages))
         // 行首候选（chip 3）按[左] → 回上一页
-        assertEquals(CandidatePagerMove.Flip(0, 0), CandidatePager.move(3, FocusDirection.LEFT, pages))
+        assertEquals(CandidatePagerMove.Flip(0, 2), CandidatePager.move(3, FocusDirection.LEFT, pages))
     }
 
-    // ---- ④ 翻页后焦点落页首第一个候选 ----
+    // ---- ④ 翻页落点随方向分向（T67 · 决策 55） ----
 
     @Test
-    fun `翻页落点恒为页首第一个候选`() {
-        val pages = CandidatePager.paginate(widths(9, 100), 10, 320)
-        // 向后翻落新页首（3）、再向后落新页首（6）；向前翻同样落页首（3 / 0）——
-        // 决策 53「翻页后焦点落页首第一个候选」，原展开行向前翻落页末口径废止
+    fun `翻页落点随方向分向下翻落页首上翻落页尾`() {
+        val pages = CandidatePager.paginate(widths(9, 100), 10, 320) // 0..2 / 3..5 / 6..8
+        // 下翻落新页首（3 / 6）——决策 53 既有口径保留；上翻落回翻页尾（5 / 2）——
+        // T67 · 决策 55（修订决策 53「翻页后一律落页首」条款）
         assertEquals(CandidatePagerMove.Flip(1, 3), CandidatePager.move(2, FocusDirection.RIGHT, pages))
         assertEquals(CandidatePagerMove.Flip(2, 6), CandidatePager.move(5, FocusDirection.RIGHT, pages))
-        assertEquals(CandidatePagerMove.Flip(1, 3), CandidatePager.move(6, FocusDirection.LEFT, pages))
-        assertEquals(CandidatePagerMove.Flip(0, 0), CandidatePager.move(3, FocusDirection.LEFT, pages))
+        assertEquals(CandidatePagerMove.Flip(1, 5), CandidatePager.move(6, FocusDirection.LEFT, pages))
+        assertEquals(CandidatePagerMove.Flip(0, 2), CandidatePager.move(3, FocusDirection.LEFT, pages))
+        // 目标页仅一枚候选时：页尾 = 页首 = 该唯一候选（单 chip 页落点不歧义）
+        val single = CandidatePager.paginate(listOf(400, 100, 100, 100), 10, 310) // 0..0 / 1..2 / 3..3
+        assertEquals(CandidatePagerMove.Flip(1, 2), CandidatePager.move(3, FocusDirection.LEFT, single))
+        assertEquals(CandidatePagerMove.Flip(0, 0), CandidatePager.move(1, FocusDirection.LEFT, single))
     }
 
     @Test

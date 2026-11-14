@@ -9,7 +9,8 @@
 // 上次中/英）；中文模式字母入拼音组合（组合串经 setComposingText 上屏显示，候选栏只显示
 // 候选词 chips，决策 1/2）；空格 R-2（有候选选当前页第一候选、无候选输入空格，决策 8 × 决策 53）；
 // 中文模式行 1 头键 = 分词键（决策 51-②：组合态内插入切分符、无组合态忽略、上屏剥离）；
-// 候选行焦点进出与行内移动 + 行缘翻页（CandidatePager 模型，决策 53）。
+// 候选行焦点进出与行内移动 + 行缘翻页（CandidatePager 模型，决策 53；翻页落点分向
+// 随 T67 · 决策 55：下翻落新页首、上翻落回翻页尾）。
 // T11 接线（候选分页原「更多 ⌄」展开行）随 T66 · 决策 53 改造废止：候选栏单行 + 行内翻页
 //（CandidatePager 模型，页区间 = 候选全局下标，坑 10 相对坐标系消除；「更多⌄」入口与
 // more_bar 第二行、展开态主卡高度切换一并移除）。
@@ -23,7 +24,8 @@
 //（引导卡 GUIDE / 配对卡 PAIRING / 已连接卡面 CONNECTED，RemoteUiState 由 Manager 可观测值推导）；
 // 引导卡「远程输入」主按钮启动服务进入远程模式（FR-B2），主卡切远程模式框架（FR-B3：
 // 状态行三态 灰/青/绿 + 来自·设备名 + 大字折行区 + 底部提示 + 「退出远程」按钮接既有 stop 链路，
-// FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达（行 3/4 表缘 RIGHT 进入，LEFT 返回，FR-A10/A11）。
+// FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达（T67 · 决策 56：字母/符号两键盘最右列 col12
+// 全部按键表缘 RIGHT 进入，LEFT 返回，FR-A10/A11）。
 // T36 接线：候选装载完成 debug 专用 trace（决策 22 · FR-A8 ≤200ms 直测）——onKeyDown 入口落
 // 计时起点，bindCandidates 完成处出耗时 trace（trace 内 BuildConfig.DEBUG 门控，release 静默，
 // 只记耗时与结构计数不含输入内容）。
@@ -870,11 +872,13 @@ class SofatypeImeService : InputMethodService() {
     private fun String.isCandidateLayerId(): Boolean = isCandidateId()
 
     /**
-     * 键盘键方向导航（T6 格网语义 + T10 候选行进入 + T17 引导卡主按钮进入）：
+     * 键盘键方向导航（T6 格网语义 + T10 候选行进入 + T17/T67 引导卡主按钮进入）：
      * 行 1 键向上且候选行有 chips 时进入候选行（FR-A7「上下键进出候选行」，进入落点 = 首候选 chip）；
-     * 行 3/4 表缘向右且引导卡主按钮可达时进入主按钮（FR-B1「远程输入」主按钮遥控器可达——
-     * 主按钮位于副卡下部，与完成键同处行 3/4 纵向带，视觉行列关系对齐，FR-A11 不跳变；
-     * 行 1/2 表缘向右保持表缘不动口径）；其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
+     * 最右列（第 12 列）表缘向右且引导卡主按钮可达时进入主按钮——T67 · 决策 56（修订 FR-A11
+     * 键盘右缘表缘不动口径）：字母/符号两键盘最右列全部按键（行 1 [下屏]、行 2 [删除]、
+     * 行 3/4 [完成]，两键盘该列同构）按[右]直达「远程输入」主按钮，从按钮按[左]回进入前键位
+     *（guideReturnKey 既有口径）不变；副卡无该按钮（配对/已连接卡面）或远程模式主卡时
+     * 判否维持表缘不动；其余方向走 FocusNavigator 格网（表缘消费不动，不跳变）。
      */
     private fun handleKeyboardDirection(currentId: String, direction: FocusDirection) {
         val onTopRow = navigator.positionsOf(currentId).any { it.first == 1 }
@@ -909,10 +913,15 @@ class SofatypeImeService : InputMethodService() {
         if (target != null) target.requestFocus(View.FOCUS_DOWN)
     }
 
-    /** 引导卡主按钮当前是否可进入（引导卡面呈现 + 焦点键占据行 3/4 格位，与按钮纵向带对齐）。 */
+    /**
+     * 引导卡主按钮当前是否可进入（引导卡面呈现 + 焦点键占据最右列格位）。
+     * T67 · 决策 56（修订 FR-A11 键盘右缘口径）：进入条件从「行 3/4 纵向带」改为「第 12 列」——
+     * 字母/符号两键盘最右列全部按键按[右]均可直达主按钮；副卡为配对卡 / 已连接卡（无该按钮，
+     * guideButtonView 为 null）或远程模式主卡时判否，维持表缘不动。
+     */
     private fun canEnterGuideButton(currentId: String): Boolean =
         guideButtonView != null &&
-            navigator.positionsOf(currentId).any { it.first == 3 || it.first == 4 }
+            navigator.positionsOf(currentId).any { it.second == FocusNavigator.GRID_COLS }
 
     /**
      * T64 · 行步进窗口执行（符号键盘）：窗口偏移切到 [newOffset] 重建键区（符号区 7 列切换内容、
@@ -938,10 +947,10 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 候选行方向导航（T66 · 决策 53 单行行内翻页）：左右在页内候选间移动、页缘同方向翻页
-     *——行尾候选按[右]翻下一页、行首候选按[左]回上一页；翻页后焦点一律落页首第一个候选
-     *（模型见 CandidatePager，单测锁定）；向上到顶不动（行顶）、向下出候选区回键盘
-     *（落点 = 进入前的键盘键，丢失时回初始键）。
+     * 候选行方向导航（T66 · 决策 53 单行行内翻页 × T67 · 决策 55 翻页落点分向）：左右在页内
+     * 候选间移动、页缘同方向翻页——行尾候选按[右]翻下一页落新页首候选、行首候选按[左]回上一页
+     * 落回翻页尾候选（修订决策 53「翻页后一律落页首」条款；模型见 CandidatePager，单测锁定）；
+     * 向上到顶不动（行顶）、向下出候选区回键盘（落点 = 进入前的键盘键，丢失时回初始键）。
      */
     private fun handleCandidateRowDirection(currentId: String, direction: FocusDirection) {
         val index = currentId.candidateIndex() ?: return
@@ -951,7 +960,9 @@ class SofatypeImeService : InputMethodService() {
                 focusCandidateChip(move.index)
             }
             is CandidatePagerMove.Flip -> {
-                trace("focus $currentId $direction -> page ${move.page}（翻页，落页首 cand_${move.index}）")
+                // 决策 55 落点分向：trace 文案随落点分向（下翻落页首 / 上翻落页尾），走查取证锚点
+                val landing = if (direction == FocusDirection.LEFT) "页尾" else "页首"
+                trace("focus $currentId $direction -> page ${move.page}（翻页，落$landing cand_${move.index}）")
                 flipCandidatePage(move.page, move.index)
             }
             CandidatePagerMove.ExitDown -> exitCandidatesLayerToKeyboard(currentId)
@@ -967,8 +978,8 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 翻页并装载新页 chips（决策 53）：页号切换 → 重渲染候选行 → 焦点落
-     * [focusGlobalIndex]（调用方传页首候选全局下标）。
+     * 翻页并装载新页 chips（决策 53 × T67 · 决策 55 落点分向）：页号切换 → 重渲染候选行 →
+     * 焦点落 [focusGlobalIndex]（调用方传落点候选全局下标：下翻 = 新页首、上翻 = 回翻页尾）。
      */
     private fun flipCandidatePage(page: Int, focusGlobalIndex: Int) {
         val previous = candPage

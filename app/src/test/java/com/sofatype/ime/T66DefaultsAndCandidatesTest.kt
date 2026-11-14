@@ -3,7 +3,8 @@
 // ① 决策 52 符号键盘入口角态随入口模式：中文态 → 全角（画板 3/10）、英文态 → 半角（画板 4/11）；
 //    手动 [全/半] 仅本次停留生效（返回字母键盘后再进入重新跟随，不记忆手动选择）；
 // ② 决策 53 候选栏单行行内翻页（服务层接线）：「更多⌄」展开机制废止、翻页箭头固定候选框两侧
-//    （装饰件：不进焦点链、无障碍不标注、明暗表可翻页性）、翻页落点页首、空格 = 当前页第一候选；
+//    （装饰件：不进焦点链、无障碍不标注、明暗表可翻页性）、翻页落点分向随 T67 · 决策 55
+//   （下翻落新页首、上翻落回翻页尾）、空格 = 当前页第一候选；
 // ③ 决策 54 焦点键底色 .28：Token 色值锁定（rgba(56,189,248,.28) → #4738BDF8）；
 // ④ 决策 51-①/② 补充锁定：分词键模型（无组合态忽略 / 组合态插符 / 上屏剥离）在模型测试与
 //    服务层扫描两侧覆盖（详见 ChineseComposerTest / T65KeyFaceDefaultsTest / KeyboardLayoutTest）；
@@ -93,7 +94,7 @@ class T66DefaultsAndCandidatesTest {
         val renderIdx = flip.indexOf("renderCandidatesRow()")
         val focusIdx = flip.indexOf("focusCandidateChip(focusGlobalIndex)")
         assertTrue(
-            "翻页后焦点落点须在装载新页之后（决策 53：翻页后焦点落页首第一个候选）",
+            "翻页后焦点落点须在装载新页之后（决策 53 × T67 · 决策 55：落点分向，装载先行）",
             renderIdx >= 0 && focusIdx > renderIdx,
         )
     }
