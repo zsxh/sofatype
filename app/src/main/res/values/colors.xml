@@ -55,8 +55,9 @@
     <color name="border_accent_edit">#6638BDF8</color>
     <!-- 主色淡底（副卡按钮、候选高亮 chip、完成键），rgba(56,189,248,.14) -->
     <color name="accent_wash">#2438BDF8</color>
-    <!-- 主色淡底上限，rgba(56,189,248,.16)（PRD 6.1 accent-wash 区间上界） -->
-    <color name="accent_wash_strong">#2938BDF8</color>
+    <!-- 主色淡底上限 = 焦点键底色，rgba(56,189,248,.28)（T66 · 决策 54 加深，原 .16 废止；
+         border-accent 描边与焦点文字 #E8EEF5 适用范围不变，决策 50） -->
+    <color name="accent_wash_strong">#4738BDF8</color>
     <!-- 分隔线上限，rgba(255,255,255,.15) -->
     <color name="divider">#26FFFFFF</color>
     <!-- 分隔线下限，rgba(255,255,255,.07) -->

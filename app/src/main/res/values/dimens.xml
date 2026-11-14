@@ -45,12 +45,6 @@
     <dimen name="ime_card_gap">16dp</dimen>
     <dimen name="ime_main_card_width">636dp</dimen>
     <dimen name="ime_side_card_width">236dp</dimen>
-    <!-- 主卡展开态高度（T11 · FR-A15「更多⌄」展开第二行候选）：收起态卡内容 263dp（上下内边距 26 +
-         候选栏 26 + 键区距 9 + 键区 202）留 11dp 余量；展开态 = 收起态 + 展开行 26dp，余量耗尽即 +15dp
-         = 289dp（26 + 26 + 26 + 9 + 202），卡顶上移 15dp ≤ 覆盖区头部余量 24dp，键区整体下移 11dp、
-         键位结构不变（列节奏断言不受影响，HANDOFF 模拟器坑 7 口径）。柔影随卡同步 +15dp -->
-    <dimen name="ime_card_height_expanded">289dp</dimen>
-    <dimen name="ime_card_shadow_height_expanded">301dp</dimen>
     <!-- 主卡内边距 26px/32px（画板① padding 26px 32px） -->
     <dimen name="ime_card_padding_v">13dp</dimen>
     <dimen name="ime_card_padding_h">16dp</dimen>
@@ -62,6 +56,11 @@
     <dimen name="ime_chip_text">14sp</dimen>
     <dimen name="ime_chip_padding_h">11dp</dimen>
     <dimen name="ime_chip_gap">8dp</dimen>
+    <!-- 候选栏行内翻页箭头（T66 · 决策 53，画板 2）：< > 字符样式、约 30px 加粗、宽 28px、
+         与 chips 间距 10px；固定于候选框两侧，装饰暗示不进焦点链（无障碍不标注） -->
+    <dimen name="ime_cand_arrow_width">14dp</dimen>
+    <dimen name="ime_cand_arrow_text">15sp</dimen>
+    <dimen name="ime_cand_arrow_gap">5dp</dimen>
     <!-- 键盘区：宽 1200px、距候选栏 18px（画板① margin 18px auto 0） -->
     <dimen name="ime_key_area_width">600dp</dimen>
     <dimen name="ime_key_area_margin_top">9dp</dimen>

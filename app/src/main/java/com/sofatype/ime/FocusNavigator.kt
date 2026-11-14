@@ -19,12 +19,14 @@ enum class FocusDirection { LEFT, RIGHT, UP, DOWN }
  * 格位坐标 (row, col) 均 1-based；跨行键（完成键等）占据多个格位。
  *
  * @param rows 行键位（行内键格位由画板步进口径推导）
+ * @param rows 行键位（行内键格位由画板步进口径推导；缺省 = 英文态字母键盘——T66 · 决策 51 起
+ *   行 1 功能键区头键随语言模式分化，两态格网同构、仅该键位键 id 不同，服务层按当前语言显式传参）
  * @param overlayCells 跨行浮层键格位（键 id → 占据格位列表，如完成键/空格键跨行 3/4）；
  *   缺省为字母键盘完成键（列 = 行 1 下屏键列，T28 对齐口径）
  * @param initialCell 初始焦点格位（缺省键区左上角）
  */
 class FocusNavigator(
-    rows: List<KeyRow> = KeyboardLayout.rows,
+    rows: List<KeyRow> = KeyboardLayout.rows(LanguageMode.ENGLISH),
     overlayCells: Map<String, List<Pair<Int, Int>>> = mapOf(
         KeyboardLayout.doneKey.id to KeyboardLayout.doneKeyCells,
     ),

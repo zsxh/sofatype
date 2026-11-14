@@ -1,13 +1,14 @@
-// T65 · 键盘键面样式、默认态与按键高亮原则调整单测（docs/issues/open/T65.md · 决策 46~50）。
-// 锁定七件事：
-// ① 默认态初始化：字母键盘默认英文输入 + 大写（⇧ 触发态）、符号键盘默认半角（决策 46-③ / 48-①）；
+// T65 · 键盘键面样式、默认态与按键高亮原则调整单测（docs/issues/closed/T65.md · 决策 46~50）。
+// T66 · 决策 51~54 对默认态 / 中文态键位 / 键面两态 / 焦点底色返工，本类按新口径锁定：
+// ① 默认态初始化（T66 · 决策 51-①/③ 修订）：语言默认中文（开机后首次打开）、大小写默认小写
+//    （英文态默认小写）；会话内记忆（字段为进程级状态，键盘视图重建不重置语言与大小写）；
 // ② 状态键当前态渲染：[中/英][全/半] 方案 C 斜杠排版 + 当前态亮青加粗下划线 + 含当前态描述（决策 46-② / 47-①）；
 // ③ ⇧ 激活态形态：图标亮青 + 图标下方 3px 短下划线条、图标 32px 笔画加粗（决策 46-④ / 47-①）；
-// ④ 键面恒显大写与输出解耦（决策 48-②）；
-// ⑤ 中文态按[⇧]落英文小写：组合与候选取消不落定、固定小写不翻转（决策 49）；
+// ④ 键面随语言模式 / 大小写输出状态（T66 · 决策 51-②/③ 修订决策 48-②「恒显大写」为仅中文模式）；
+// ⑤ 中文 → 英文切换唯一路径 = [中/英] 键 + 分词键接线（T66 · 决策 51-②；决策 49 中文态[⇧]路径废止删除）；
 // ⑥ 远程模式默认焦点：[退出远程] 进入即持有焦点（决策 50-①）；
-// ⑦ 焦点底色口径：全部焦点键 accent-wash 淡青底 .16 + border-accent 描边 + 焦点文字 #E8EEF5
-//    （决策 50-②）；[完成] 常态不高亮（决策 46-①）与非选中键样式一致（决策 47-②）。
+// ⑦ 焦点底色口径：全部焦点键 accent-wash 淡青底 + border-accent 描边 + 焦点文字 #E8EEF5
+//    （决策 50-② × 决策 54 加深 .28）；[完成] 常态不高亮（决策 46-①）与非选中键样式一致（决策 47-②）。
 // SofatypeImeService 为 Android 服务层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：T55ModeSwitchCompositionResetTest、T59HiddenKeySemanticsTest。
 package com.sofatype.ime
@@ -25,40 +26,45 @@ class T65KeyFaceDefaultsTest {
         File("src/main/$path").readText()
 
     private val service: String get() = mainSource("java/com/sofatype/ime/SofatypeImeService.kt")
-    private val layoutModel: String get() = mainSource("java/com/sofatype/ime/KeyboardLayout.kt")
-    private val symbolsModel: String get() = mainSource("java/com/sofatype/ime/SymbolsLayout.kt")
 
     /** 取函数体：从签名行起、到下一个成员级 KDoc 边界行止（T55 同口径）。 */
     private fun serviceBody(signature: String): String =
         service.substringAfter(signature).substringBefore("\n    /**")
 
-    // ── ① 默认态初始化（决策 46-③ / 48-①） ──
+    // ── ① 默认态初始化（T66 · 决策 51-①/③ 修订决策 46-③/48-①） ──
 
     @Test
-    fun `字段默认态为英文输入加大写与符号半角`() {
+    fun `字段默认态为中文输入与小写`() {
         assertTrue(
-            "大小写默认态须为大写（决策 48-①：键盘打开即 ⇧ 触发态）",
-            service.contains("private var caseState = CaseState.UPPER"),
+            "大小写默认态须为小写（决策 51-③：英文态默认小写输出）",
+            service.contains("private var caseState = CaseState.LOWER"),
         )
         assertTrue(
-            "语言默认态须为英文（决策 46-③ / 48-①：字母键盘默认英文输入）",
-            service.contains("private var languageMode = LanguageMode.ENGLISH"),
-        )
-        assertTrue(
-            "全半角默认态须为半角（决策 46-③：符号键盘默认半角）",
-            service.contains("private var symbolsWidth = SymbolsWidth.HALF_WIDTH"),
+            "语言默认态须为中文（决策 51-①：开机后首次打开 = 中文输入）",
+            service.contains("private var languageMode = LanguageMode.CHINESE"),
         )
     }
 
     @Test
-    fun `键盘视图创建复位默认态`() {
+    fun `键盘视图创建不复位语言与大小写会话记忆`() {
+        // T66 · 决策 51-① × FR-A13：会话内记住上次中/英——onCreateInputView 不得重置
+        // languageMode / caseState（进程级状态，仅进程重启回默认态）；键区几何态仍复位。
         val body = serviceBody("override fun onCreateInputView()")
-        val upperIdx = body.indexOf("caseState = CaseState.UPPER")
-        val englishIdx = body.indexOf("languageMode = LanguageMode.ENGLISH")
-        val halfIdx = body.indexOf("symbolsWidth = SymbolsWidth.HALF_WIDTH")
+        assertFalse(
+            "键盘视图创建不得重置语言模式（决策 51-① 会话记忆：记住上次中/英）",
+            body.contains("languageMode ="),
+        )
+        assertFalse(
+            "键盘视图创建不得重置大小写状态（FR-A13 会话记忆）",
+            body.contains("caseState ="),
+        )
         assertTrue(
-            "键盘视图创建须复位英文 + 大写 + 半角默认态（决策 46-③ / 48-①）",
-            upperIdx >= 0 && englishIdx >= 0 && halfIdx >= 0,
+            "键盘视图创建须复位字母键盘布局模式",
+            body.contains("keyboardMode = KeyboardMode.LETTERS"),
+        )
+        assertTrue(
+            "键盘视图创建须按当前语言模式装配字母格网（决策 51 行 1 头键随模式分化）",
+            body.contains("KeyboardLayout.rows(languageMode)"),
         )
     }
 
@@ -85,7 +91,7 @@ class T65KeyFaceDefaultsTest {
             render.contains("if (languageMode == LanguageMode.CHINESE) 0 else 1"),
         )
         assertTrue(
-            "[全/半] 当前态 = 半角时亮次字符（决策 46-②；默认半角即亮「半」）",
+            "[全/半] 当前态 = 半角时亮次字符（决策 46-②）",
             render.contains("if (symbolsWidth == SymbolsWidth.HALF_WIDTH) 1 else 0"),
         )
         assertTrue(
@@ -98,26 +104,23 @@ class T65KeyFaceDefaultsTest {
             "状态键无障碍描述须含当前态（决策 46-②）",
             render.contains("langContentDescription") && render.contains("widthContentDescription"),
         )
-        val toggleLanguage = service.substringAfter("KeyAction.ToggleLanguage -> {")
-            .substringBefore("字母键盘 ↔ 符号键盘切换（FR-A5）")
+        // T66 · 决策 51：中英切换 = 键区重建装配（行 1 头键随模式分化），重建路径在视图创建时
+        // 渲染当前态指示（createKeyView → applyStateKeyAppearance）；重建后焦点保持 [中/英] 键
+        val toggleLanguage = serviceBody("KeyAction.ToggleLanguage -> {").substringBefore("\n    /**")
         assertTrue(
-            "[中/英] 切换后须刷新状态键指示（决策 46-② 实时随动）",
-            toggleLanguage.contains("applyStateKeyAppearance()"),
+            "中英切换须重建键区（决策 51 行 1 头键随模式分化）",
+            toggleLanguage.contains("rebuildKeys(requireNotNull(keyboardView)"),
         )
-        // Round 2 打回 D1 同源锁定：中文态按[⇧]切英文（决策 49 路径）同样须刷新 [中/英] 指示
-        val toggleCase = service.substringAfter("KeyAction.ToggleCase -> {")
-            .substringBefore("KeyAction.OpenSymbols")
-        val chineseBranch = toggleCase.substringAfter("if (languageMode == LanguageMode.CHINESE)")
-            .substringBefore("} else {")
         assertTrue(
-            "中文态按[⇧]切英文后须刷新状态键指示（决策 46-② 实时随动，Round 2 D1）",
-            chineseBranch.contains("applyStateKeyAppearance()"),
+            "中英切换后焦点须保持 [中/英] 键（键区重建后视图重建）",
+            toggleLanguage.contains("keyViews[\"lang\"]?.requestFocus"),
         )
-        val stateRefreshIdx = chineseBranch.indexOf("applyStateKeyAppearance()")
-        val englishIdxForState = chineseBranch.indexOf("languageMode = LanguageMode.ENGLISH")
-        assertTrue(
-            "状态键指示刷新须在语言切换赋值之后（读最新模式）",
-            stateRefreshIdx > englishIdxForState,
+        // T66 · 决策 51-②：中文态无 ⇧ 键位——ToggleCase 分支不得再有语言切换（决策 49 路径废止删除）
+        // （边界 = 下一分支 OpenSymbols；通用 KDoc 边界会裹入后续 [中/英] 分支）
+        val toggleCase = serviceBody("KeyAction.ToggleCase -> {").substringBefore("KeyAction.OpenSymbols")
+        assertFalse(
+            "中文态按[⇧]切英文路径须已删除（决策 49 废止，中文 → 英文唯一路径 = [中/英] 键）",
+            toggleCase.contains("languageMode"),
         )
     }
 
@@ -164,74 +167,91 @@ class T65KeyFaceDefaultsTest {
         )
     }
 
-    // ── ④ 键面恒显大写与输出解耦（决策 48-②） ──
+    // ── ④ 键面随语言模式 / 大小写输出状态（T66 · 决策 51-②/③ 修订决策 48-②） ──
 
     @Test
-    fun `键面恒大写与输出大小写解耦`() {
+    fun `键面随语言模式与大小写输出状态`() {
         val a = KeyboardLayout.keyById.getValue("a")
-        // 键面不随大小写输出状态或输入模式变化
-        assertEquals("A", KeyboardLayout.displayLabel(a))
-        // 输出仅由 ⇧ 触发态表达：触发 = 大写、未触发 = 小写
+        // 中文模式恒显大写（决策 51-②）；英文模式键面随 ⇧ 触发态（决策 51-③：小写态小写/大写态大写）
+        assertEquals("A", KeyboardLayout.displayLabel(a, chineseMode = true, upperCase = false))
+        assertEquals("a", KeyboardLayout.displayLabel(a, chineseMode = false, upperCase = false))
+        assertEquals("A", KeyboardLayout.displayLabel(a, chineseMode = false, upperCase = true))
+        // 输出仅随 ⇧ 触发态（英文模式）：触发 = 大写、未触发 = 小写
         assertEquals("a", KeyboardLayout.outputValue(a, CaseState.LOWER))
         assertEquals("A", KeyboardLayout.outputValue(a, CaseState.UPPER))
-        // 服务层键面装配走恒大写口径（无大小写参数）
+        // 服务层键面装配随语言模式与大小写出键面（决策 51-②/③）
+        val createTextKey = serviceBody("private fun createTextKey(key: Key)")
         assertTrue(
-            "服务层键面装配须用键面恒显大写口径（决策 48-②）",
-            serviceBody("private fun createTextKey(key: Key)").contains("KeyboardLayout.displayLabel(key)"),
+            "服务层键面装配须随语言模式与大小写状态（决策 51-②/③）",
+            createTextKey.contains("KeyboardLayout.displayLabel(") &&
+                createTextKey.contains("languageMode == LanguageMode.CHINESE") &&
+                createTextKey.contains("caseState == CaseState.UPPER"),
         )
-        assertFalse(
-            "键面装配不得再随大小写状态取键面（键面与输出解耦）",
-            service.contains("displayLabel(key, caseState)"),
-        )
-    }
-
-    // ── ⑤ 中文态按[⇧]落英文小写（决策 49，修订决策 43-①） ──
-
-    @Test
-    fun `中文态按上档取消组合固定落英文小写`() {
-        val toggleCase = service.substringAfter("KeyAction.ToggleCase -> {")
-            .substringBefore("KeyAction.OpenSymbols")
-        val chineseBranch = toggleCase.substringAfter("if (languageMode == LanguageMode.CHINESE)")
-            .substringBefore("} else {")
+        // ⇧ 触发态刷新须同步字母键面与无障碍标注（英文两态键面切换路径）
+        val applyCase = serviceBody("private fun applyCaseState()")
         assertTrue(
-            "中文态按[⇧]须取消组合与候选、不落定上屏（决策 49 / 决策 43 取消语义不变）",
-            chineseBranch.contains("cancelComposition()"),
+            "⇧ 切换须刷新字母键面（决策 51-③ 键面随大小写输出状态）",
+            applyCase.contains("refreshLetterKeyFaces()"),
         )
+        val refreshFaces = serviceBody("private fun refreshLetterKeyFaces()")
         assertTrue(
-            "中文态按[⇧]须切英文输入态（决策 49）",
-            chineseBranch.contains("languageMode = LanguageMode.ENGLISH"),
+            "字母键面刷新须同步文字与朗读标注（TalkBack 同文）",
+            refreshFaces.contains("view.text = label") && refreshFaces.contains("view.contentDescription = label"),
         )
-        assertTrue(
-            "中文态按[⇧]须固定落英文小写（决策 49：⇧ 未触发，不随该键翻转）",
-            chineseBranch.contains("caseState = CaseState.LOWER"),
-        )
-        assertFalse(
-            "中文态按[⇧]不得翻转大小写（决策 49 废止决策 43-① 翻转口径）",
-            chineseBranch.contains("caseState = if (caseState"),
-        )
-        val refreshIdx = chineseBranch.indexOf("refreshCandidatesBar()")
-        val englishIdx = chineseBranch.indexOf("languageMode = LanguageMode.ENGLISH")
-        assertTrue("取消组合后须刷新候选栏清空 chips", refreshIdx > englishIdx)
-        // Round 2 打回 D1：切英文后 [中/英] 键面与无障碍描述须随动（applyStateKeyAppearance 内含
-        // langContentDescription 赋 contentDescription，键面亮「英」、描述「当前为英文」）
-        val stateIdx = chineseBranch.indexOf("applyStateKeyAppearance()")
-        assertTrue(
-            "中文态按[⇧]切英文后须刷新 [中/英] 指示（键面 + 无障碍描述随动，决策 46-②）",
-            stateIdx >= 0,
-        )
-        assertTrue("指示刷新须在候选栏刷新同拍（切英文后）", stateIdx > refreshIdx)
     }
 
     @Test
     fun `英文态按上档维持纯大小写切换`() {
-        // FR-A3 不回归（T55 同口径）：大小写翻转与键面刷新在中文分支之外
-        val toggleCase = service.substringAfter("KeyAction.ToggleCase -> {")
-            .substringBefore("KeyAction.OpenSymbols")
-        val chineseBranchEnd = toggleCase.indexOf("} else {")
+        // FR-A3 不回归（T55 同口径；T66 · 决策 51-③ 该键仅存在于英文模式）
+        val toggleCase = serviceBody("KeyAction.ToggleCase -> {").substringBefore("\n    /**")
         val flipIdx = toggleCase.indexOf("caseState = if (caseState == CaseState.UPPER)")
         val applyIdx = toggleCase.indexOf("applyCaseState()")
-        assertTrue("英文态纯大小写翻转须保留（FR-A3）", flipIdx > chineseBranchEnd)
+        assertTrue("英文态纯大小写翻转须保留（FR-A3）", flipIdx >= 0)
         assertTrue("键面/触发态刷新（applyCaseState）须保留", applyIdx > flipIdx)
+    }
+
+    // ── ⑤ 中文 → 英文唯一路径 = [中/英] 键 + 分词键接线（T66 · 决策 51-②） ──
+
+    @Test
+    fun `分词键仅在组合态生效且中英切换为唯一切英路径`() {
+        // 分词键三细节（决策 51-②）：组合态内插入切分符；无组合态忽略；
+        // 选词后不落正文 / 原样上屏不带切分符（composer.committedText 剥离 + finishComposition 接线）
+        val segmentBranch = serviceBody("KeyAction.Segment -> {").substringBefore("\n    /**")
+        assertTrue(
+            "分词键须在组合态内插切分符（composer.appendSegment）",
+            segmentBranch.contains("composer.appendSegment()"),
+        )
+        val compositionGuard = segmentBranch.indexOf("composer.composition.isNotEmpty()")
+        val appendIdx = segmentBranch.indexOf("composer.appendSegment()")
+        assertTrue("分词键须先判组合态（无组合态忽略，决策 51-②）", compositionGuard >= 0 && appendIdx > compositionGuard)
+        assertTrue(
+            "分词插符后须刷新组合串与候选栏",
+            segmentBranch.contains("updateComposingText()") && segmentBranch.contains("refreshCandidatesBar()"),
+        )
+        // 中文 → 英文唯一路径：[中/英] 键（ToggleLanguage）；英文态默认小写（决策 51-③）
+        val toggleLanguage = serviceBody("KeyAction.ToggleLanguage -> {").substringBefore("\n    /**")
+        assertTrue(
+            "中英切换须先取消组合态（决策 43-② 复位口径不变）",
+            toggleLanguage.contains("cancelComposition()"),
+        )
+        val lowerIdx = toggleLanguage.indexOf("caseState = CaseState.LOWER")
+        val englishIdx = toggleLanguage.indexOf("LanguageMode.ENGLISH")
+        assertTrue(
+            "切英文须固定落小写（决策 51-③：英文态默认小写输出）",
+            lowerIdx >= 0 && englishIdx >= 0 && lowerIdx > englishIdx,
+        )
+        // 上屏剥离切分符：finishComposition 须经 committedText（剥离）写组合区再终结
+        val finish = serviceBody("private fun finishComposition()")
+        assertTrue(
+            "组合串落定须剥离切分符（决策 51-②：原样上屏不带切分符）",
+            finish.contains("composer.committedText()"),
+        )
+        // 服务层 rebuildKeys 按语言模式装配格网（结构分化随 KeyboardLayoutTest 锁定）
+        assertTrue(
+            "字母格网装配须随语言模式（决策 51 行 1 头键分化）",
+            serviceBody("private fun rebuildKeys(root: View, requestInitialFocus: Boolean)")
+                .contains("KeyboardLayout.rows(languageMode)"),
+        )
     }
 
     // ── ⑥ 远程模式默认焦点（决策 50-①） ──
@@ -252,7 +272,7 @@ class T65KeyFaceDefaultsTest {
         )
     }
 
-    // ── ⑦ 焦点底色口径与非选中键一致（决策 46-① / 47-② / 50-②） ──
+    // ── ⑦ 焦点底色口径与非选中键一致（决策 46-① / 47-② / 50-② × T66 · 决策 54 加深） ──
 
     /** 取 drawable / layout 文件中 [marker] 起到下一个 `</item>`（或 `/>`）前的声明块。 */
     private fun blockAround(text: String, marker: String): String {
@@ -270,7 +290,7 @@ class T65KeyFaceDefaultsTest {
             blockAround(bgKey, "state_focused").contains("@color/key_hover"),
         )
         assertTrue(
-            "键帽焦点底须统一 accent-wash 淡青底 rgba(56,189,248,.16)（决策 50-②）",
+            "键帽焦点底须统一 accent-wash 淡青底 rgba(56,189,248,.28)（决策 50-② × 决策 54）",
             blockAround(bgKey, "state_focused").contains("@color/accent_wash_strong") &&
                 blockAround(bgKey, "state_focused").contains("@color/border_accent"),
         )
@@ -280,14 +300,12 @@ class T65KeyFaceDefaultsTest {
             chipHighlight.contains("@color/accent_wash_strong"),
         )
         val chipAppearance = serviceBody("private fun applyChipAppearance(view: View)")
-        val toggleAppearance = serviceBody("private fun applyToggleAppearance(view: TextView)")
         assertTrue(
             "焦点文字须 #E8EEF5（决策 50-②：#7DD3FC 焦点青字废止）",
             chipAppearance.contains("R.color.text_body") &&
-                toggleAppearance.contains("R.color.text_body") &&
-                !chipAppearance.contains("R.color.accent_text") &&
-                !toggleAppearance.contains("R.color.accent_text"),
+                !chipAppearance.contains("R.color.accent_text"),
         )
+        // 「更多⌄」入口外观函数随 T66 · 决策 53 废止移除，不再作为断言对象
     }
 
     @Test

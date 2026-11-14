@@ -453,17 +453,17 @@ class SymbolsLayoutTest {
                 assertEquals("返回应在功能列原点 1028", 1028, row2[12])
                 assertEquals("删除应在图标列原点 1120", 1120, row2[13])
                 // 与字母键盘同构：行 1/2 列原点逐位一致（数字列/符号区/两道列间隔/功能区全同节奏）
-                assertEquals("符号行 1 与字母行 1 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[0]), row1)
-                assertEquals("符号行 2 与字母行 2 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows[1]), row2)
+                assertEquals("符号行 1 与字母行 1 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[0]), row1)
+                assertEquals("符号行 2 与字母行 2 列原点逐位一致", cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[1]), row2)
                 // 行 3 前缀节奏一致（col11/12 无行内键，由浮层键声明）
-                val lettersRow3 = cellOriginPxs(KeyboardLayout.rows[2])
+                val lettersRow3 = cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[2])
                 assertEquals(
                     "符号行 3 与字母行 3 列原点前缀一致",
                     lettersRow3.take(rows[2].cells.size),
                     cellOriginPxs(rows[2]),
                 )
                 // 行 4 数字列段与字母键盘行 4 前缀一致（.com 0 @，决策 45）
-                val lettersRow4 = cellOriginPxs(KeyboardLayout.rows[3])
+                val lettersRow4 = cellOriginPxs(KeyboardLayout.rows(LanguageMode.ENGLISH)[3])
                 assertEquals(
                     "符号行 4 数字列段与字母行 4 列原点前缀一致（.com 0 @ + 列间隔）",
                     lettersRow4.take(4),

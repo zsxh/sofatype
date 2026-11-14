@@ -100,6 +100,69 @@ class ChineseComposerTest {
         assertFalse(c.hasCandidates)
     }
 
+    // ---- T66 · 决策 51-② 分词切分符 ----
+
+    @Test
+    fun `组合态内插入切分符并刷新候选`() {
+        val (c, fake) = composer(mapOf("xian" to listOf("西安", "先"), "xi" to listOf("西")))
+        c.appendLetter('x')
+        c.appendLetter('i')
+        assertTrue(c.appendSegment())
+        assertEquals("xi'", c.composition)
+        c.appendLetter('a')
+        c.appendLetter('n')
+        assertEquals("xi'an", c.composition)
+        // 查询入参剥离切分符（引擎只接受纯小写字母串）
+        assertEquals(listOf("x", "xi", "xi", "xia", "xian"), fake.calls)
+        assertEquals(listOf("西安", "先"), c.candidates)
+    }
+
+    @Test
+    fun `无组合态插切分符被拒绝`() {
+        val (c, fake) = composer()
+        assertFalse(c.appendSegment())
+        assertEquals("", c.composition)
+        assertEquals(0, fake.calls.size)
+    }
+
+    @Test
+    fun `查询与上屏串剥离切分符`() {
+        val (c, _) = composer(mapOf("xian" to listOf("西安")))
+        c.appendLetter('x')
+        c.appendLetter('i')
+        c.appendSegment()
+        c.appendLetter('a')
+        c.appendLetter('n')
+        assertEquals("xi'an", c.composition)
+        assertEquals("xian", c.queryInput())
+        assertEquals("xian", c.committedText())
+        // 退格先删切分符
+        assertTrue(c.deleteLastLetter())
+        assertEquals("xi'a", c.composition)
+        assertTrue(c.deleteLastLetter())
+        assertEquals("xi'", c.composition)
+        assertTrue(c.deleteLastLetter())
+        assertEquals("xi", c.composition)
+    }
+
+    @Test
+    fun `选词上屏与原样上屏均不落切分符`() {
+        // 决策 51-② 三细节之②③的模型侧口径：选词走 firstCandidate（候选与切分符无关），
+        // 原样上屏走 committedText（剥离切分符）——服务层经区域替换 / setComposingText 承载
+        val (c, _) = composer(mapOf("xian" to listOf("西安", "先")))
+        c.appendLetter('x')
+        c.appendLetter('i')
+        c.appendSegment()
+        c.appendLetter('a')
+        c.appendLetter('n')
+        assertEquals("西安", c.firstCandidate())
+        assertEquals("xian", c.committedText())
+        // 无候选组合串（合成表无 "xianq"）同样剥离后原样上屏
+        c.appendLetter('q')
+        assertEquals(listOf<String>(), c.candidates)
+        assertEquals("xianq", c.committedText())
+    }
+
     // ---- 重置（上屏 / 切模式 / 键盘重建） ----
 
     @Test

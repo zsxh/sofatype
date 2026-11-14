@@ -12,9 +12,15 @@ import org.junit.Test
 
 class FocusNavigatorTest {
 
-    // 运行时字母键盘实例口径（T40）：初始格位 = KeyboardLayout.initialCell（字母区首键 [a]）
+    // 运行时字母键盘实例口径（T40）：初始格位 = KeyboardLayout.initialCell（字母区首键 [a]）。
+    // T66 · 决策 51：键位结构随语言模式分化（行 1 头键 分词/⇧），格网同构；本测试锁缺省
+    //（英文态）格网，中文态由 KeyboardLayoutTest 两态同构性锁定。
     private val navigator = FocusNavigator(initialCell = KeyboardLayout.initialCell)
-    private val allKeyIds: List<String> = KeyboardLayout.allKeys().map { it.id }
+
+    /** 缺省格网全部键 id（行内 46 + 完成键 = 47；与 KeyboardLayout.allKeys() 两态并集 48 区分；
+     *  done 跨两行格位需去重）。 */
+    private val allKeyIds: List<String> =
+        (1..4).flatMap { row -> (1..12).mapNotNull { col -> navigator.keyAt(row, col) } }.distinct()
 
     // ---- 网格完整性（画板① = 12 列 × 4 行完整网格） ----
 

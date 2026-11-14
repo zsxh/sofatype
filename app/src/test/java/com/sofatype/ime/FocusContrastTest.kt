@@ -29,8 +29,8 @@ class FocusContrastTest {
     private val textSecondary = rgb(0xC9D4E2) // 功能键文字
     private val borderAccent = argb(0x80, 0x38BDF8) // 主色描边 rgba(56,189,248,.5)
     private val accentWash = argb(0x24, 0x38BDF8) // 主色淡底 rgba(56,189,248,.14)
-    private val accentWashStrong = argb(0x29, 0x38BDF8) // 主色淡底上界 rgba(56,189,248,.16) · 焦点底（决策 50-②）
-    private val textFaint = argb(0x80, 0xE8EEF5) // 半透明白 50%（状态键非当前态压暗字符 / 更多⌄ 常态）
+    private val accentWashStrong = argb(0x47, 0x38BDF8) // 焦点键底 rgba(56,189,248,.28) · 决策 54 加深（原 .16 废止）
+    private val textFaint = argb(0x80, 0xE8EEF5) // 半透明白 50%（状态键非当前态压暗字符）
 
     // ---- WCAG 2.1 相对亮度与对比度 ----
 
@@ -90,8 +90,9 @@ class FocusContrastTest {
         )
     }
 
-    // ---- TV 端焦点态（T65 · 决策 50-②：焦点底统一 accent-wash 淡青底 rgba(56,189,248,.16)
-    //      + border-accent 描边，焦点文字 #E8EEF5；#242C39 灰调焦点底与 #7DD3FC 焦点青字废止） ----
+    // ---- TV 端焦点态（决策 50-② × T66 · 决策 54：焦点底统一 accent-wash 淡青底
+    //      rgba(56,189,248,.28) + border-accent 描边，焦点文字 #E8EEF5；#242C39 灰调焦点底
+    //      与 #7DD3FC 焦点青字废止；加深后对比度只升不降，阈值口径不变） ----
 
     @Test
     fun `键帽焦点态文字对比度达标`() {

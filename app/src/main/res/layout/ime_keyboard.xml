@@ -27,8 +27,7 @@
         android:paddingStart="@dimen/ime_card_margin_h"
         android:paddingEnd="@dimen/ime_card_margin_h">
 
-        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行；
-             展开态高度由服务层切换 ime_card_height / ime_card_height_expanded（T11 · FR-A15） -->
+        <!-- 主卡（含柔影垫层）：包装层保持卡片几何，柔影外扩部分靠外层 clipChildren=false 放行 -->
         <FrameLayout
             android:id="@+id/main_card_wrap"
             android:layout_width="@dimen/ime_main_card_width"
@@ -55,7 +54,8 @@
                 android:paddingTop="@dimen/ime_card_padding_v"
                 android:paddingEnd="@dimen/ime_card_padding_h">
 
-            <!-- 候选词栏（T10 · FR-A7）：仅候选词 chips（决策 1 不显示拼音串、决策 2 无语音入口），
+            <!-- 候选词栏（T10 · FR-A7；T66 · 决策 53 单行行内翻页：chips + 两端 < > 翻页箭头
+                 （装饰件，服务层程序化生成），「更多⌄」展开行机制废止（FR-A15 删除，more_bar 移除）。
                  无常亮高亮（决策 30，高亮仅随遥控器焦点态）；
                  chips 由服务层依组合态候选程序化生成；空态几何占位无条件保留——中/英模式 ×
                  字母/符号键盘全组合键区顶恒定（PRD 决策 42，FR-A7「英文模式候选栏隐藏、
@@ -66,15 +66,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/ime_candidates_height"
                 android:orientation="horizontal" />
-
-            <!-- 更多候选展开行（T11 · FR-A15）：候选栏下方第二行候选，分页展示（页内容由服务层装载），
-                 默认 GONE；可见时主卡切展开态高度，键区随之下移 -->
-            <LinearLayout
-                android:id="@+id/more_bar"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/ime_candidates_height"
-                android:orientation="horizontal"
-                android:visibility="gone" />
 
             <!-- 远程模式主卡框架（T17 · FR-B3 / 决策 33，画板⑤）：状态行（点 + 状态文字 + 来自·设备名 +
                  「退出远程」按钮）+ 40px 大字自动折行区（T33 决策 31 口径不变）+ 底部提示。

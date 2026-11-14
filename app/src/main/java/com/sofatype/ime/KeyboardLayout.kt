@@ -1,16 +1,26 @@
 // T5 · 字母键盘键位模型（designs/20261110 画板 1「键盘 · 默认态」，FR-A2）。
 // T7 · 大小写状态语义（FR-A3）与文本输出值（FR-A9）。
-// T65 · 决策 46：默认态英文输入 + 大写、[完成] 键常态不高亮、[中/英] 状态键方案 C 当前态指示。
+// T65 · 决策 46：[完成] 键常态不高亮、[中/英] 状态键方案 C 当前态指示。
+// T66 · 决策 51：默认态中文（开机后首次打开）、中文态无 ⇧ 键位（该键位 = 分词键）、
+// 英文态默认小写、键面随大小写输出状态（中文态恒显大写）。
 // 纯 Kotlin，不依赖 Android 类，可脱离模拟器独立单元测试（TASKS T5 施工口径）。
-// 范围边界：符号键盘属 T8；拼音与候选词属 T9/T10。本模型只描述画板①键位结构、键面语义
-// 与大小写相关的键面/输出变换；Android 侧视图生成与事件处理在 SofatypeImeService。
+// 范围边界：符号键盘属 T8；拼音与候选词属 T9/T10。本模型只描述键位结构、键面语义
+// 与语言/大小写相关的键面/输出变换；Android 侧视图生成与事件处理在 SofatypeImeService。
 package com.sofatype.ime
 
 /**
- * 大小写状态（FR-A3，T7）。上档键在两态间切换；⇧ 触发态是唯一大小写指示（决策 48-②）。
- * 默认大写（T65 · 决策 48-①）；键盘记忆属 FR-A13（P2）不做，每次键盘视图创建复位默认态。
+ * 大小写状态（FR-A3，T7）。英文模式 ⇧ 键在两态间切换；⇧ 触发态是英文态唯一大小写指示。
+ * 默认小写（T66 · 决策 51-③：英文态默认小写输出）；会话内记忆（FR-A13 按会话），
+ * 开机后进程重启即回默认态。
  */
 enum class CaseState { LOWER, UPPER }
+
+/**
+ * 语言模式（FR-A4）：中文（拼音组合）↔ 英文（直出）。
+ * T66 自服务层私有枚举上移模型层：键位结构与键面形态随语言模式分化（决策 51-②/③）。
+ * 默认中文（决策 51-①：开机后首次打开 = 中文输入；会话内记住上次中/英，FR-A13）。
+ */
+enum class LanguageMode { CHINESE, ENGLISH }
 
 /** 键帽视觉变体（PRD 6.3 / 画板①）：普通字符键 / 功能键 / 强调键（完成键）。 */
 enum class KeyVariant {
@@ -51,8 +61,15 @@ sealed class KeyAction {
     /** 直出文本：字母、数字、`.com`、`@`。 */
     data class Text(val value: String) : KeyAction()
 
-    /** 上档切换（FR-A3，T7）。 */
+    /** 上档切换（FR-A3，T7；T66 · 决策 51-② 起仅英文模式存在该键位）。 */
     object ToggleCase : KeyAction()
+
+    /**
+     * 分词（T66 · 决策 51-②，中文模式 ⇧ 键位替代键）：组合态内插入拼音切分符（如 xi'an），
+     * 选词后切分符不落正文；无组合态按键忽略；组合串无候选原样上屏不带切分符
+     *（组合串语义在 ChineseComposer，上屏剥离在服务层 finishComposition）。
+     */
+    object Segment : KeyAction()
 
     /** 下屏：收起键盘（FR-A1，T5 生效）。 */
     object HideSelf : KeyAction()
@@ -102,8 +119,9 @@ data class Key(
     /**
      * 无障碍标注（PRD 第 8 章，T26 全键位口径）。
      * 全部键位必填：图标键与功能键为动作语义描述（画板 aria-label）；
-     * 字符键 = 键面文字（TalkBack 朗读同文）。字母键标注随键面恒显大写形态
-     *（T65 · 决策 48-②），视图层经 [displayLabel] 统一生成，
+     * 字符键 = 键面文字（TalkBack 朗读同文）。字母键标注随键面形态
+     *（T66 · 决策 51-②/③：中文恒显大写、英文随大小写输出状态），
+     * 视图层经 [displayLabel] 统一生成，
      * [KeyboardLayout.langContentDescription] / [SymbolsLayout.widthContentDescription] 提供
      *（T65 · 决策 46-②：含当前态 + 动作）。
      */
@@ -137,18 +155,50 @@ data class KeyRow(val cells: List<Cell>)
 object KeyboardLayout {
 
     /**
+     * 分词键（T66 · 决策 51-②）：中文模式行 1 功能键区头键（键面「分词」、功能键样式，
+     * 替代英文态 ⇧ 键位；画板 1/2 aria-label 原文作无障碍标注）。
+     */
+    val segmentKey: Key = Key(
+        id = "segment",
+        action = KeyAction.Segment,
+        variant = KeyVariant.FUNCTION,
+        label = "分词",
+        textSize = KeyTextSize.SMALL,
+        contentDescription = "分词：组合态内切分拼音（如 xi'an），选词后不上屏；无组合态时忽略",
+    )
+
+    /** 行 1 功能键区（决策 51：头键随语言模式分化——中文态分词 / 英文态 ⇧ 上档；下屏键恒在）。 */
+    private fun row1TailCells(language: LanguageMode): List<Cell> = listOf(
+        when (language) {
+            LanguageMode.CHINESE -> Cell.KeyCell(segmentKey)
+            LanguageMode.ENGLISH -> iconCell("shift", KeyIcon.SHIFT, "上档切换")
+        },
+        iconCell("hide", KeyIcon.HIDE, "下屏，收起键盘"),
+    )
+
+    /**
      * 4 行键区（FR-A2：左侧数字列、中部字母区、右侧功能键区；键间与列间排布见画板①）。
      * 行 3/4 右侧功能键区由跨两行完成键覆盖（[doneKey]，FR-A10）。
+     * T66 · 决策 51-②：行 1 功能键区头键随语言模式分化（中文 = 分词、英文 = ⇧），
+     * 两态其余键位结构完全一致（格网同构，仅该键位键 id / 动作不同）。
      */
-    val rows: List<KeyRow> = listOf(
-        // 行 1：数字 1-3 ｜ a-g ｜ 上档、下屏
-        KeyRow(
-            digitCells('1', '3') + Cell.Spacer + letterCells('a', 'g') + Cell.Spacer +
-                listOf(
-                    iconCell("shift", KeyIcon.SHIFT, "上档切换"),
-                    iconCell("hide", KeyIcon.HIDE, "下屏，收起键盘"),
-                ),
-        ),
+    fun rows(language: LanguageMode): List<KeyRow> = when (language) {
+        LanguageMode.CHINESE -> listOf(
+            KeyRow(digitCells('1', '3') + Cell.Spacer + letterCells('a', 'g') + Cell.Spacer + row1TailCells(language)),
+            englishRows[1],
+            englishRows[2],
+            englishRows[3],
+        )
+        LanguageMode.ENGLISH -> englishRows
+    }
+
+    /**
+     * 英文态 4 行键位（行 2-4 与中文态共享同一实例）：
+     * 行 1：数字 1-3 ｜ a-g ｜ 上档、下屏；行 2：数字 4-6 ｜ h-n ｜ 中/英、删除；
+     * 行 3：数字 7-9 ｜ o-u ｜ 123_!；行 4：.com、0、@ ｜ v-z、光标左右 ｜ 空格。
+     */
+    private val englishRows: List<KeyRow> = listOf(
+        KeyRow(digitCells('1', '3') + Cell.Spacer + letterCells('a', 'g') + Cell.Spacer + row1TailCells(LanguageMode.ENGLISH)),
         // 行 2：数字 4-6 ｜ h-n ｜ 中/英、删除
         KeyRow(
             digitCells('4', '6') + Cell.Spacer + letterCells('h', 'n') + Cell.Spacer +
@@ -212,11 +262,12 @@ object KeyboardLayout {
     /**
      * 完成键格位（FR-A10 跨行 3/4）：列 = 行 1 图标键（下屏）所在列
      * （T28「完成键与图标列左缘对齐」口径），供焦点导航格网使用。
+     * 行 1 头键随语言模式分化但下屏键恒在，列推导两态一致（取英文态行）。
      */
     val doneKeyCells: List<Pair<Int, Int>> = run {
         var index = 0
         var hideCol = -1
-        for (cell in rows[0].cells) {
+        for (cell in englishRows[0].cells) {
             if (cell is Cell.KeyCell) {
                 index += 1
                 if (cell.key.id == "hide") hideCol = index
@@ -234,9 +285,13 @@ object KeyboardLayout {
      */
     val initialCell: Pair<Int, Int> = 1 to 4
 
-    /** 全部键位（含完成键）；单测与遍历辅助。 */
+    /**
+     * 全部键位（两态并集；单测与遍历辅助）：英文态行键 + 中文态独有分词键 + 完成键
+     *（两态行 2-4 共享实例，行 1 仅头键不同）。
+     */
     fun allKeys(): List<Key> =
-        rows.flatMap { row -> row.cells.filterIsInstance<Cell.KeyCell>().map { it.key } } + doneKey
+        englishRows.flatMap { row -> row.cells.filterIsInstance<Cell.KeyCell>().map { it.key } } +
+            listOf(segmentKey, doneKey)
 
     /** 键 id → 键位；视图刷新与输出值计算用。 */
     val keyById: Map<String, Key> = allKeys().associateBy { it.id }
@@ -259,11 +314,12 @@ object KeyboardLayout {
     }
 
     /**
-     * 键面文字（T65 · 决策 48-②）：字母键恒显大写形态——中 / 英两模式键面一律大写，
-     * 键面不随大小写输出状态或输入模式变化，大小写输出仅由 ⇧ 触发态表达；非字母键键面原样。
+     * 键面文字（T66 · 决策 51-②/③ 修订决策 48-②「恒显大写」为仅中文模式）：
+     * 中文模式字母键恒显大写形态（无 ⇧ 键位，大小写与键面无关）；英文模式键面随大小写
+     * 输出状态——小写态键面小写、大写态键面大写；非字母键键面原样。
      */
-    fun displayLabel(key: Key): String? = when {
-        key.id in letterKeyIds -> key.label?.uppercase()
+    fun displayLabel(key: Key, chineseMode: Boolean, upperCase: Boolean): String? = when {
+        key.id in letterKeyIds -> if (chineseMode || upperCase) key.label?.uppercase() else key.label
         else -> key.label
     }
 

@@ -1,5 +1,7 @@
 // T5 · 键位模型单元测试（JUnit 4，纯 Kotlin，不依赖 Android UI 与模拟器）。
-// 锁定画板①（字母键盘·小写）的静态键位结构：行列结构、字符完整性、功能键与动作语义。
+// 锁定画板①（字母键盘）的静态键位结构：行列结构、字符完整性、功能键与动作语义。
+// T66 · 决策 51：键位结构随语言模式分化——中文态行 1 头键 = 分词键（无 ⇧）、英文态 = ⇧ 上档，
+// 两态其余键位同构；键面随语言模式 / 大小写输出状态（中文恒显大写、英文两态）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
@@ -11,20 +13,57 @@ class KeyboardLayoutTest {
 
     private val keys: List<Key> = KeyboardLayout.allKeys()
     private val ids: List<String> = keys.map { it.id }
+    private val englishRows = KeyboardLayout.rows(LanguageMode.ENGLISH)
+    private val chineseRows = KeyboardLayout.rows(LanguageMode.CHINESE)
 
-    // ---- 行列结构（画板①） ----
+    // ---- 行列结构（画板①；T66 两态同构性） ----
 
     @Test
     fun rowsAreFourWithArtboardStructure() {
-        // 4 行；每行 2 个列间隔（数字列｜字母区｜功能键区三段式，FR-A2）
-        assertEquals(4, KeyboardLayout.rows.size)
-        for (row in KeyboardLayout.rows) {
-            assertEquals("每行应有 2 个列间隔", 2, row.cells.count { it is Cell.Spacer })
-            assertEquals("第一个列间隔应紧跟数字列（index 3）", Cell.Spacer, row.cells[3])
+        for (rows in listOf(englishRows, chineseRows)) {
+            // 4 行；每行 2 个列间隔（数字列｜字母区｜功能键区三段式，FR-A2）
+            assertEquals(4, rows.size)
+            for (row in rows) {
+                assertEquals("每行应有 2 个列间隔", 2, row.cells.count { it is Cell.Spacer })
+                assertEquals("第一个列间隔应紧跟数字列（index 3）", Cell.Spacer, row.cells[3])
+            }
+            // 行键数：行 1/2 功能键区 2 键，行 3/4 功能键区 1 键（右侧由完成键覆盖）
+            val keyCount = rows.map { row -> row.cells.count { it is Cell.KeyCell } }
+            assertEquals(listOf(12, 12, 11, 11), keyCount)
         }
-        // 行键数：行 1/2 功能键区 2 键，行 3/4 功能键区 1 键（右侧由完成键覆盖）
-        val keyCount = KeyboardLayout.rows.map { row -> row.cells.count { it is Cell.KeyCell } }
-        assertEquals(listOf(12, 12, 11, 11), keyCount)
+    }
+
+    @Test
+    fun chineseAndEnglishRowsDifferOnlyInRow1HeadKey() {
+        // T66 · 决策 51-②：中文态无 ⇧ 键位，该键位 = 分词键；行 2-4 两态共享同构键位
+        val cnRow1 = chineseRows[0].cells.filterIsInstance<Cell.KeyCell>().map { it.key }
+        val enRow1 = englishRows[0].cells.filterIsInstance<Cell.KeyCell>().map { it.key }
+        assertEquals("中文态行 1 头键 = 分词", "segment", cnRow1[cnRow1.size - 2].id)
+        assertEquals("英文态行 1 头键 = ⇧", "shift", enRow1[enRow1.size - 2].id)
+        assertEquals("hide", enRow1.last().id)
+        assertEquals("hide", cnRow1.last().id)
+        for (rowIndex in 1..3) {
+            assertEquals(
+                "行 ${rowIndex + 1} 两态键位 id 序一致",
+                englishRows[rowIndex].cells.filterIsInstance<Cell.KeyCell>().map { it.key.id },
+                chineseRows[rowIndex].cells.filterIsInstance<Cell.KeyCell>().map { it.key.id },
+            )
+        }
+    }
+
+    @Test
+    fun segmentKeyModel() {
+        // T66 · 决策 51-②：分词键 = 功能键样式 + 「分词」键面 + Segment 动作 + 画板 aria 标注
+        val segment = KeyboardLayout.segmentKey
+        assertEquals("segment", segment.id)
+        assertEquals(KeyAction.Segment, segment.action)
+        assertEquals(KeyVariant.FUNCTION, segment.variant)
+        assertEquals("分词", segment.label)
+        assertEquals(KeyTextSize.SMALL, segment.textSize)
+        assertEquals(
+            "分词：组合态内切分拼音（如 xi'an），选词后不上屏；无组合态时忽略",
+            segment.contentDescription,
+        )
     }
 
     @Test
@@ -40,8 +79,7 @@ class KeyboardLayoutTest {
     @Test
     fun numberColumnMatchesArtboard() {
         // 数字列（FR-A2）：行 1-3 依次 1-9，行 4 为 .com、0、@
-        val rows = KeyboardLayout.rows
-        val firstCells = rows.map { row -> (row.cells.take(3).filterIsInstance<Cell.KeyCell>().map { it.key.label }) }
+        val firstCells = englishRows.map { row -> (row.cells.take(3).filterIsInstance<Cell.KeyCell>().map { it.key.label }) }
         assertEquals(listOf("1", "2", "3"), firstCells[0])
         assertEquals(listOf("4", "5", "6"), firstCells[1])
         assertEquals(listOf("7", "8", "9"), firstCells[2])
@@ -51,7 +89,7 @@ class KeyboardLayoutTest {
     @Test
     fun letterZoneRowFourHasCursorKeys() {
         // 行 4 字母区：v-z 5 个字母 + 光标左/右 2 键（画板①）
-        val row4 = KeyboardLayout.rows[3].cells.filterIsInstance<Cell.KeyCell>().map { it.key }
+        val row4 = englishRows[3].cells.filterIsInstance<Cell.KeyCell>().map { it.key }
         val zone = row4.drop(3).dropLast(1) // 去掉数字列 3 键与末尾空格
         assertEquals(listOf("v", "w", "x", "y", "z"), zone.take(5).map { it.label })
         assertEquals(KeyIcon.CURSOR_LEFT, zone[5].icon)
@@ -62,8 +100,8 @@ class KeyboardLayoutTest {
 
     @Test
     fun functionKeysComplete() {
-        // 上档/下屏/中英/删除/符号/空格/完成（FR-A3/A1/A4/A5/A9/A10）+ 光标左右（FR-A9）
-        val expected = setOf("shift", "hide", "lang", "backspace", "symbols", "space", "done", "cursor_left", "cursor_right")
+        // 上档/分词/下屏/中英/删除/符号/空格/完成（FR-A3/A1/A4/A5/A9/A10 + 决策 51-②）+ 光标左右（FR-A9）
+        val expected = setOf("shift", "segment", "hide", "lang", "backspace", "symbols", "space", "done", "cursor_left", "cursor_right")
         assertTrue("功能键缺失：${expected - ids.toSet()}", ids.containsAll(expected))
     }
 
@@ -84,6 +122,7 @@ class KeyboardLayoutTest {
     fun iconToActionMappingIsCorrect() {
         val byId = keys.associateBy { it.id }
         assertEquals(KeyAction.ToggleCase, byId.getValue("shift").action)
+        assertEquals(KeyAction.Segment, byId.getValue("segment").action)
         assertEquals(KeyAction.Delete, byId.getValue("backspace").action)
         assertEquals(KeyAction.ToggleLanguage, byId.getValue("lang").action)
         assertEquals(KeyAction.OpenSymbols, byId.getValue("symbols").action)
@@ -99,7 +138,7 @@ class KeyboardLayoutTest {
         assertEquals("done", done.id)
         assertEquals(KeyVariant.ACCENT, done.variant)
         assertEquals(KeyAction.Done, done.action)
-        val inRowIds = KeyboardLayout.rows.flatMap { it.cells }.filterIsInstance<Cell.KeyCell>().map { it.key.id }
+        val inRowIds = englishRows.flatMap { it.cells }.filterIsInstance<Cell.KeyCell>().map { it.key.id }
         assertTrue("完成键不应出现在行键位中", inRowIds.none { it == "done" })
     }
 
@@ -108,7 +147,7 @@ class KeyboardLayoutTest {
     @Test
     fun functionVariantKeysUseSmallTextSize() {
         // 功能键文字 22px 规格（PRD 6.3）→ SMALL；空格键面同字号但普通键帽底色
-        val smallTextIds = setOf("shift", "hide", "lang", "backspace", "symbols", "space", "dot_com")
+        val smallTextIds = setOf("shift", "segment", "hide", "lang", "backspace", "symbols", "space", "dot_com")
         for (key in keys) {
             if (key.id in smallTextIds) {
                 assertEquals("键 ${key.id} 应为小字号键面", KeyTextSize.SMALL, key.textSize)
@@ -150,30 +189,36 @@ class KeyboardLayoutTest {
     }
 
     @Test
-    fun displayLabelIsAlwaysUppercase() {
+    fun displayLabelFollowsLanguageModeAndCaseState() {
         val byId = KeyboardLayout.keyById
-        // T65 · 决策 48-② 键面恒显大写：中 / 英模式、⇧ 触发与否，字母键面一律大写形态
-        assertEquals("A", KeyboardLayout.displayLabel(byId.getValue("a")))
-        assertEquals("H", KeyboardLayout.displayLabel(byId.getValue("h")))
-        assertEquals("Z", KeyboardLayout.displayLabel(byId.getValue("z")))
-        // 非字母键键面不受大小写影响（无大小写参数：键面与输出解耦）
-        assertEquals("5", KeyboardLayout.displayLabel(byId.getValue("digit_5")))
-        assertEquals(".com", KeyboardLayout.displayLabel(byId.getValue("dot_com")))
-        assertEquals("@", KeyboardLayout.displayLabel(byId.getValue("at")))
-        assertEquals("空格", KeyboardLayout.displayLabel(byId.getValue("space")))
+        // T66 · 决策 51-②：中文模式键面恒显大写形态（无 ⇧ 键位，大小写与键面无关）
+        for (id in listOf("a", "h", "z")) {
+            val key = byId.getValue(id)
+            assertEquals("中文态键面恒大写 $id", id.uppercase(), KeyboardLayout.displayLabel(key, chineseMode = true, upperCase = false))
+            assertEquals("中文态键面恒大写 $id", id.uppercase(), KeyboardLayout.displayLabel(key, chineseMode = true, upperCase = true))
+        }
+        // T66 · 决策 51-③：英文模式键面随大小写输出状态（小写态小写、大写态大写）
+        for (id in listOf("a", "h", "z")) {
+            val key = byId.getValue(id)
+            assertEquals("英文小写态键面 $id", id, KeyboardLayout.displayLabel(key, chineseMode = false, upperCase = false))
+            assertEquals("英文大写态键面 $id", id.uppercase(), KeyboardLayout.displayLabel(key, chineseMode = false, upperCase = true))
+        }
+        // 非字母键键面不受语言模式与大小写影响
+        for (chinese in listOf(true, false)) {
+            for (upper in listOf(true, false)) {
+                assertEquals("5", KeyboardLayout.displayLabel(byId.getValue("digit_5"), chinese, upper))
+                assertEquals(".com", KeyboardLayout.displayLabel(byId.getValue("dot_com"), chinese, upper))
+                assertEquals("@", KeyboardLayout.displayLabel(byId.getValue("at"), chinese, upper))
+                assertEquals("空格", KeyboardLayout.displayLabel(byId.getValue("space"), chinese, upper))
+                assertEquals("分词", KeyboardLayout.displayLabel(KeyboardLayout.segmentKey, chinese, upper))
+            }
+        }
     }
 
     @Test
-    fun faceAndOutputAreDecoupled() {
-        // T65 · 决策 48-② 键面与输出解耦：键面恒 A，输出大小写仅随 ⇧ 触发态（触发 = 大写 / 未触发 = 小写）
-        val a = KeyboardLayout.keyById.getValue("a")
-        assertEquals("A", KeyboardLayout.displayLabel(a))
-        assertEquals("a", KeyboardLayout.outputValue(a, CaseState.LOWER))
-        assertEquals("A", KeyboardLayout.outputValue(a, CaseState.UPPER))
-    }
-
-    @Test
-    fun outputValueFollowsCaseState() {
+    fun outputFollowsCaseStateInEnglishMode() {
+        // 输出口径（FR-A9 × FR-A3）：outputValue 随 ⇧ 触发态（触发 = 大写 / 未触发 = 小写），
+        // 与键面两态同拍（T66 · 决策 51-③ 键面随输出状态）
         val byId = KeyboardLayout.keyById
         assertEquals("a", KeyboardLayout.outputValue(byId.getValue("a"), CaseState.LOWER))
         assertEquals("H", KeyboardLayout.outputValue(byId.getValue("h"), CaseState.UPPER))
@@ -227,22 +272,25 @@ class KeyboardLayoutTest {
     fun columnRhythmMatchesArtboard() {
         // 画板① 列原点（相对键区，屏坐标 = +108px 键区偏移）：
         // 数字列 0(屏 108) / 字母列 330(屏 438) / 功能列 1028(屏 1136) / 图标列 1120(屏 1228)
-        val row1 = cellOriginPxs(KeyboardLayout.rows[0])
-        assertEquals("字母列原点（屏 438）", 330, row1[4])
-        assertEquals("功能列原点（屏 1136）", 1028, row1[12])
-        assertEquals("图标列原点（屏 1228）", 1120, row1[13])
+        // 两态行 1 头键格位同构（T66 · 决策 51），列节奏任取一态锁口径
+        for (rows in listOf(englishRows, chineseRows)) {
+            val row1 = cellOriginPxs(rows[0])
+            assertEquals("字母列原点（屏 438）", 330, row1[4])
+            assertEquals("功能列原点（屏 1136）", 1028, row1[12])
+            assertEquals("图标列原点（屏 1228）", 1120, row1[13])
 
-        // spacer 列间隔步进 = 66px（数字列右缘 264 → 字母列 330）：两道键距 12 + spacer 42
-        assertEquals("列间隔步进（12+42+12）", 330 - 264, 66)
-        assertEquals("列间隔步进（962 → 1028）", 1028 - 962, 66)
+            // spacer 列间隔步进 = 66px（数字列右缘 264 → 字母列 330）：两道键距 12 + spacer 42
+            assertEquals("列间隔步进（12+42+12）", 330 - 264, 66)
+            assertEquals("列间隔步进（962 → 1028）", 1028 - 962, 66)
 
-        // 行 3/4 功能区单键列：123_! 与空格均在功能列 1028
-        assertEquals("行 3 功能列（123_!）", 1028, cellOriginPxs(KeyboardLayout.rows[2])[12])
-        assertEquals("行 4 功能列（空格）", 1028, cellOriginPxs(KeyboardLayout.rows[3])[12])
+            // 行 3/4 功能区单键列：123_! 与空格均在功能列 1028
+            assertEquals("行 3 功能列（123_!）", 1028, cellOriginPxs(rows[2])[12])
+            assertEquals("行 4 功能列（空格）", 1028, cellOriginPxs(rows[3])[12])
 
-        // 完成键画板① 定位（键区内 1120px）= 图标列原点：与下屏/删除列左缘对齐（T28 回归点）
-        assertEquals("完成键与图标列左缘对齐", 1120, row1[13])
-        assertEquals("空格列到完成键列间距 = 1120 − 1028 − 80 = 12px 键距", 1120 - (1028 + 80), 12)
+            // 完成键画板① 定位（键区内 1120px）= 图标列原点：与下屏/删除列左缘对齐（T28 回归点）
+            assertEquals("完成键与图标列左缘对齐", 1120, row1[13])
+            assertEquals("空格列到完成键列间距 = 1120 − 1028 − 80 = 12px 键距", 1120 - (1028 + 80), 12)
+        }
     }
 
     // ---- T45 · 硬件字母键码映射（FR-A8 统一口径） ----
