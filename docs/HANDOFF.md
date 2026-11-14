@@ -18,19 +18,20 @@
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
 5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。**开发环境工具链拍板不入 PRD**，记录于本文决策速查与对应 issue。
 
-## 当前快照（截至 2026-11-13）
+## 当前快照（截至 2026-11-14）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务状态（逐任务以 TASKS 状态行为准，明细见对应 issue）：**已归档（closed）任务的结果不在本文复述**——T1~T65 已全部归档（T54、T62 并案修复于 2026-11-13 真机复验 PASS 后经户主拍板归档；T63 于同日经 dev-review 闭环、模拟器 + 真机双 PASS 后经户主拍板归档；T64 于同日真机复验 PASS 后经户主拍板归档；T65 于同日经 dev-review 闭环 Round 2 PASS 与真机复验 PASS 后经户主拍板归档），通过/归档明细见各 closed issue。进行中**无**。
-- 设备态：**sofatype 已装机且为默认输入法**（2026-11-13 T65 真机复验装机，复验 PASS 后户主拍板保留装机；default_input_method=sofatype，历史 T63 归档后卸载口径已被本拍板取代）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；真机无线 adb 连接态保持（192.168.1.210:5555 device，未 kill-server）；截图处置：`screenshots/T63/`、`T64/` 全部走查证据已按拍板删除（历史处置），`screenshots/T65/` 走查证据 41 枚已按拍板删除、保留设计渲染 3 张与 handoff 2 份；后续真机批次可直接复用现装机。
+- 任务状态（逐任务以 TASKS 状态行为准）：T1~T66 全部收口归档（closed），通过/归档明细见各 closed issue。进行中**无**。
+- 设备态：**sofatype 已装机且为默认输入法**（default_input_method=sofatype；过夜空闲期搜狗夺回形态见遗留观察与设备档案坑 5）；真机 `/data/local/tmp` 仅余非走查产物 `dalvik-cache`（按拍板不动）；真机无线 adb 连接态保持（192.168.1.210:5555 device，未 kill-server），后续真机批次可直接复用现装机。
 - 遗留观察（挂账，不影响功能）：
   - 设置页 BACK 退出沿 default_input_method 被夺回搜狗（2026-11-13 真机批次 3/3 稳定复现，坑 5 同族，机制未查明、ime set 即恢复）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
-  - 键盘 hide→重弹短间隔视图可能不重建，会话内语言 / 大小写 / 全半角状态延续（FR-A13 P2 记忆边界族，含 UPPER 态收起重弹后首键 OK 输出大写 A；T65 走查复核确认既有边界、非 T65 引入）。
+  - 键盘 hide→重弹短间隔视图可能不重建，会话内语言 / 大小写 / 全半角状态延续（FR-A13 P2 记忆边界族，含 UPPER 态收起重弹后首键 OK 输出大写 A；T65 走查复核确认既有边界、非 T65 引入；T66 走查同族确认 keyboardMode 重显残留 SYMBOLS，非缺陷）。
+  - 「全/半」OK 后焦点回初始键（T64 既有口径）与 keyboardMode 重显残留叠加，使「手动切角态→返回→再进」走查易偏航（T66 走查发现，行为符合既有拍板口径；如需体验打磨另立任务评估）。
   - WS 配对成功后已连接 UI 切换有秒级延迟（首帧约 3.5s 未切、约 6s 帧已切；renderRemoteUi 未被 T65 触碰，T65 走查发现，如需查证另立任务）。
   - 换网段子分支与安卓 Chrome 走查户主拍板不测（issue T19）。
   - TestTypingActivity exported=true（沿 T2 走查先例，第三方可显式拉起调试页；debug 门控、风险低，2026-11-13 review-qa 建议挂账，走查通道收敛时拍板是否收紧，issue T63 审查记录）。
@@ -70,7 +71,7 @@
 7. JUnit4 `Assert.fail` 返回 void 非 `Nothing`，`?: fail(...)` 的 elvis 推断失效；同包双 top-level `main` 裸调歧义——校验逻辑抽命名函数（T30）。
 8. 词库转换确定性 + sha256 门禁：`verifyDict` 无输出声明每次必跑，防 up-to-date 跳过校验（T30）。
 9. 两模块同图构建：`mergeDebugAssets` / `mergeReleaseAssets` 均须显式 `dependsOn(":pinyin:buildDict")`（T10/T32）；`pinyin/assets` 双源目录致词库产物双份入包，待 resources 排除（T10 遗留非阻塞建议）。
-10. 分页模型区间是相对坐标系：`CandidateMoreRow.paginate` 返回区间勿直用作候选全局下标（T11）。
+10. 分页模型区间坐标系（T11）：`CandidateMoreRow.paginate` 区间为相对坐标系的旧坑已随 T66 重构消除——paginate 与「更多⌄」体系整体删除，`CandidatePager.kt` 页区间即候选全局下标；新代码勿再引入相对/全局两套坐标系。
 11. 单测取证防旧结果：`--rerun` 在本工具链实测静默失效（up-to-date 跳过、假绿），口径统一 `--rerun-tasks` 强制实跑，核对任务全 executed + test-results XML 时间戳（T32/T45）。
 12. merge/package 类任务输入未变则 UP-TO-DATE：「实跑取证」须删 `app/build/intermediates/assets/<variant>/` 后复跑；release 产物名 `app-release-unsigned.apk`（T32）。
 13. `testDebugUnitTest` 只覆盖 Android 模块（:app），纯 JVM 模块 `:pinyin` 单独 `:pinyin:test` 补跑（T15）。
@@ -119,7 +120,8 @@
 
 - 键位事件处理全部在 `SofatypeImeService.onKeyDown`：方向键 → FocusNavigator，OK/ENTER → performClick；新增键面行为改 `execute(action)` 分支（T6/T7）。
 - 布局切换入口：`SofatypeImeService.switchKeyboardMode` / `rebuildKeys`；新布局须提供 rows + overlayCells（跨行键格位）+ initialCell，12 列 × 4 行与既有布局同构（数字列 col1-3、功能区 col11/12）（T8）。
-- 大小写变换入口在模型层：`displayLabel` / `outputValue` / `shiftContentDescription`（T7）。
+- 大小写变换入口在模型层：`displayLabel` / `outputValue` / `shiftContentDescription`（T7）；键面两态渲染（英文小写/大写键面）同在 `KeyboardLayout` 模型层（T66）。
+- 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
 - 开工顺序：`AGENTS.md` → `docs/PRD_*.md` → `docs/TASKS_*.md` → `docs/devices/` → `local/DEV-GUIDE.md` → `designs/`。
