@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>查看日志页（浏览 · 刷新 · 清空）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <!-- 顶部页签 -->
+  <div style="position:absolute;top:56px;left:96px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;color:rgba(232,239,246,.4)">sofatype 输入法</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:rgba(232,239,246,.5)">设置</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:rgba(232,239,246,.5)">日志</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:#F2F6FB">查看日志</span>
+  </div>
+
+  <!-- 操作行：刷新（焦点态）· 清空日志 · 右侧统计 -->
+  <div style="position:absolute;top:168px;left:96px;right:96px;display:flex;align-items:center;gap:20px">
+    <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:rgba(56,189,248,.28);border:1.5px solid rgba(56,189,248,.5);border-radius:14px;font-size:19px;font-weight:500;color:#E8EEF5;cursor:pointer">刷新</button>
+    <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">清空日志</button>
+    <span style="margin-left:auto;font-size:16px;color:rgba(232,239,246,.55)">共 1 842 行 · 0.8 MB / 2 MB</span>
+  </div>
+
+  <!-- 日志浏览卡（进入定位最新：底部为新日志，上暗下亮渐隐示意滚动） -->
+  <div style="position:absolute;top:280px;left:96px;width:1728px;height:620px;background:#12161E;border:1.5px solid rgba(255,255,255,.08);border-radius:28px;box-sizing:border-box;overflow:hidden">
+    <div style="box-sizing:border-box;width:100%;height:100%;padding:24px 30px;display:flex;flex-direction:column;justify-content:flex-end;gap:9px;font-size:17px;line-height:1.35;white-space:nowrap;overflow:hidden">
+      <div style="color:rgba(232,239,246,.25)">11-14 21:56:40.117 I/RemoteInputServer: 配对 token 已滚动签发，二维码内容更新</div>
+      <div style="color:rgba(232,239,246,.32)"><span style="color:rgba(125,211,252,.4)">21:56:41.802</span> D/ImeKeyTrace: onKeyDown keyCode=20 action=0 focus=e</div>
+      <div style="color:rgba(232,239,246,.4)"><span style="color:rgba(125,211,252,.45)">21:56:43.556</span> I/RemoteInputServer: 网络变化监听已注册（运行期生效，停止即解注册）</div>
+      <div style="color:rgba(232,239,246,.5)">11-14 21:56:52.310 I/UpdateCheck: 手动检查发起 endpoint=http://192.168.1.7:8080/mock-update.json</div>
+      <div style="color:rgba(232,239,246,.62)">11-14 21:56:52.648 I/UpdateCheck: 手动检查结果 result=UP_TO_DATE httpStatus=200</div>
+      <div style="color:rgba(232,239,246,.75)">11-14 21:56:58.921 D/ImeKeyTrace: focus g UP -> cand_0（进入候选行）</div>
+      <div style="color:rgba(232,239,246,.85)">11-14 21:57:03.204 D/ImeKeyTrace: onKeyDown keyCode=23 action=1 focus=cand_0</div>
+      <div style="color:#C9D4E2">11-14 21:57:03.411 I/ImeKeyTrace: candidates page 0 -> 0（选词上屏，候选 2/9）</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">I</span>/ImeKeyTrace: onStartInputView restarting=false</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">I</span>/ImeKeyTrace: onWindowShown（arm wake guard）</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">D</span>/ImeKeyTrace: onKeyDown keyCode=21 action=0 focus=a</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">D</span>/ImeKeyTrace: focus a LEFT -> digit_3</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">D</span>/ImeKeyTrace: language -> CHINESE case -> LOWER</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">I</span>/RemoteInputServer: 远程输入服务已启动：http://192.168.1.210:39135/；配对地址：http://192.168.1.210:39135/?token=4f9d…（WS 端点同端口 /ws）</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">I</span>/RemoteInputServer: 配对成功：token 已消费失效</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">I</span>/RemoteInputServer: 收到上屏指令，写入电视输入框</div>
+      <div style="color:#C9D4E2"><span style="color:#7DD3FC">W</span>/RemoteInputServer: 已连接无活动超时（决策 59），自动退出并收起键盘</div>
+      <div style="color:#F2F6FB;font-weight:500"><span style="color:#7DD3FC">I</span>/DebugLog: 调试日志已开启（档位 2 MB）</div>
+      <div style="color:#F2F6FB;font-weight:500"><span style="color:#7DD3FC">I</span>/DebugLog: 文件超限轮转触发：丢弃最早 512 KB，保留最新</div>
+    </div>
+    <!-- 滚动条暗示 -->
+    <div aria-hidden="true" style="position:absolute;right:10px;top:200px;width:4px;height:220px;background:rgba(56,189,248,.35);border-radius:2px"></div>
+  </div>
+
+  <!-- 底部提示 -->
+  <div style="position:absolute;top:948px;left:0;width:1920px;text-align:center;font-size:15px;color:rgba(232,239,246,.35)">上下键滚动 · 焦点在按钮时 OK 刷新 / 清空 · 清空需确认 · BACK 返回日志设置</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

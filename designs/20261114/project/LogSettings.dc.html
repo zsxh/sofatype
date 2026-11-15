@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>设置 · 日志子页（调试日志 · 开）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <!-- 顶部页签 -->
+  <div style="position:absolute;top:56px;left:96px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;color:rgba(232,239,246,.4)">sofatype 输入法</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:rgba(232,239,246,.5)">设置</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:#F2F6FB">日志</span>
+  </div>
+
+  <!-- 日志设置卡（与设置页同款平滑圆角卡） -->
+  <div style="position:absolute;top:360px;left:650px;width:620px;height:326px;background:#12161E;border:1.5px solid rgba(255,255,255,.08);border-radius:28px;box-sizing:border-box">
+    <div aria-hidden="true" style="position:absolute;left:20px;right:20px;top:26px;bottom:10px;background:rgba(0,0,0,.55);filter:blur(24px);border-radius:40px"></div>
+    <svg width="620" height="326" viewBox="0 0 620 326" aria-hidden="true" style="position:absolute;top:0;left:0"><rect x="0.75" y="0.75" width="618.5" height="324.5" rx="27.5" fill="#12161E" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/></svg>
+    <div style="position:absolute;top:0;left:0;width:620px;height:326px;box-sizing:border-box;padding:12px 36px">
+
+      <!-- 行 1 · 开启调试日志（焦点态：wash .28 底 + border-accent 描边，决策 50） -->
+      <div style="display:flex;align-items:center;justify-content:space-between;height:100px;box-sizing:border-box;background:rgba(56,189,248,.28);border:1.5px solid rgba(56,189,248,.5);border-radius:14px;padding:0 22px">
+        <span style="font-size:19px;font-weight:500;color:#E8EEF5">开启调试日志</span>
+        <span style="position:relative;display:block;width:64px;height:32px;background:#38BDF8;border-radius:16px" aria-label="调试日志开关：已开启">
+          <span style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:#052330"></span>
+        </span>
+      </div>
+      <div style="height:1px;margin:0 4px;background:rgba(255,255,255,.07)"></div>
+
+      <!-- 行 2 · 日志大小限制（开关开启 → 可调；选中档 = 亮青加粗 + 下划线，决策 47 触发态口径） -->
+      <div style="display:flex;align-items:center;justify-content:space-between;height:100px;padding:0 22px">
+        <span style="font-size:19px;color:#E8EEF5">日志大小限制</span>
+        <span style="display:flex;align-items:center;gap:26px">
+          <span style="font-size:17px;color:rgba(232,239,246,.55)">1 MB</span>
+          <span style="font-size:17px;font-weight:700;color:#7DD3FC;border-bottom:3px solid #7DD3FC;padding-bottom:3px">2 MB</span>
+          <span style="font-size:17px;color:rgba(232,239,246,.55)">5 MB</span>
+          <span style="font-size:17px;color:rgba(232,239,246,.55)">10 MB</span>
+        </span>
+      </div>
+      <div style="height:1px;margin:0 4px;background:rgba(255,255,255,.07)"></div>
+
+      <!-- 行 3 · 查看日志入口 -->
+      <div style="display:flex;align-items:center;height:100px;padding:0 22px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">查看日志</button>
+        <span style="margin-left:auto;font-size:16px;color:rgba(232,239,246,.55)">当前 0.8 MB / 2 MB · 轮转覆盖</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 底部提示 -->
+  <div style="position:absolute;top:830px;left:0;width:1920px;text-align:center;font-size:15px;color:rgba(232,239,246,.35)">OK 切换开关 · 左右键调档 · BACK 返回设置</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

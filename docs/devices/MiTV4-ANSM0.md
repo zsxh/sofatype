@@ -130,6 +130,8 @@ adb shell getprop ro.product.cpu.abilist
 
 **补充（2026-11-09，T27）**：前台 Activity 并不豁免——sofatype 设置页前台亦被清杀一次（11:36:09，pid 11205，自杀型 killProcess 路径，直接诱因强嫌疑 TvMgr-MemoryAutoClean（pid 3387，死亡后 0.1s 有其 expire 痕迹，自身日志被 chatty 吞）；crash 栈未捕获）。走查脚本对前台 Activity 存活不可做持久假设，节点前 30s 内核对前台。
 
+**补充（2026-11-15，T71/T72 真机批次）**：远程 WS 走查期间保活挂晚一步即复现本坑全链（14:25 屏保链强杀 IME：进程消失 + default 夺回搜狗 + 远程服务死，`ps` + `dumpsys activity processes` 双证；H5 端 WS 断开）；恢复后即挂 5.5 分钟 DPAD 保活循环零复现。教训：远程 WS 走查**进远程模式即挂保活**，不等出事再挂。
+
 ### 坑 11：shell 无法真实切换 Wi-Fi——svc 无权限、airplane 广播被 MiTV 栈忽略（2026-11-08，T19）
 
 **现象**：三通道全堵：① `svc wifi disable` → `SecurityException: WifiService: Neither user 2000 nor current process has android.permission.CHANGE_WIFI_STATE`（logcat 18:41:41.918），Wi-Fi 不下线；② Android 6 `svc` 无 airplane 子命令（仅 power）；③ `settings put global airplane_mode_on 1` + `am broadcast AIRPLANE_MODE_CHANGED` 设置位生效（读回 1）但 MiTV Wi-Fi 栈不响应，wlan0 不掉线（广播 result=0，18:43:41 实证）。
@@ -181,6 +183,8 @@ adb shell getprop ro.product.cpu.abilist
 **补充（2026-11-11，T49 复验）**：APK 先 `adb push` 到 `/data/local/tmp` 再 `pm install -r`（复用已传包、免二次传输）同样触发电视端安装许可弹窗，户主确认后 Success——弹窗拦截的是 shell uid 发起的安装请求本身，与 `adb install` 直装同链路；flaky 无线链路下优先 push+pm install 分段（传输段计时清晰，坑 17 通知点=push 完成）。
 
 **补充（2026-11-13，T64 复验）——首例远程代点成功实证**：`pm install -r`（shell uid）触发弹窗形态为「安装确认」：正文「您正在从其它设备(如电脑)安装应用 t64m-app.apk，继续安装吗？」+「应用到全部」复选框 +【确定】【取消】双钮（screenshots/T64/t64m-install-0.png）。本例双钮均无初始焦点高亮，首 tap【确定】即直接激活安装（约 2 秒后 Success）——坑 16 的「双钮两段式（首 tap 移焦）」在该形态未出现，非普适；代点前先截图目测当前弹窗形态与焦点态再决定单击/两段。代点前后截图留证（t64m-install-1.png 为弹窗消失回桌面）。同轮 5 次 `uiautomator dump` 退出段各产生 1 条 SYSTEM PROCESS FATAL（坑 7 原签名 SecurityException unregisterUiTestAutomationService），与坑 7「Android 6 dump 工具噪音」同族，核对 FATAL 时按 pid/uid 与 dump 调用一一对应排除。
+
+**再证（2026-11-15，T71/T72 真机批次）**：两轮装机（t71t72-app / t72r2-app）弹窗均「从其它设备安装」同型、双钮无初始焦点、首击 tap【确定】均直接激活（51.9s / 57.6s Success，t71m-install-* / t72r2-install-* 留证）；Round 2 升级伴随 default 夺回搜狗 + 搜狗崩溃反馈页（坑 3/坑 16 补充预期内），ime set + BACK 即恢复。
 
 ### 坑 18：新进程 am start 设置页自动弹搜狗键盘，遮版本卡下方区域（2026-11-11，T50 复验）
 
