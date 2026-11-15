@@ -49,6 +49,10 @@
 //（判定在 Manager/RemoteIdlePolicy，正式 30 分钟）自动停服（既有完整清理链路）后，经
 // Manager.onRemoteIdleExpired 主线程回调 requestHideSelf 收起整个键盘窗口（主卡回键盘态
 // 由停服回调驱动，见 renderMainCardMode）。回调在 onCreateInputView 注册 / onDestroy 解除。
+// T74 接线（决策 62 · BACK 已连接保活）：远程服务运行中 BACK 按连接态分流（判定收口
+// RemoteBackPolicy 纯模型，单测锁定）——已连接态只收起键盘窗口保活（服务 / 会话 / 远程
+// 缓冲 / 连接代号全保持、手机端无感知，重入沿 T17 路径自动回远程模式）；未连接态维持
+// 既有 exitRemoteMode() 完整清理退出；键盘态分支不变。见 dispatchKeyDown BACK 分支。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -72,6 +76,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.sofatype.ime.debug.DebugLogStore
+import com.sofatype.ime.remote.RemoteBackPolicy
 import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.pinyin.PinyinEngine
@@ -781,13 +786,39 @@ class SofatypeImeService : InputMethodService() {
             cancelDeleteRepeat()
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // T18 · FR-B7（决策 33 划归本任务）：远程模式下系统返回键 = 退出远程模式
-            //（通知手机 + 关 HTTP/WS 监听 + 清缓冲，回键盘态）；远程分支先于隐藏态判定执行，
-            // 远程主卡窗口显示态，T18 退出远程链路不受 T59 口径影响（模拟器取证见 issue T59）。
+            // T74 · 决策 62（修订 T18 · FR-B7 系统返回键条款）：远程服务运行中 BACK 按连接态
+            // 分流（判定单一事实源 RemoteBackPolicy）——
+            // 已连接态（有已配对会话）= 只收起键盘窗口保活（FR-A1 语义），服务 / 会话 /
+            // 远程缓冲 / 连接代号全保持、手机端无感知（无 disconnect 通知）；键盘已收起时
+            // 归键盘态既有分支（隐藏态透传宿主，T59 口径同族），重入沿 onStartInputView
+            // T17 路径自动回远程模式；保活期两类空闲自退（T25 无连接 30 分钟 / 决策 59
+            // 已连接无活动 10 分钟）照常兜底，不因收起顺延。收起动作本身不落任何输入
+            // 内容日志（隐私红线）。
+            // 未连接态（等待扫码）= 既有 exitRemoteMode() 完整清理链路（通知手机 + 关
+            // HTTP/WS 监听 + 清 token / 缓冲 / 设备名，回键盘态），不残留监听端口；
+            // 远程分支先于隐藏态判定执行，T18 退出远程链路不受 T59 口径影响（模拟器取证
+            // 见 issue T59）。
             if (RemoteInputServerManager.isRunning()) {
-                trace("remote exit via BACK")
-                exitRemoteMode()
-                return true
+                when (RemoteBackPolicy.resolve(
+                    serviceRunning = true,
+                    pairedSessionActive = RemoteInputServerManager.hasPairedSession(),
+                    inputViewShown = isInputViewShown(),
+                )) {
+                    RemoteBackPolicy.Action.EXIT_REMOTE -> {
+                        trace("remote exit via BACK")
+                        exitRemoteMode()
+                        return true
+                    }
+                    RemoteBackPolicy.Action.HIDE_KEEP_ALIVE -> {
+                        // 远程模式无组合态，不涉及 finishComposition（与键盘态 BACK 收起唯一差异）；
+                        // BACK 路径不开抑制窗（hideSelfAfterKeyDispatch 注释既有口径，直接收起）
+                        trace("remote keep-alive hide via BACK")
+                        requestHideSelf(0)
+                        return true
+                    }
+                    RemoteBackPolicy.Action.KEYBOARD_DEFAULT -> Unit
+                    // 落键盘态既有分支：已连接隐藏态透传宿主（服务保活不受影响）
+                }
             }
             // T59（户主拍板 2026-11-11）：隐藏态 BACK 透传宿主——键盘已收起时本服务收起
             // 无效果且拦截宿主返回语义（T54 Round 1 死态根因之一：BACK 退出设置页失效；
