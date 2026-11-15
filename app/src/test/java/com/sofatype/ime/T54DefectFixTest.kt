@@ -9,6 +9,9 @@
 // 与 IME 服务禁区不变）。
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：SettingsFocusTakeoverTest（T54 R2）、T59HiddenKeySemanticsTest（T59）。
+// T77（docs/issues/open/T77.md）：测试打字页双输入框表单——收起沿接管目标与 T62 restartInput
+// 目标适配为「当前持焦输入框优先，无则回落 test_input」（SettingsFocusTakeover.takeoverTarget
+// 纯函数 + T77DualInputFormTest 锁定），本文件两处接线断言同步修订（先例：T63 承载面随迁改扫描目标）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertFalse
@@ -42,8 +45,8 @@ class T54DefectFixTest {
             edgeBody.contains("SettingsFocusTakeover.shouldTakeFocus("),
         )
         assertTrue(
-            "收起沿须无条件 requestFocusFromTouch（焦点回编辑框 + 退出触摸模式：触摸模式下 FocusFinder 移焦静默失效，走查实测）",
-            edgeBody.contains("input.requestFocusFromTouch()") &&
+            "收起沿须无条件 requestFocusFromTouch（焦点回编辑框 + 退出触摸模式：触摸模式下 FocusFinder 移焦静默失效，走查实测；T77 双框目标经 takeoverTarget 判定，锁定见 T77DualInputFormTest）",
+            edgeBody.contains("requestFocusFromTouch()") &&
                 edgeBody.contains("退出触摸模式"),
         )
         assertFalse(
@@ -90,8 +93,8 @@ class T54DefectFixTest {
             carrier.contains("IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)"),
         )
         assertTrue(
-            "收到广播须 restartInput 重建输入会话（T62）",
-            carrier.contains("imm?.restartInput(input)"),
+            "收到广播须 restartInput 重建输入会话（T62；T77 双框：目标 = 当前持焦输入框，无则回落 test_input，锁定见 T77DualInputFormTest）",
+            carrier.contains("imm?.restartInput(restartTarget)"),
         )
         assertTrue(
             "切换广播日志存在（走查取证锚点）",

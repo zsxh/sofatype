@@ -9,6 +9,8 @@
 // 设置页保留项不变）。
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：ManualCheckLogTest（T50 R2）、UiChannelHealFlowTest（T50 R1）。
+// T77（docs/issues/open/T77.md）：双输入框表单——接管目标适配「当前持焦框优先，无则回落
+// test_input」（takeoverTarget 纯函数，语义锁定见 T77DualInputFormTest），接线断言同步修订。
 package com.sofatype.ime
 
 import org.junit.Assert.assertFalse
@@ -75,8 +77,8 @@ class SettingsFocusTakeoverTest {
             text.contains("SettingsFocusTakeover.shouldTakeFocus("),
         )
         assertTrue(
-            "接管目标须为 test_input 编辑框（T54 缺陷修复 R1：会话保活，焦点回编辑框）",
-            text.contains("input.requestFocusFromTouch()"),
+            "收起沿须无条件 requestFocusFromTouch（T54 缺陷修复 R1 会话保活；T77 双框：目标经 takeoverTarget 判定 = 当前持焦框优先，无则回落 test_input）",
+            text.contains("requestFocusFromTouch()"),
         )
         assertTrue(
             "可见性须走 isImeShown 阈值判定（T54 R2）",

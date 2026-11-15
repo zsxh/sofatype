@@ -47,6 +47,9 @@
     <!-- 测试输入三件套（T63 起承载于测试打字页；门控沿用决策 21：仅 debug 构建显示） -->
     <string name="test_input_hint">测试输入框：用于键盘与上屏验收</string>
     <string name="cd_test_input">测试输入框，用于键盘与上屏验收</string>
+    <!-- T77 · 双框表单第二输入框（test_input_2）：hint 与 contentDescription 走资源，不硬编码于布局 -->
+    <string name="test_input_2_hint">测试输入框 2：用于键盘与上屏验收</string>
+    <string name="cd_test_input_2">测试输入框 2，用于键盘与上屏验收</string>
     <string name="btn_fill_sample">填入示例文本</string>
     <string name="cd_btn_fill_sample">填入示例文本</string>
     <string name="btn_select_all">全选</string>

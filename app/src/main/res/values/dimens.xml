@@ -25,6 +25,9 @@
     <dimen name="test_page_input_top_margin">150dp</dimen>
     <dimen name="test_page_buttons_margin_top">16dp</dimen>
     <dimen name="test_page_hint_margin_top">415dp</dimen>
+    <!-- T77 · 双框表单：第二输入框 test_input_2 上边距（无画板批次，沿按钮行同 32px 纵向节奏；
+         高/圆角/字/内边距复用 test_input_* 既有 Token） -->
+    <dimen name="test_page_input2_margin_top">16dp</dimen>
     <!-- 辅助按钮（对齐 PRD 6.3「检查更新按钮」196×64 / 圆角 14 / 字 19px；间距 14px） -->
     <dimen name="btn_width">98dp</dimen>
     <dimen name="btn_height">32dp</dimen>

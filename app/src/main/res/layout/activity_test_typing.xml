@@ -7,6 +7,8 @@
   BACK 返回设置页；无 LAUNCHER 入口（清单未配 intent-filter）。
   根视图沿用 SettingsRootView（pre-IME 键分路根视图，T54 R2 机制，与设置页同构）。
   纵向坐标按画板 9 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位。
+  T77：test_typing_content 内新增第二输入框 test_input_2（双框表单，规格与 test_input
+  同 Token 体系，hint/contentDescription 走 strings 资源；门控同容器，release 整体 GONE）。
 -->
 <com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/test_typing_root"
@@ -62,6 +64,24 @@
             android:background="@drawable/bg_test_input"
             android:contentDescription="@string/cd_test_input"
             android:hint="@string/test_input_hint"
+            android:importantForAccessibility="yes"
+            android:paddingStart="@dimen/test_input_padding"
+            android:paddingEnd="@dimen/test_input_padding"
+            android:singleLine="true"
+            android:textColor="@color/text_body"
+            android:textColorHint="@color/text_muted"
+            android:textCursorDrawable="@null"
+            android:textSize="@dimen/test_input_text" />
+
+        <!-- T77 · 第二输入框（双框表单）：规格与 test_input 同 Token 体系，无障碍标注走 strings 资源 -->
+        <EditText
+            android:id="@+id/test_input_2"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/test_input_height"
+            android:layout_marginTop="@dimen/test_page_input2_margin_top"
+            android:background="@drawable/bg_test_input"
+            android:contentDescription="@string/cd_test_input_2"
+            android:hint="@string/test_input_2_hint"
             android:importantForAccessibility="yes"
             android:paddingStart="@dimen/test_input_padding"
             android:paddingEnd="@dimen/test_input_padding"

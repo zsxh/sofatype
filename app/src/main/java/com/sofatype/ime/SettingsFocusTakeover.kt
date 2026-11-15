@@ -11,6 +11,8 @@
 // 用户已移到按钮上的焦点。
 // 显示阈值取 1080p 下键盘面板高度的保守下限：可见底部帧低于全屏高 - 阈值判为输入法可见；
 // 中间帧（缩放过渡）按可见判，避免显示过渡期误触发接管。
+// T77（docs/issues/open/T77.md）：测试打字页双输入框表单——接管与重建会话目标决策扩展为
+// 「当前持焦输入框优先，无输入框持焦回落首框 test_input」（takeoverTarget 纯函数，单元测试锁定）。
 package com.sofatype.ime
 
 object SettingsFocusTakeover {
@@ -29,4 +31,12 @@ object SettingsFocusTakeover {
      */
     fun shouldTakeFocus(imeShown: Boolean, editorHasFocus: Boolean): Boolean =
         !imeShown && !editorHasFocus
+
+    /**
+     * T77 · 双输入框收起沿接管 / 重建会话目标决策（纯函数，单元测试锁定）：
+     * 任一输入框持焦 → 保持当前持焦框（用户在哪个框编辑，焦点仍在哪个框，不迁移）；
+     * 无输入框持焦 → 回落首框 test_input（T54 会话保活语义不变）。
+     * 泛型承载：生产侧传 EditText，测试侧以纯 JVM 值锁定语义。
+     */
+    fun <T> takeoverTarget(focusedEditor: T?, firstEditor: T): T = focusedEditor ?: firstEditor
 }

@@ -13,6 +13,10 @@
 // SofatypeImeService 零改动（T59 拍板口径不触碰）。
 // T71 · 决策 60：日志点机械迁移到 Timber（Timber.tag(FOCUS_LOG_TAG)，TAG=SettingsFocus
 // 既有口径不变、文案不变；logcat 树 DebugTree 输出与迁移前一致）。
+// T77 · 双输入框表单（docs/issues/open/T77.md）：新增 test_input_2（布局与 strings 资源）；
+// T54 焦点接管与 T62 重建会话目标适配双框——目标 = 当前持焦的输入框（无则回落 test_input），
+// 决策走 SettingsFocusTakeover.takeoverTarget 纯函数；三件套（test_input / 填入示例文本 /
+// 全选）语义零改动，初始焦点仍落 test_input。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -53,6 +57,9 @@ class TestTypingActivity : Activity() {
         if (TestTypingGate.contentVisible(BuildConfig.DEBUG)) {
             content.visibility = View.VISIBLE
             val input = findViewById<EditText>(R.id.test_input)
+            val input2 = findViewById<EditText>(R.id.test_input_2)
+            // T77 · 双框清单（收起沿接管与 T62 重建会话共用目标判定）
+            val editors = listOf(input, input2)
             // 「填入示例文本」：预置确定性文本，供键盘/上屏验收使用（原设置页调试区行为原样迁入）
             findViewById<Button>(R.id.btn_fill_sample).setOnClickListener {
                 input.setText(R.string.sample_text)
@@ -84,11 +91,17 @@ class TestTypingActivity : Activity() {
                     if (!imeShown) {
                         // T54 缺陷修复：收起沿焦点回编辑框（输入会话保活），并退出触摸模式——
                         // tap 链路遗留的触摸模式会让 FocusFinder 焦点搜索移焦静默失效。
+                        // T77 双框：接管目标 = 当前持焦的输入框（用户在哪个框编辑，收起后焦点
+                        // 仍在哪个框）；无输入框持焦（tap 过按钮）回落 test_input（T54 语义不变）。
                         // requestFocusFromTouch 对已持焦点的编辑框 = 仅退出触摸模式，焦点不变。
-                        if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
+                        val focusedEditor = editors.firstOrNull { it.hasFocus() }
+                        val target = SettingsFocusTakeover.takeoverTarget(focusedEditor, input)
+                        if (SettingsFocusTakeover.shouldTakeFocus(imeShown, focusedEditor != null)) {
                             Timber.tag(FOCUS_LOG_TAG).i("焦点接管：键盘已收起，焦点回 test_input（输入会话保活）")
+                        } else if (target === input2) {
+                            Timber.tag(FOCUS_LOG_TAG).i("焦点保持：键盘已收起，焦点仍在 test_input_2（输入会话保活）")
                         }
-                        input.requestFocusFromTouch()
+                        target.requestFocusFromTouch()
                     }
                     lastImeShown = imeShown
                 }
@@ -105,7 +118,12 @@ class TestTypingActivity : Activity() {
                 override fun onReceive(context: Context, intent: Intent) {
                     Timber.tag(FOCUS_LOG_TAG).i("输入法切换广播 -> 重建输入会话（T62）")
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                    imm?.restartInput(input)
+                    // T77 双框：重建会话目标 = 当前持焦的输入框（无则回落 test_input）
+                    val restartTarget = SettingsFocusTakeover.takeoverTarget(
+                        editors.firstOrNull { it.hasFocus() },
+                        input,
+                    )
+                    imm?.restartInput(restartTarget)
                 }
             }
             if (Build.VERSION.SDK_INT >= 33) {
