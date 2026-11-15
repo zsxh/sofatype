@@ -11,6 +11,8 @@
 //   （IC 输出黑洞修复），随窗口销毁注销（零残留，AGENTS 禁止事项 3）。
 // 无 LAUNCHER 入口（清单未配 intent-filter，不从桌面可达）；BACK 返回设置页。
 // SofatypeImeService 零改动（T59 拍板口径不触碰）。
+// T71 · 决策 60：日志点机械迁移到 Timber（Timber.tag(FOCUS_LOG_TAG)，TAG=SettingsFocus
+// 既有口径不变、文案不变；logcat 树 DebugTree 输出与迁移前一致）。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -21,7 +23,6 @@ import android.content.IntentFilter
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
@@ -30,6 +31,7 @@ import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import timber.log.Timber
 
 class TestTypingActivity : Activity() {
 
@@ -78,13 +80,13 @@ class TestTypingActivity : Activity() {
                     resources.displayMetrics.heightPixels,
                 )
                 if (imeShown != lastImeShown) {
-                    Log.i(FOCUS_LOG_TAG, "输入法可见性 imeShown=$imeShown visibleBottom=${frame.bottom}")
+                    Timber.tag(FOCUS_LOG_TAG).i("输入法可见性 imeShown=$imeShown visibleBottom=${frame.bottom}")
                     if (!imeShown) {
                         // T54 缺陷修复：收起沿焦点回编辑框（输入会话保活），并退出触摸模式——
                         // tap 链路遗留的触摸模式会让 FocusFinder 焦点搜索移焦静默失效。
                         // requestFocusFromTouch 对已持焦点的编辑框 = 仅退出触摸模式，焦点不变。
                         if (SettingsFocusTakeover.shouldTakeFocus(imeShown, input.hasFocus())) {
-                            Log.i(FOCUS_LOG_TAG, "焦点接管：键盘已收起，焦点回 test_input（输入会话保活）")
+                            Timber.tag(FOCUS_LOG_TAG).i("焦点接管：键盘已收起，焦点回 test_input（输入会话保活）")
                         }
                         input.requestFocusFromTouch()
                     }
@@ -101,7 +103,7 @@ class TestTypingActivity : Activity() {
             val imeChangedFilter = IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)
             imeChangedReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
-                    Log.i(FOCUS_LOG_TAG, "输入法切换广播 -> 重建输入会话（T62）")
+                    Timber.tag(FOCUS_LOG_TAG).i("输入法切换广播 -> 重建输入会话（T62）")
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                     imm?.restartInput(input)
                 }
@@ -147,7 +149,7 @@ class TestTypingActivity : Activity() {
         if (event.action != KeyEvent.ACTION_DOWN) return route != SettingsKeyRouter.Route.PASS
         return when (route) {
             SettingsKeyRouter.Route.BACK -> {
-                Log.i(FOCUS_LOG_TAG, "pre-IME BACK：返回设置页")
+                Timber.tag(FOCUS_LOG_TAG).i("pre-IME BACK：返回设置页")
                 finish()
                 true
             }
@@ -158,7 +160,7 @@ class TestTypingActivity : Activity() {
                 if (SettingsKeyRouter.confirmActivatesIme(focused) && focused is EditText) {
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                     val shown = imm?.showSoftInput(focused, InputMethodManager.SHOW_IMPLICIT) ?: false
-                    Log.i(FOCUS_LOG_TAG, "pre-IME CONFIRM：焦点在输入框 -> showSoftInput=$shown")
+                    Timber.tag(FOCUS_LOG_TAG).i("pre-IME CONFIRM：焦点在输入框 -> showSoftInput=$shown")
                 } else {
                     focused?.performClick()
                 }

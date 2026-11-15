@@ -26,6 +26,11 @@
 // ② 配对后连接上的 disconnect { reason }（手机 → TV，PRD 第 7 章双向）按已知消息分发：
 //   仅记事件、连接保持——会话实际断开由 TCP 关闭驱动（页面关闭 / 刷新必然关连接），
 //   断连回退与清理见 Manager.onPairedSessionClosed。
+// T72 增量（决策 61 · 连接代号）：hello 增 deviceType（手机端判定的设备类型，TV 不解析 UA）
+// 与 deviceKey（保号键，缺失 / 空白 / 超长一律按匿名处理）；配对成功回调上送两字段供
+// Manager 签发序号；state 增 clientCode（经 [clientCodeProvider] 取值，state 为代号唯一
+// 事实源、无新增消息类型；仅 connected:true 携带，被拒连接不下发）。
+// deviceKey / 序号不入日志（隐私红线，决策 61）。
 // 本实例持有每连接的配对态：由 RemoteInputServerManager 以会话工厂按连接创建（一连接一实例）。
 package com.sofatype.ime.remote
 
@@ -46,11 +51,14 @@ class PairingSession(
      */
     private val onCommit: (text: String, ack: (Boolean) -> Unit) -> Unit = { _, _ -> },
     /**
-     * 配对成功回调（T17 · FR-B9 / 决策 34）：hello 首次校验通过即触发，参数 = hello.deviceName
-     *（消息未携带时 null）。仅配对成功触发一次；被拒（无效 / 重放 / 缺失 token）不触发。
+     * 配对成功回调（T17 · FR-B9 / 决策 34，T72 · 决策 61 扩参）：hello 首次校验通过即触发，
+     * 参数 = (hello.deviceName, hello.deviceType, hello.deviceKey)。deviceName 未携带时 null；
+     * deviceType 缺失 / 未知回浏览器兜底（[DeviceType.fromCode]）；deviceKey 缺失 / 空白 /
+     * 超长（>[MAX_DEVICE_KEY_LENGTH]）一律 null（按匿名处理，决策 61）。
+     * 仅配对成功触发一次；被拒（无效 / 重放 / 缺失 token）不触发。
      * 回调在 WS 读线程执行，处理方自行保证线程安全。
      */
-    private val onPaired: (deviceName: String?) -> Unit = {},
+    private val onPaired: (deviceName: String?, deviceType: DeviceType, deviceKey: String?) -> Unit = { _, _, _ -> },
     /**
      * 已配对会话关闭回调（T35 · 决策 35 断连回退）：本连接**已配对**且 WS 会话结束时触发
      *（对端关闭 / 协议错误 / 被顶替关闭）；未配对连接的会话结束不触发（不入会话登记）。
@@ -69,6 +77,13 @@ class PairingSession(
      * url 字段（既有测试基线与占位页口径不变）。仅在 connected:true 时消费。
      */
     private val pairingUrlProvider: () -> String? = { null },
+    /**
+     * 连接代号提供者（T72 · 决策 61）：构建 state 载荷时取值（Manager 在 onPaired 内完成序号
+     * 签发，返回当前连接的连接代号全文，如「微信设备 01」）；null / 未提供 = 不带 clientCode
+     * 字段（既有测试基线不变）。仅在 connected:true 时消费——state 为代号唯一事实源
+     *（决策 61），被拒连接未通过配对校验，不下发代号。
+     */
+    private val clientCodeProvider: () -> String? = { null },
 ) : WsSessionDelegate {
 
     /** 本连接配对态：hello 成功后置位；业务消息仅在此态分发（未配对连接不得注入内容）。 */
@@ -107,8 +122,12 @@ class PairingSession(
             return if (tokens.consume((fields[KEY_TOKEN] as? MinimalJson.Value.Str)?.value)) {
                 paired = true
                 logEvent("配对成功：token 已消费失效")
-                // T17（FR-B9 / 决策 34）：配对成功通知 UI 状态机；deviceName 随回调上送（未携带 = null）
-                onPaired((fields[KEY_DEVICE_NAME] as? MinimalJson.Value.Str)?.value)
+                // T17（FR-B9 / 决策 34）：配对成功通知 UI 状态机，deviceName 随回调上送（未携带 = null）。
+                // T72（决策 61）：deviceType / deviceKey 随回调上送供序号签发；deviceType 缺失 /
+                // 未知回浏览器兜底，deviceKey 缺失 / 空白 / 超长按匿名（null）处理
+                val deviceType = DeviceType.fromCode((fields[KEY_DEVICE_TYPE] as? MinimalJson.Value.Str)?.value)
+                val deviceKey = sanitizeDeviceKey((fields[KEY_DEVICE_KEY] as? MinimalJson.Value.Str)?.value)
+                onPaired((fields[KEY_DEVICE_NAME] as? MinimalJson.Value.Str)?.value, deviceType, deviceKey)
                 WsReply.Text(buildState(connected = true))
             } else {
                 logEvent("配对被拒：token 缺失、无效或已使用")
@@ -158,9 +177,18 @@ class PairingSession(
         WsReply.TextThenClose(buildState(connected = false), CLOSE_POLICY_REJECTED)
 
     /**
-     * state 消息载荷（PRD 第 7 章定式 + T18 lead 拍板增量）：{ type, connected, tvName, charLimit }；
-     * connected:true 时附当前配对地址 url（滚动新码，供手机页刷新重连）；connected:false
-     * （被拒）不带 url——未通过配对校验的连接不得获得有效配对地址（FR-B10）。
+     * deviceKey 净化（T72 · 决策 61）：非空、长度不超 [MAX_DEVICE_KEY_LENGTH]（H5 上报为随机
+     * UUID，超长取值视作异常客户端）才可作为保号键；其余一律 null（按匿名新设备签发）。
+     * 键值仅内存驻留，不落日志。
+     */
+    private fun sanitizeDeviceKey(raw: String?): String? =
+        raw?.takeIf { it.isNotBlank() && it.length <= MAX_DEVICE_KEY_LENGTH }
+
+    /**
+     * state 消息载荷（PRD 第 7 章定式 + T18 lead 拍板增量 + T72 决策 61 增量）：
+     * { type, connected, tvName, charLimit }；connected:true 时附当前配对地址 url（滚动新码，供
+     * 手机页刷新重连）与连接代号 clientCode（state 为代号唯一事实源，决策 61）；connected:false
+     * （被拒）不带 url 与 clientCode——未通过配对校验的连接不得获得有效配对地址与代号（FR-B10）。
      */
     private fun buildState(connected: Boolean): String {
         val urlField = if (connected) {
@@ -168,8 +196,13 @@ class PairingSession(
         } else {
             ""
         }
+        val clientCodeField = if (connected) {
+            clientCodeProvider()?.let { ",\"clientCode\":\"${MinimalJson.escape(it)}\"" } ?: ""
+        } else {
+            ""
+        }
         return "{\"$KEY_TYPE\":\"$MSG_STATE\",\"connected\":$connected," +
-            "\"tvName\":\"${MinimalJson.escape(tvName)}\",\"charLimit\":$charLimit$urlField}"
+            "\"tvName\":\"${MinimalJson.escape(tvName)}\",\"charLimit\":$charLimit$urlField$clientCodeField}"
     }
 
     /** committed 回执载荷（T16 · PRD 第 7 章 commit 的 TV → 手机确认）：{ type, ok }。 */
@@ -185,6 +218,15 @@ class PairingSession(
 
         /** hello 携带的配对设备名字段（PRD 第 7 章；T17 决策 34：会话内存驻留用于展示）。 */
         const val KEY_DEVICE_NAME = "deviceName"
+
+        /** hello 携带的设备类型字段（T72 · 决策 61：手机端判定，TV 不解析 UA）。 */
+        const val KEY_DEVICE_TYPE = "deviceType"
+
+        /** hello 携带的保号键字段（T72 · 决策 61：H5 随机 UUID 存 localStorage，TV 内存驻留）。 */
+        const val KEY_DEVICE_KEY = "deviceKey"
+
+        /** 保号键最大长度（T72 · 决策 61 净化口径：H5 上报为随机 UUID，超长按匿名处理）。 */
+        const val MAX_DEVICE_KEY_LENGTH = 128
         const val MSG_HELLO = "hello"
         const val MSG_STATE = "state"
 

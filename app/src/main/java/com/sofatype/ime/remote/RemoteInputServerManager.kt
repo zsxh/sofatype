@@ -57,6 +57,15 @@
 //  验证通道 debugConnectedIdleExpire()（决策 21 debug 门控）：活动时刻回拨一个完整窗口后
 //  立即到期，走与真实到期完全相同的判定与清理路径（正式阈值不改动）。
 // ③ 断连清缓冲、回等待扫码卡、网络重建、token 滚动签发等既有链路不改。
+// T71 · 决策 60：本类与 PairingSession 的全部日志点机械迁移到 Timber（Timber.tag(TAG)，
+// TAG=RemoteInputServer 既有口径不变、文案不变；logcat 树 DebugTree 输出与迁移前一致）。
+// T72 增量（决策 61 · 远程输入连接代号）：hello 增 deviceType / deviceKey（PairingSession 上送），
+// 配对成功经 ClientCodeRegistry 签发 / 沿用序号（LRU 内存表：TTL 15 分钟滚动续期、容量 8、
+// 满淘汰最久未见、匿名签发仅当次连接固定）；state 经 clientCodeProvider 下发 clientCode
+// （state 为代号唯一事实源）；WS 活动（input / clear / commit）滚动续期 lastSeen。
+// 注册表随进程驻留：停服不清表（保号窗口跨 TV 退出持续，断开后 15 分钟内重连保号），
+// 仅钉住键随会话切换 / 停服解除（连接中代号永不变）。deviceKey 与序号仅内存驻留，
+// 不持久化、不入日志（隐私红线，决策 61）。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -66,8 +75,8 @@ import android.net.Network
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.sofatype.ime.BuildConfig
+import timber.log.Timber
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -167,6 +176,27 @@ object RemoteInputServerManager {
     @Volatile
     private var pairedDeviceName: String? = null
 
+    /**
+     * 当前连接的保号键（T72 · 决策 61：hello.deviceKey，WS 读线程写、volatile 读）。
+     * 仅内存驻留，停服 / 断连即清、不入日志（隐私红线）。
+     */
+    @Volatile
+    private var pairedDeviceKey: String? = null
+
+    /**
+     * 当前连接的连接代号（T72 · 决策 61：配对成功时经注册表签发 / 沿用），
+     * 供状态机渲染胶囊与 state.clientCode 下发（state 为代号唯一事实源）。
+     */
+    @Volatile
+    private var pairedClientCode: ClientCode? = null
+
+    /**
+     * 连接代号序号注册表（T72 · 决策 61）：LRU 内存表 deviceKey→(类型, 序号, lastSeen)。
+     * 随进程驻留、停服不清表（保号窗口跨 TV 退出 / 服务重启持续，进程死亡才消亡）；
+     * 写入经注册表内部 synchronized（WS 读线程与主线程多点触达）。
+     */
+    private val clientCodes = ClientCodeRegistry()
+
     /** 本轮服务的配对地址（含 token，FR-B4「地址与二维码内容一致」）；仅服务运行期间非空。 */
     @Volatile
     private var pairingUrlText: String? = null
@@ -234,6 +264,12 @@ object RemoteInputServerManager {
     /** 已配对设备名（T17 · 决策 34）：hello 携带的 deviceName，会话内存驻留；未配对 / 已停止为 null。 */
     fun pairedDeviceName(): String? = pairedDeviceName
 
+    /**
+     * 当前连接的连接代号（T72 · 决策 61）：配对成功时签发 / 沿用（如「微信设备 01」）；
+     * 未配对 / 已停止为 null。UI 状态机胶囊与 state.clientCode 同源此处（代号唯一事实源）。
+     */
+    fun pairedClientCode(): ClientCode? = pairedClientCode
+
     /** 当前远程文本快照（键盘重建时补渲染用）；无内容返回 null。 */
     fun remoteTextSnapshot(): String? = remoteBuffer.text.takeIf { it.isNotEmpty() }
 
@@ -268,11 +304,14 @@ object RemoteInputServerManager {
             val address = resolveLanAddress(context)
             if (address == null) {
                 val reason = "未找到可绑定的局域网 IPv4 接口"
-                Log.w(TAG, "启动失败：$reason")
+                Timber.tag(TAG).w("启动失败：$reason")
                 return RemoteInputServer.StartResult.Failed(reason)
             }
             tokens.issue() // FR-B10：一次性 token，每轮服务会话新签发
             pairedDeviceName = null // 决策 34：设备名随会话，新一轮启动不残留上一轮值
+            pairedDeviceKey = null // T72：保号键随会话（序号注册表不清，保号窗口跨停服持续）
+            pairedClientCode = null // T72：代号随会话，新一轮启动不残留上一轮值
+            clientCodes.unpin() // T72：新会话无已配对连接，解除上一轮钉住
             disconnectNoticeUntil = 0 // T18：新一轮会话不残留上一轮断连提示
             exitRequested = false // T18：新会话清除上一轮退出标记（重建路径据此放行）
             mainPageCache = null // 页面缓存随服务会话失效：资产更新后本次启动即生效
@@ -289,20 +328,25 @@ object RemoteInputServerManager {
                     // UI 通知经主线程 Handler 派发。会话实例先创建再闭包捕获（作登记身份键）。
                     // T18（Q1 lead 拍板 A）：state 经 pairingUrlProvider 下发滚动新码配对地址
                     //（hello 校验通过后才取值，被拒路径不消费；FR-B10 一次性不变）。
+                    // T72（决策 61）：onPaired 扩参上送 deviceType / deviceKey 供序号签发；
+                    // state 经 clientCodeProvider 下发连接代号（hello 校验通过后才取值）。
                     lateinit var session: PairingSession
                     session = PairingSession(
                         tokens = tokens,
                         tvName = tvName,
-                        logEvent = { Log.i(TAG, it) },
+                        logEvent = { Timber.tag(TAG).i(it) },
                         onInput = ::onRemoteInput,
                         onClear = ::onRemoteClear,
                         onCommit = ::onRemoteCommit,
-                        onPaired = { deviceName -> onPaired(session, deviceName) },
+                        onPaired = { deviceName, deviceType, deviceKey ->
+                            onPaired(session, deviceName, deviceType, deviceKey)
+                        },
                         onPairedSessionClosed = { onPairedSessionClosed(session) },
                         onConnectionAttached = { sender, close ->
                             onPairedConnectionAttached(session, sender, close)
                         },
                         pairingUrlProvider = { pairingUrlText },
+                        clientCodeProvider = { pairedClientCode?.text },
                     )
                     session
                 },
@@ -319,12 +363,12 @@ object RemoteInputServerManager {
                     // T25：进入远程模式即处于「无手机连接」态，空闲窗口自此起算
                     armIdleExit(System.currentTimeMillis())
                     // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
-                    Log.i(TAG, "远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
+                    Timber.tag(TAG).i("远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
                     // T18：start 可经网络重建在 teardown 线程进入，UI 回调统一主线程派发
                     mainHandler.post { onPairingStateChanged?.invoke() }
                 }
                 is RemoteInputServer.StartResult.Failed ->
-                    Log.w(TAG, "启动失败：${result.reason}")
+                    Timber.tag(TAG).w("启动失败：${result.reason}")
             }
             return result
         }
@@ -382,10 +426,13 @@ object RemoteInputServerManager {
             pairedSessions.clear() // T35：已配对会话登记随服务会话结束（各连接由 stop 关闭后迟到的清除回调幂等）
             sessionControls.clear()
             pairedDeviceName = null // 决策 34：设备名会话结束即清（仅驻内存，不持久化）
+            pairedDeviceKey = null // T72：保号键会话结束即清（序号注册表不清，保号窗口持续）
+            pairedClientCode = null // T72：代号会话结束即清
+            clientCodes.unpin() // T72：解除钉住（注册表保留，断开后 15 分钟窗口内重连保号）
             cancelIdleExit() // T25：远程模式结束，撤销空闲退出排程（手动退出 / 上屏停服 / 空闲到期自退共用）
             cancelConnectedIdleWatch() // T70：远程模式结束，撤销「已连接无活动」排程（幂等）
             instance.stop()
-            Log.i(TAG, "远程输入服务已停止，监听已关闭，配对 token 已作废")
+            Timber.tag(TAG).i("远程输入服务已停止，监听已关闭，配对 token 已作废")
             // 远程缓冲会话结束即清（第 8 章隐私），UI 回键盘态。
             // T18：stop 编排已移至 teardown 线程（FR-B7 通知先于停服），UI 回调必须经
             // mainHandler 派发——本线程直调会在非主线程碰视图（实测 CalledFromWrongThreadException
@@ -399,22 +446,25 @@ object RemoteInputServerManager {
     // ---- T15 · 业务回调与页面下发 ----
 
     /**
-     * 配对成功（T35 · 决策 35 重写，连接线程）：
+     * 配对成功（T35 · 决策 35 重写，T72 · 决策 61 扩参，连接线程）：
      * ① 新连接登记进已配对会话表，交出被顶替的旧连接——旧连接先回发 replaced 通知再按
      *    CLOSE_REPLACED 关闭（FR-B11 自动顶替；旧手机端显示「连接已被替换」进未连接态）；
      * ② 滚动签发新 token 并刷新配对地址（副卡二维码随 UI 刷新重渲染出新码，
      *    逐 token 一次性语义不变，FR-B10）；已连接态展示的码 = 新签发的有效码；
-     * ③ deviceName 驻留（决策 34：会话内存，不持久化、不入日志）。
+     * ③ deviceName 驻留（决策 34：会话内存，不持久化、不入日志）；
+     * ④ 连接代号签发 / 沿用（决策 61）：经注册表按 deviceKey 签发序号（命中沿用、未命中
+     *    max+1、匿名当次固定），钉住保号键（连接中代号永不变），代号随 state.clientCode
+     *    下发（唯一事实源）并驱动两端胶囊展示。
      * UI 刷新经主线程 Handler 派发到 [onPairingStateChanged]（副卡二维码卡 + 状态行 /
-     * 主卡状态行绿点切新设备名）。服务已停止的迟到回调按防御忽略。
+     * 主卡状态行绿点切连接代号胶囊）。服务已停止的迟到回调按防御忽略。
      */
-    private fun onPaired(session: PairingSession, deviceName: String?) {
+    private fun onPaired(session: PairingSession, deviceName: String?, deviceType: DeviceType, deviceKey: String?) {
         synchronized(this) {
             if (!isRunning()) return
             val connection = sessionControls[session] ?: return
             val replaced = pairedSessions.attach(session, connection)
             replaced?.let { old ->
-                Log.i(TAG, "新设备配对成功，顶替旧连接")
+                Timber.tag(TAG).i("新设备配对成功，顶替旧连接")
                 runCatching { old.sender.send(REPLACED_MESSAGE) }
                 runCatching { old.close(PairingSession.CLOSE_REPLACED) }
             }
@@ -423,8 +473,12 @@ object RemoteInputServerManager {
             if (addr != null && port != null) {
                 val token = tokens.issue() // 决策 35：滚动签发，旧 token 已消费，新码供下一台设备
                 pairingUrlText = "http://$addr:$port/?token=$token"
-                Log.i(TAG, "配对 token 已滚动签发，二维码内容更新")
+                Timber.tag(TAG).i("配对 token 已滚动签发，二维码内容更新")
             }
+            // T72（决策 61）：序号签发 / 沿用 + 钉住保号键（连接中代号永不变）；键值不入日志
+            pairedClientCode = clientCodes.issue(deviceKey, deviceType, System.currentTimeMillis())
+            pairedDeviceKey = deviceKey
+            clientCodes.pin(deviceKey)
             pairedDeviceName = deviceName
             cancelIdleExit() // T25：手机已连接即退出空闲（空闲口径 = 无手机连接，连接期间不判空闲）
             markRemoteActivity() // T70：配对成功 = 首次 WS 活动，已连接无活动窗口自此起算
@@ -458,8 +512,11 @@ object RemoteInputServerManager {
         }
         if (cleared) {
             pairedDeviceName = null
+            pairedDeviceKey = null // T72：保号键随会话清（注册表条目保留，15 分钟窗口内重连保号）
+            pairedClientCode = null // T72：代号随会话清
+            clientCodes.unpin() // T72：解除钉住（重连时刻才可能刷新代号）
             remoteBuffer.clear() // 输入会话结束即清缓冲（第 8 章隐私；刷新重连后由手机端 input 重建显示）
-            Log.i(TAG, "已配对连接断开，回等待扫码态（配对码仍有效）")
+            Timber.tag(TAG).i("已配对连接断开，回等待扫码态（配对码仍有效）")
             // T25：回到「无手机连接」态，空闲窗口自断开时刻重新起算
             armIdleExit(System.currentTimeMillis())
             // T70：已配对会话已结束，「已连接无活动」窗口一并解除（断连不触发该超时退出，
@@ -485,6 +542,7 @@ object RemoteInputServerManager {
     /** input 消息（WS 读线程）：缓冲兜底限长后经主线程通知 UI；内容不入日志（隐私红线）。 */
     private fun onRemoteInput(text: String) {
         markRemoteActivity() // T70：业务消息到达 = WS 活动，已连接无活动窗口重新起算
+        clientCodes.touch(pairedDeviceKey, System.currentTimeMillis()) // T72：代号 TTL 滚动续期
         val stored = remoteBuffer.set(text)
         mainHandler.post { onRemoteTextChanged?.invoke(stored) }
     }
@@ -492,6 +550,7 @@ object RemoteInputServerManager {
     /** clear 消息（WS 读线程）：清缓冲并通知 UI 回空态。 */
     private fun onRemoteClear() {
         markRemoteActivity() // T70：业务消息到达 = WS 活动，已连接无活动窗口重新起算
+        clientCodes.touch(pairedDeviceKey, System.currentTimeMillis()) // T72：代号 TTL 滚动续期
         remoteBuffer.clear()
         mainHandler.post { onRemoteTextChanged?.invoke(null) }
     }
@@ -513,6 +572,7 @@ object RemoteInputServerManager {
      */
     private fun onRemoteCommit(text: String, ack: (Boolean) -> Unit) {
         markRemoteActivity() // T70：commit 到达 = WS 活动，已连接无活动窗口重新起算
+        clientCodes.touch(pairedDeviceKey, System.currentTimeMillis()) // T72：代号 TTL 滚动续期
         mainHandler.post {
             val ok = onCommitRequested?.invoke(text) ?: false
             val aftermath = RemoteCommitAftermath.of(ok)
@@ -542,7 +602,7 @@ object RemoteInputServerManager {
             context.assets.open(MAIN_PAGE_ASSET).use { input -> input.readBytes() }
                 .also { mainPageCache = it }
         } catch (e: Exception) {
-            Log.w(TAG, "H5 页读取失败（${e.javaClass.simpleName}），回退占位页")
+            Timber.tag(TAG).w("H5 页读取失败（${e.javaClass.simpleName}），回退占位页")
             PlaceholderPage.HTML.toByteArray(java.nio.charset.StandardCharsets.UTF_8)
         }
     }
@@ -602,7 +662,7 @@ object RemoteInputServerManager {
         if (!idlePolicy.shouldExit(System.currentTimeMillis())) return
         val paired = synchronized(this) { pairedSessions.hasPairedSession }
         if (!isRunning() || paired) return
-        Log.i(TAG, "远程模式空闲超时（无手机连接），自动退出并收起键盘")
+        Timber.tag(TAG).i("远程模式空闲超时（无手机连接），自动退出并收起键盘")
         stop()
         mainHandler.post { onRemoteIdleExpired?.invoke() }
     }
@@ -668,7 +728,7 @@ object RemoteInputServerManager {
         if (!connectedIdlePolicy.shouldExit(System.currentTimeMillis())) return
         val paired = synchronized(this) { pairedSessions.hasPairedSession }
         if (!isRunning() || !paired) return
-        Log.i(TAG, "已连接无活动超时（决策 59），自动退出并收起键盘")
+        Timber.tag(TAG).i("已连接无活动超时（决策 59），自动退出并收起键盘")
         stop()
         mainHandler.post { onRemoteIdleExpired?.invoke() }
     }
@@ -681,12 +741,12 @@ object RemoteInputServerManager {
      */
     fun debugConnectedIdleExpire() {
         if (!BuildConfig.DEBUG) {
-            Log.w(TAG, "已连接无活动模拟入口仅 debug 构建可用（决策 21）")
+            Timber.tag(TAG).w("已连接无活动模拟入口仅 debug 构建可用（决策 21）")
             return
         }
         mainHandler.post {
             if (!isRunning() || !pairedSessions.hasPairedSession) {
-                Log.i(TAG, "已连接无活动模拟忽略：无已配对会话")
+                Timber.tag(TAG).i("已连接无活动模拟忽略：无已配对会话")
                 return@post
             }
             connectedIdlePolicy.onActivity(System.currentTimeMillis() - connectedIdlePolicy.connectedIdleTimeoutMs)
@@ -727,10 +787,10 @@ object RemoteInputServerManager {
         try {
             connectivity.registerNetworkCallback(request, callback)
             networkCallback = callback
-            Log.i(TAG, "网络变化监听已注册（运行期生效，停止即解注册）")
+            Timber.tag(TAG).i("网络变化监听已注册（运行期生效，停止即解注册）")
         } catch (_: Exception) {
             networkCallback = null
-            Log.w(TAG, "网络变化监听注册失败（降级为无自动重建）")
+            Timber.tag(TAG).w("网络变化监听注册失败（降级为无自动重建）")
         }
     }
 
@@ -775,7 +835,7 @@ object RemoteInputServerManager {
             rebuilding = true
         }
         val notifyTarget: PairedConnection? = synchronized(this) { pairedSessions.currentConnection() }
-        Log.i(TAG, "检测到网络变化，重建远程输入服务并刷新二维码")
+        Timber.tag(TAG).i("检测到网络变化，重建远程输入服务并刷新二维码")
         teardown.execute {
             // rebuilding 收口保证（R2 · 建议 2 采纳）：任务体任意异常不悬挂防重入标记
             runCatching {
@@ -790,12 +850,12 @@ object RemoteInputServerManager {
                 if (restart) {
                     when (val result = startInternal(context)) {
                         is RemoteInputServer.StartResult.Started ->
-                            Log.i(TAG, "网络变化重建完成：${addressUrl()}；配对地址：$pairingUrlText（二维码已刷新）")
+                            Timber.tag(TAG).i("网络变化重建完成：${addressUrl()}；配对地址：$pairingUrlText（二维码已刷新）")
                         is RemoteInputServer.StartResult.Failed ->
-                            Log.w(TAG, "网络变化重建失败：${result.reason}")
+                            Timber.tag(TAG).w("网络变化重建失败：${result.reason}")
                     }
                 } else {
-                    Log.i(TAG, "网络变化重建取消：远程输入已被退出")
+                    Timber.tag(TAG).i("网络变化重建取消：远程输入已被退出")
                 }
             }
             synchronized(this) { rebuilding = false }
@@ -812,12 +872,12 @@ object RemoteInputServerManager {
     fun debugNetworkChange() {
         // R2（评审建议 4 采纳）：BuildConfig.DEBUG 兜底对齐决策 21 防御纵深（与 debug 接收器双重门控）
         if (!BuildConfig.DEBUG) {
-            Log.w(TAG, "网络变化模拟入口仅 debug 构建可用（决策 21）")
+            Timber.tag(TAG).w("网络变化模拟入口仅 debug 构建可用（决策 21）")
             return
         }
         synchronized(this) {
             if (server == null || stopping) {
-                Log.i(TAG, "网络变化模拟忽略：服务未运行")
+                Timber.tag(TAG).i("网络变化模拟忽略：服务未运行")
                 return
             }
             rebuildAfterNetworkLoss = true

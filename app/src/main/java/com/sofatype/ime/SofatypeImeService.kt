@@ -28,8 +28,9 @@
 // T17 接线：引导副卡与跨屏状态机（FR-B1/B2/B9 · 决策 32/33/34）——副卡三卡面整卡切换
 //（引导卡 GUIDE / 配对卡 PAIRING / 已连接卡面 CONNECTED，RemoteUiState 由 Manager 可观测值推导）；
 // 引导卡「远程输入」主按钮启动服务进入远程模式（FR-B2），主卡切远程模式框架（FR-B3：
-// 状态行三态 灰/青/绿 + 来自·设备名 + 大字折行区 + 底部提示 + 「退出远程」按钮接既有 stop 链路，
-// FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达（T67 · 决策 56：字母/符号两键盘最右列 col12
+// 状态行三态 灰/青/绿 + 来自·连接代号胶囊（T72 · 决策 61）+ 大字折行区 + 底部提示 +
+// 「退出远程」按钮接既有 stop 链路，FR-B7 完整清理语义仍归 T18）；主按钮遥控器可达
+//（T67 · 决策 56：字母/符号两键盘最右列 col12
 // 全部按键表缘 RIGHT 进入，LEFT 返回，FR-A10/A11）。
 // T36 接线：候选装载完成 debug 专用 trace（决策 22 · FR-A8 ≤200ms 直测）——onKeyDown 入口落
 // 计时起点，bindCandidates 完成处出耗时 trace（trace 内 BuildConfig.DEBUG 门控，release 静默，
@@ -57,7 +58,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -71,9 +71,11 @@ import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sofatype.ime.debug.DebugLogStore
 import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.pinyin.PinyinEngine
+import timber.log.Timber
 
 // 「更多⌄」入口无障碍标注常量随 T66 · 决策 53 废止删除（FR-A15 展开 mechanism废止，
 // 候选栏单行行内翻页，翻页箭头为装饰件不进无障碍标注）。
@@ -137,6 +139,15 @@ class SofatypeImeService : InputMethodService() {
      * （T2 测试输入框将不可见，验收链路走不通），恒关闭。
      */
     override fun onEvaluateFullscreenMode(): Boolean = false
+
+    /**
+     * T71 · 决策 60 新增日志点：IME 服务 onCreate（trace 门控 = debug 或开关开启；
+     * 只记结构信息，走查取证用——历轮「服务重启实例」类问题可从文件日志定位进程重建）。
+     */
+    override fun onCreate() {
+        super.onCreate()
+        trace("onCreate")
+    }
 
     /** 键位视图注册表：key id → 视图（焦点导航定位用），onCreateInputView 重建时清空重建。 */
     private val keyViews = mutableMapOf<String, View>()
@@ -237,7 +248,7 @@ class SofatypeImeService : InputMethodService() {
         try {
             assets.open(DICT_ASSET_PATH).use { PinyinEngine.load(it) }
         } catch (t: Throwable) {
-            Log.w(TRACE_TAG, "拼音词库加载失败，中文模式退化为无候选", t)
+            Timber.tag(TRACE_TAG).w(t, "拼音词库加载失败，中文模式退化为无候选")
             null
         }
     }
@@ -272,10 +283,11 @@ class SofatypeImeService : InputMethodService() {
     /** 远程模式主卡框架容器（T17 · FR-B3 / 决策 33）：状态行 + 大字折行区，随远程模式显隐。 */
     private var remoteModeArea: LinearLayout? = null
 
-    /** 远程模式状态行三件套（T17 · FR-B9）：状态点（灰/青/绿）+ 状态文字 + 「来自 · 设备名」。 */
+    /** 远程模式状态行四件套（T17 · FR-B9；T72 · 决策 61）：状态点（灰/青/绿）+ 状态文字 + 「来自 ·」+ 连接代号胶囊。 */
     private var remoteStatusDot: View? = null
     private var remoteStatusText: TextView? = null
     private var remoteStatusFrom: TextView? = null
+    private var remoteStatusPill: LinearLayout? = null
 
     /** 「退出远程」按钮（T17 · FR-B3 / 决策 33）：远程模式内唯一可聚焦元素，接既有 stop 链路。 */
     private var remoteExitButton: TextView? = null
@@ -304,9 +316,14 @@ class SofatypeImeService : InputMethodService() {
     /** 跨行浮层键视图（空格/完成键，绝对定位挂键区）；布局切换时移除重建。 */
     private val overlayViews = mutableListOf<View>()
 
-    /** 诊断日志：仅 debug 构建输出（T7 评审跟进项），release 静默；只记结构信息不含输入内容。 */
+    /**
+     * 诊断日志（T71 · 决策 60 机械迁移到 Timber，文案与 TAG 不变）：门控自 T71 起放宽为
+     * 「debug 构建 或 调试日志开关开启」（release 开关即记键控轨迹；键码/焦点 id 无隐私）。
+     * logcat 树（DebugTree）+ 文件树（开关开启才挂载）双通道同步；TAG=ImeKeyTrace 既有口径。
+     * 只记键码/焦点 key id 等结构信息，禁止输出用户输入内容（隐私红线，AGENTS 禁止事项 2）。
+     */
     private fun trace(message: String) {
-        if (BuildConfig.DEBUG) Log.d(TRACE_TAG, message)
+        if (BuildConfig.DEBUG || DebugLogStore.isEnabled) Timber.tag(TRACE_TAG).d(message)
     }
 
     override fun onCreateInputView(): View {
@@ -338,6 +355,7 @@ class SofatypeImeService : InputMethodService() {
         remoteStatusDot = root.findViewById(R.id.remote_status_dot)
         remoteStatusText = root.findViewById(R.id.remote_status_text)
         remoteStatusFrom = root.findViewById(R.id.remote_status_from)
+        remoteStatusPill = root.findViewById(R.id.remote_status_pill)
         remoteExitButton = root.findViewById(R.id.remote_exit_button)
         remoteBottomHint = root.findViewById(R.id.remote_bottom_hint)
         remoteTextScroll = root.findViewById(R.id.remote_text_scroll)
@@ -380,6 +398,8 @@ class SofatypeImeService : InputMethodService() {
 
     /** 服务销毁：解除配对状态回调（Manager 为进程级单例，防悬挂引用）；清连删排程（T22）。 */
     override fun onDestroy() {
+        // T71 · 决策 60 新增日志点：IME 服务 onDestroy（与 onCreate 成对，服务重建链取证用）
+        trace("onDestroy")
         deleteRepeatHandler.removeCallbacksAndMessages(null)
         RemoteInputServerManager.onPairingStateChanged = null
         RemoteInputServerManager.onRemoteTextChanged = null
@@ -400,7 +420,7 @@ class SofatypeImeService : InputMethodService() {
         val state = RemoteUiState.of(
             serviceRunning = RemoteInputServerManager.isRunning(),
             pairedSessionActive = RemoteInputServerManager.hasPairedSession(),
-            deviceName = RemoteInputServerManager.pairedDeviceName(),
+            clientCode = RemoteInputServerManager.pairedClientCode(),
         )
         renderSideCard(state)
         renderMainCardMode(state)
@@ -432,11 +452,12 @@ class SofatypeImeService : InputMethodService() {
             RemoteSideCardFace.CONNECTED -> {
                 val url = RemoteInputServerManager.pairingUrl()
                 if (url != null) {
+                    // T72（决策 61）：已连接状态行 = 绿点「已连接」+ 连接代号胶囊（两端同显）
                     PairingCard.show(
                         this,
                         container,
                         url,
-                        statusLineText = RemoteUiText.connectedFaceText(state.deviceName),
+                        clientCode = state.clientCode,
                     )
                 } else {
                     // 防御：运行中无配对地址（理论不可达，配对成功即滚动签发）回引导分区
@@ -481,23 +502,24 @@ class SofatypeImeService : InputMethodService() {
     }
 
     /**
-     * 主卡模式与状态行渲染（T17 · FR-B3 / 决策 32/33）：远程模式显示框架区（候选栏 / 展开行 /
-     * 键区隐藏），键盘态隐藏回键盘；状态行三态 = 未连接灰点 / 等待扫码青点 / 已连接绿点 +
-     * 「来自 · 设备名」（FR-B9）。焦点迁移只在模式切换沿触发：进远程 → 「退出远程」按钮；
-     * 回键盘 → 初始键（远程上屏自动收起与手动退出共用此沿，R-4）。
+     * 主卡模式与状态行渲染（T17 · FR-B3 / 决策 32/33，T72 · 决策 61）：远程模式显示框架区
+     *（候选栏 / 展开行 / 键区隐藏），键盘态隐藏回键盘；状态行三态 = 未连接灰点 / 等待扫码青点 /
+     * 已连接绿点 + 「来自 ·」+ 连接代号胶囊（FR-B9；决策 61：设备名展示口径由代号胶囊替代）。
+     * 焦点迁移只在模式切换沿触发：进远程 → 「退出远程」按钮；回键盘 → 初始键（远程上屏自动收起
+     * 与手动退出共用此沿，R-4）。
      */
     private fun renderMainCardMode(state: RemoteUiState) {
         val area = remoteModeArea ?: return
         val prevMode = lastRenderedMode
-        // 状态行三态（FR-B9 / PRD 6.4 连接状态色）：点随状态换色，连接态加「来自 · 设备名」；
+        // 状态行三态（FR-B9 / PRD 6.4 连接状态色）：点随状态换色，连接态加「来自 ·」+ 代号胶囊；
         // T18：等待扫码态叠加「连接已断开」瞬时提示（已配对连接断开后 3s 内，FR-B8 / Q3 lead 拍板），
-        // 到期自动回青点「等待手机扫码」终态；连接态 hello 未携带设备名时隐藏「来自」行（T17 遗留）
+        // 到期自动回青点「等待手机扫码」终态；连接态代号缺失（防御分支）时隐藏「来自」行与胶囊
         when (state.status) {
             RemoteStatus.NOT_CONNECTED -> {
                 remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_idle)
                 remoteStatusText?.text = RemoteUiText.STATUS_NOT_CONNECTED
                 remoteStatusText?.contentDescription = null
-                remoteStatusFrom?.visibility = View.GONE
+                hideStatusFromAndPill()
             }
             RemoteStatus.WAITING_SCAN -> {
                 val noticeActive = RemoteInputServerManager.disconnectNoticeActive()
@@ -511,19 +533,25 @@ class SofatypeImeService : InputMethodService() {
                     remoteStatusText?.text = RemoteUiText.STATUS_WAITING_SCAN
                     remoteStatusText?.contentDescription = null
                 }
-                remoteStatusFrom?.visibility = View.GONE
+                hideStatusFromAndPill()
             }
             RemoteStatus.CONNECTED -> {
                 remoteStatusDot?.setBackgroundResource(R.drawable.bg_status_dot_connected)
                 remoteStatusText?.text = RemoteUiText.STATUS_CONNECTED
                 remoteStatusText?.contentDescription = null
-                val fromText = RemoteUiText.connectedFromText(state.deviceName)
-                if (fromText != null) {
-                    remoteStatusFrom?.text = fromText
+                val code = state.clientCode
+                if (code != null) {
+                    // T72（决策 61）：「来自 ·」+ 连接代号胶囊（画板 6 口径）
+                    remoteStatusFrom?.text = RemoteUiText.CONNECTED_FROM_LABEL
                     remoteStatusFrom?.visibility = View.VISIBLE
+                    val pill = remoteStatusPill
+                    if (pill != null) {
+                        ClientCodePill.show(this, pill, code)
+                        pill.visibility = View.VISIBLE
+                    }
                 } else {
-                    // T17 遗留修复：hello 未携带 deviceName 时判空隐藏，不再渲染「来自 · 」悬空尾巴
-                    remoteStatusFrom?.visibility = View.GONE
+                    // 防御分支：连接态无代号（理论不可达，配对成功即签发）不渲染悬空「来自 ·」
+                    hideStatusFromAndPill()
                 }
             }
         }
@@ -550,6 +578,15 @@ class SofatypeImeService : InputMethodService() {
             }
         }
         lastRenderedMode = state.mode
+    }
+
+    /** 隐藏「来自 ·」前缀与连接代号胶囊（T72 · 决策 61：等待 / 未连接 / 防御分支共用，幂等）。 */
+    private fun hideStatusFromAndPill() {
+        remoteStatusFrom?.visibility = View.GONE
+        remoteStatusPill?.let {
+            it.removeAllViews()
+            it.visibility = View.GONE
+        }
     }
 
     /**
@@ -640,7 +677,7 @@ class SofatypeImeService : InputMethodService() {
                 ic.endBatchEdit()
             }
         } catch (t: Throwable) {
-            Log.w(TRACE_TAG, "远程上屏写入失败：${t.javaClass.simpleName}")
+            Timber.tag(TRACE_TAG).w("远程上屏写入失败：${t.javaClass.simpleName}")
             false
         }
     }

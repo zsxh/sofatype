@@ -10,6 +10,18 @@
      可直接继续编辑（input 照常实时推送）并再次上屏；ok:false 提示失败可重试不变。
      本页 JS 行为无改动：保活由 TV 端保持连接承载，本页既有「清草稿 + 提示 + 输入态不关」实现即满足。
      T35 · 被顶替（FR-B11 / 决策 35）：收 replaced 后状态行「连接已被替换」，关闭后不被覆盖。
+     T72 · 连接代号（决策 61）：① 类型判定在手机端完成、随 hello 上报 deviceType
+     （微信→苹果→安卓→浏览器命中即停，UA 正则按序匹配）；② 首访生成随机 UUID 存 localStorage
+     （键 sofatype_remote_device_key，只存客户端自生成 UUID——无身份关联、不上云，隐私红线
+     决策 61 口径；localStorage 不可用时（隐私模式）每次连接临时生成），随每次 hello 上报
+     deviceKey；③ 「远程输入」标题后连接代号胶囊（[官方标 icon][类型]设备[两位序号]，画板 8）：
+     icon 为决策 61 四类型官方标（微信双气泡 #07C160 + 白眼 / 苹果 #94A3B8 / 安卓机器人头
+     #3DDC84 / 浏览器地球 #A78BFA 品类无官方标保留通用图形），收到 state 即覆盖显示
+     （state 为代号唯一事实源，本页不本地缓存代号），无 clientCode / 未连接态隐藏胶囊；
+     FR-C2 状态行「已连接 · TV名」保持不变（决策 61）。
+     官方标矢量来源：微信 = sgnewres.wechat.com 官方资源（newsroom 品牌页引用）、
+     苹果 = www.apple.com 官方导航 SVG、安卓 = google/material-design-icons 官方仓库
+     Material Symbols android 字形（均原样 pathData 转换，不手描）；浏览器地球为通用图形。
      T24 · 未连接引导页（FR-C9）：hello 被拒（state connected:false + 4001，token 缺失 / 无效 /
      已使用 / 会话超期遗留）→ 整页未连接引导呈现，提示重新扫码；输入面禁用（引导页为唯一内容面）。
      FR-C8 断连 / 重连 / 被顶替 / 电视退出路径（T18/T35 既有口径）不改动；token 无独立 TTL
@@ -83,15 +95,47 @@
     }
     button { font-family: inherit; padding: 0; }
 
-    /* 标题（画板 top 110 / left 24，28px w700） */
-    .title {
+    /* 标题（画板 top 110 / left 24，28px w700）；T72 · 决策 61：行内 flex 承载「远程输入」+
+       连接代号胶囊（画板 8：标题后 gap 10px） */
+    .title-row {
       position: absolute;
       top: 110px;
       left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .title {
       font-size: 28px;
       font-weight: 700;
       color: var(--text-primary);
       letter-spacing: 1px;
+    }
+    /* T72 · 决策 61 连接代号胶囊（画板 8）：padding 2px 10px、圆角 8、icon 18、
+       gap 5px；icon 外文字纯白 #F2F6FB（类型 14px w600 / 序号 15px w700 tabular-nums）。
+       icon 色为决策 61 锁定的官方标固定色（非主题 Token，同二维码功能性用色口径） */
+    .code-pill {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      background: rgba(232, 239, 246, .10);
+      border-radius: 8px;
+    }
+    .code-pill.show { display: inline-flex; }
+    .code-pill svg { display: block; flex: none; }
+    .code-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #F2F6FB;
+      white-space: nowrap;
+    }
+    .code-number {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F2F6FB;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     /* 状态行（评审决策：紧随标题下方左对齐）：绿点 + 已连接 · TV 名 ｜ 竖分隔线 ｜ 电视图标 + 说明 */
     .status-row {
@@ -394,7 +438,11 @@
 </head>
 <body>
   <div class="stage">
-    <div class="title">远程输入</div>
+    <div class="title-row">
+      <div class="title">远程输入</div>
+      <!-- T72 · 决策 61 连接代号胶囊：收到 state.clientCode 即覆盖显示（不本地缓存），无则隐藏 -->
+      <span class="code-pill" id="code-pill" aria-live="polite"></span>
+    </div>
 
     <div class="status-row">
       <span class="dot" id="status-dot"></span>
@@ -480,6 +528,87 @@
     var cardEl = byId('editor-card');
     var guideEl = byId('guide-page'); // T24 · FR-C9 未连接引导页
     var guideStatusEl = byId('guide-status-text');
+    var codePillEl = byId('code-pill'); // T72 · 决策 61 连接代号胶囊
+
+    /* T72 · 决策 61：设备类型判定（手机端完成，TV 不解析 UA）：微信→苹果→安卓→浏览器命中即停 */
+    function detectDeviceType() {
+      var ua = navigator.userAgent || '';
+      if (/MicroMessenger/i.test(ua)) { return 'wechat'; }
+      if (/iPhone|iPad|iPod|Macintosh/i.test(ua)) { return 'apple'; }
+      if (/Android/i.test(ua)) { return 'android'; }
+      return 'browser';
+    }
+    var deviceType = detectDeviceType();
+
+    /* T72 · 决策 61 四类型官方标内联 SVG（矢量 pathData 原样转换，来源见文件头注释）；
+       色值为决策 61 锁定的官方标固定色（icon 尺寸 H5 18） */
+    var DEVICE_ICONS = {
+      wechat: '<svg width="18" height="18" viewBox="0 0 33 27" fill="none" aria-hidden="true">'
+        + '<path fill="#07C160" d="M7.98557 19.5685C9.15835 19.9072 10.4238 20.0965 11.7342 20.0965C18.0746 20.0965 23.2158 15.7818 23.2158 10.4592C23.2158 5.1365 18.0746 0.821838 11.7316 0.821838C5.38852 0.821838 0.25 5.1365 0.25 10.4592C0.25 13.3632 1.79606 15.9765 4.21838 17.7445C4.41164 17.8832 4.53872 18.1125 4.53872 18.3738C4.53872 18.4592 4.52018 18.5392 4.499 18.6192C4.30575 19.3445 3.99601 20.5098 3.98277 20.5632C3.95894 20.6538 3.92188 20.7498 3.92188 20.8458C3.92188 21.0592 4.09396 21.2325 4.30575 21.2325C4.39046 21.2325 4.45665 21.2005 4.52813 21.1605L7.04311 19.6992C7.23107 19.5898 7.43227 19.5205 7.652 19.5205C7.76849 19.5205 7.88232 19.5392 7.99087 19.5712L7.98557 19.5685Z"/>'
+        + '<path fill="#07C160" stroke="#12161E" stroke-width="2" d="M25.573 25.6191C24.5961 25.9017 23.5425 26.0591 22.4491 26.0591C17.165 26.0591 12.8789 22.4617 12.8789 18.0271C12.8789 13.5924 17.1623 9.99506 22.4491 9.99506C27.7359 9.99506 32.0166 13.5924 32.0166 18.0271C32.0166 20.4484 30.7274 22.6271 28.7101 24.0991C28.5486 24.2164 28.4427 24.4057 28.4427 24.6217C28.4427 24.6937 28.4586 24.7577 28.4771 24.8271C28.6386 25.4324 28.8954 26.4004 28.9086 26.4457C28.9298 26.5231 28.9589 26.6004 28.9589 26.6804C28.9589 26.8591 28.816 27.0031 28.6386 27.0031C28.5698 27.0031 28.5142 26.9764 28.4533 26.9417L26.3592 25.7231C26.2004 25.6324 26.0336 25.5737 25.8509 25.5737C25.753 25.5737 25.6577 25.5897 25.5703 25.6164L25.573 25.6191Z"/>'
+        + '<path fill="#F2F6FB" d="M17.0935 7.37416C17.0935 8.22483 16.4079 8.91549 15.5634 8.91549C14.7189 8.91549 14.0332 8.22483 14.0332 7.37416C14.0332 6.52349 14.7189 5.83282 15.5634 5.83282C16.4079 5.83282 17.0935 6.52349 17.0935 7.37416Z"/>'
+        + '<path fill="#F2F6FB" d="M9.43534 7.3741C9.43534 8.22476 8.74968 8.91543 7.90517 8.91543C7.06067 8.91543 6.375 8.22476 6.375 7.3741C6.375 6.52343 7.06067 5.83276 7.90517 5.83276C8.74968 5.83276 9.43534 6.52343 9.43534 7.3741Z"/>'
+        + '<path fill="#F2F6FB" d="M17.9844 15.4569C17.9844 16.1662 18.5562 16.7422 19.2604 16.7422C19.9646 16.7422 20.5364 16.1662 20.5364 15.4569C20.5364 14.7476 19.9646 14.1716 19.2604 14.1716C18.5562 14.1716 17.9844 14.7476 17.9844 15.4569Z"/>'
+        + '<path fill="#F2F6FB" d="M24.3633 15.457C24.3633 16.1663 24.9351 16.7423 25.6393 16.7423C26.3435 16.7423 26.9153 16.1663 26.9153 15.457C26.9153 14.7476 26.3435 14.1716 25.6393 14.1716C24.9351 14.1716 24.3633 14.7476 24.3633 15.457Z"/></svg>',
+      apple: '<svg width="18" height="18" viewBox="0.51 12.09 12.98 15.93" fill="none" aria-hidden="true">'
+        + '<path fill="#94A3B8" d="m13.0729 17.5214c-.093.0723-1.7248.9915-1.7248 3.0364 0 2.3651 2.0759 3.2017 2.1379 3.2223-.0103.0516-.3305 1.1464-1.0948 2.2618-.6816.9812-1.3943 1.9623-2.4787 1.9623s-1.3633-.63-2.613-.63c-1.2187 0-1.6525.6507-2.644.6507s-1.6835-.9089-2.4787-2.0243c-.9192-1.3117-1.6628-3.3463-1.6628-5.2776 0-3.0984 2.014-4.7406 3.9969-4.7406 1.0535 0 1.9313.692 2.5923.692.63 0 1.6112-.7333 2.8092-.7333.4545.0001 2.0864.0415 3.1605 1.5803zm-3.7284-2.8918c.4957-.5887.8469-1.4046.8469-2.2205 0-.1136-.0103-.2272-.031-.3202-.8056.031-1.7661.5371-2.3445 1.2084-.4544.5164-.8779 1.3323-.8779 2.1586 0 .1239.0207.2479.031.2892.0516.0103.1343.0207.2169.0207.723-.0001 1.6318-.4855 2.1586-1.1362z"/></svg>',
+      android: '<svg width="18" height="18" viewBox="0 -960 960 960" fill="none" aria-hidden="true">'
+        + '<path fill="#3DDC84" d="M40-240q9-107 65.5-197T256-580l-74-128q-6-9-3-19t13-15q8-5 18-2t16 12l74 128q86-36 180-36t180 36l74-128q6-9 16-12t18 2q10 5 13 15t-3 19l-74 128q94 53 150.5 143T920-240H40Zm240-110q21 0 35.5-14.5T330-400q0-21-14.5-35.5T280-450q-21 0-35.5 14.5T230-400q0 21 14.5 35.5T280-350Zm400 0q21 0 35.5-14.5T730-400q0-21-14.5-35.5T680-450q-21 0-35.5 14.5T630-400q0 21 14.5 35.5T680-350Z"/></svg>',
+      browser: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">'
+        + '<path d="M12 3.8C16.5287 3.8 20.2 7.4713 20.2 12C20.2 16.5287 16.5287 20.2 12 20.2C7.4713 20.2 3.8 16.5287 3.8 12C3.8 7.4713 7.4713 3.8 12 3.8Z"/>'
+        + '<path d="M3.8 12H20.2"/>'
+        + '<path d="M12 3.8C14.5405 3.8 16.6 7.4713 16.6 12C16.6 16.5287 14.5405 20.2 12 20.2C9.4595 20.2 7.4 16.5287 7.4 12C7.4 7.4713 9.4595 3.8 12 3.8Z"/></svg>'
+    };
+
+    /* T72 · 决策 61：保号键 = 首访生成随机 UUID 存 localStorage（只存自生成 UUID，无身份关联）；
+       localStorage 不可用（隐私模式 / 旧内核异常）时退回「每次连接临时生成」，
+       兜底链 crypto.randomUUID → Math.random 模板（ES5 口径） */
+    var DEVICE_KEY_STORAGE = 'sofatype_remote_device_key';
+    function makeUuid() {
+      if (window.crypto && typeof crypto.randomUUID === 'function') {
+        try { return crypto.randomUUID(); } catch (e0) { /* 非安全上下文等异常走随机模板 */ }
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        var v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    function getDeviceKey() {
+      try {
+        var stored = localStorage.getItem(DEVICE_KEY_STORAGE);
+        if (stored) { return stored; }
+        var fresh = makeUuid();
+        localStorage.setItem(DEVICE_KEY_STORAGE, fresh);
+        return fresh;
+      } catch (e1) {
+        return makeUuid();
+      }
+    }
+
+    /* T72 · 决策 61：连接代号胶囊（收到 state 即覆盖，不本地缓存代号） */
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+    function showClientCode(code) {
+      if (!code) { hideClientCode(); return; }
+      /* 代号全文 = 「[类型]设备 NN」：按最后一个空格拆类型段与序号段（排印分 span），
+         无空格（异常取值）整段按类型段展示 */
+      var idx = code.lastIndexOf(' ');
+      var label = idx >= 0 ? code.substring(0, idx) : code;
+      var number = idx >= 0 ? code.substring(idx + 1) : '';
+      var html = DEVICE_ICONS[deviceType]
+        + '<span class="code-label">' + escapeHtml(label) + '</span>';
+      if (number) { html += '<span class="code-number">' + escapeHtml(number) + '</span>'; }
+      codePillEl.innerHTML = html;
+      codePillEl.classList.add('show');
+    }
+    function hideClientCode() {
+      codePillEl.classList.remove('show');
+      codePillEl.innerHTML = '';
+    }
 
     /* 按 Unicode 码点拆分（emoji 等增补字符不拆散；Array.from 缺失时退回正则） */
     function toChars(s) {
@@ -616,6 +745,7 @@
       statusEl.textContent = '配对失败：token 无效或已使用，请重新扫码';
       extraEl.style.display = 'none';
       reconnectBtn.classList.remove('show');
+      hideClientCode();
       guideEl.classList.add('show');
       guideStatusEl.textContent = '未连接 · 请重新扫码';
       inputEl.disabled = true;
@@ -629,6 +759,7 @@
       dotEl.classList.remove('connected');
       statusEl.textContent = '连接已被替换';
       extraEl.style.display = 'none';
+      hideClientCode();
       showHint('连接已被另一台设备替换');
     }
     /* T18 · FR-B7 / PRD 5.3：电视端退出远程——提示并禁输入（编辑卡 / 删除 / 清空 / 上屏全禁），
@@ -639,6 +770,7 @@
       statusEl.textContent = '电视已退出远程输入';
       extraEl.style.display = 'none';
       reconnectBtn.classList.remove('show');
+      hideClientCode();
       inputEl.disabled = true;
       deleteBtn.disabled = true;
       clearBtn.disabled = true;
@@ -651,6 +783,7 @@
       statusEl.textContent = '连接已断开';
       extraEl.style.display = 'none';
       reconnectBtn.classList.add('show');
+      hideClientCode();
     }
     /* R2 · PRD 5.3 行 2 / FR-C8：电视端网络变化重建（disconnect reason=network-rebuild）——
        状态行「连接已断开」+ 常驻重连引导（检查同一 Wi-Fi 后重新扫码）。重建后服务端口已更换，
@@ -661,12 +794,20 @@
       statusEl.textContent = '连接已断开';
       extraEl.style.display = 'none';
       reconnectBtn.classList.remove('show');
+      hideClientCode();
       showHint('电视网络已变化，请检查同一 Wi-Fi 后重新扫码', true);
     }
 
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
     ws.onopen = function () {
-      ws.send(JSON.stringify({ type: 'hello', token: getToken(), deviceName: 'browser' }));
+      /* T72 · 决策 61：hello 增 deviceType（手机端判定）与 deviceKey（保号键） */
+      ws.send(JSON.stringify({
+        type: 'hello',
+        token: getToken(),
+        deviceName: 'browser',
+        deviceType: deviceType,
+        deviceKey: getDeviceKey()
+      }));
     };
     ws.onmessage = function (ev) {
       var msg;
@@ -712,6 +853,9 @@
         inputEl.value = text;
         render();
         setConnected(msg.tvName);
+        /* T72 · 决策 61：state 为代号唯一事实源——收到 clientCode 即覆盖胶囊显示
+           （本页不本地缓存代号）；未携带（旧 TV 构建）时隐藏胶囊 */
+        showClientCode(msg.clientCode);
         /* T18 · FR-B8 刷新重连（lead 拍板 A）：state.url = 配对成功后滚动签发的有效新码地址；
            取其中的 token 原位更新地址栏查询串（保留页面自身访问来源的 host——走查 redir /
            主机名别名场景与真实 Wi-Fi 同源可用；不落任何存储），刷新页面即持有效码重新配对。

@@ -52,6 +52,43 @@
     <string name="btn_select_all">全选</string>
     <string name="cd_btn_select_all">全选测试输入框文本</string>
     <string name="sample_text">sofatype 测试文本 ABC123</string>
+    <!-- 日志功能（T71 · 决策 60：设置页第四行入口 / 日志子页 / 查看日志页；画板 7/14/15 口径） -->
+    <string name="btn_logs">日志</string>
+    <string name="cd_btn_logs">打开日志设置页</string>
+    <string name="log_status_off">调试日志已关闭</string>
+    <string name="log_status_on">调试日志已开启</string>
+    <string name="log_settings_label">sofatype 日志设置</string>
+    <string name="log_viewer_label">sofatype 查看日志</string>
+    <string name="breadcrumb_log_settings">日志</string>
+    <string name="breadcrumb_log_viewer">查看日志</string>
+    <string name="log_switch_label">开启调试日志</string>
+    <string name="cd_log_switch_row">开启调试日志开关，当前%1$s。按 OK 键切换</string>
+    <string name="log_switch_state_on">已开启</string>
+    <string name="log_switch_state_off">已关闭</string>
+    <string name="log_size_label">日志大小限制</string>
+    <string name="log_size_1mb">1 MB</string>
+    <string name="log_size_2mb">2 MB</string>
+    <string name="log_size_5mb">5 MB</string>
+    <string name="log_size_10mb">10 MB</string>
+    <string name="cd_log_size_row">日志大小限制，当前%1$s。按左右键调档</string>
+    <string name="btn_view_logs">查看日志</string>
+    <string name="cd_btn_view_logs">打开查看日志页</string>
+    <string name="log_usage_hint_off">开启后生效 · 轮转覆盖</string>
+    <string name="log_viewer_refresh">刷新</string>
+    <string name="cd_btn_log_refresh">刷新日志内容</string>
+    <string name="btn_clear_logs">清空日志</string>
+    <string name="cd_btn_log_clear">清空日志文件</string>
+    <string name="log_clear_confirm_title">清空日志</string>
+    <string name="log_clear_confirm_message">将删除当前日志文件全部内容，无法恢复。确认清空？</string>
+    <string name="log_clear_confirm_ok">清空</string>
+    <string name="log_clear_confirm_cancel">取消</string>
+    <string name="log_empty_hint">日志为空</string>
+    <string name="log_empty_stats">共 0 行 · 0 MB</string>
+    <string name="log_load_failed_hint">日志读取失败</string>
+    <string name="log_view_tail_note">（仅显示最新部分，完整内容经 adb 取证）</string>
+    <string name="log_settings_hint">OK 切换开关 · 左右键调档 · BACK 返回设置</string>
+    <string name="log_viewer_hint">上下键滚动 · 焦点在按钮时 OK 刷新 / 清空 · 清空需确认 · BACK 返回日志设置</string>
+
     <!-- 输入法（T5：键面文字与无障碍标注由 KeyboardLayout 模型承载，系统输入法列表 label 走资源） -->
     <string name="ime_service_label">sofatype 输入法</string>
 </resources>

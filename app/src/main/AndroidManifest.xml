@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
+        android:name=".SofatypeApplication"
         android:allowBackup="false"
         android:banner="@drawable/banner_sofatype"
         android:icon="@mipmap/ic_launcher"
@@ -54,6 +55,23 @@
             android:exported="true"
             android:label="@string/test_typing_label"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- T71 · 决策 60：日志子页（开启调试日志开关 / 日志大小限制 / 查看日志入口）。
+             无 intent-filter（无 MAIN/LAUNCHER category）→ 不从桌面可达；
+             exported=true 沿设置页 / 测试打字页先例：走查 adb `am start` 直达；
+             BACK 返回设置页（决策 60「BACK 逐级返回」）。 -->
+        <activity
+            android:name=".LogSettingsActivity"
+            android:exported="true"
+            android:label="@string/log_settings_label" />
+
+        <!-- T71 · 决策 60：查看日志页（只读浏览 / 刷新 / 清空需确认；无导出）。
+             无 intent-filter（不从桌面可达）；exported=true 沿先例供走查直达；
+             BACK 返回日志子页（决策 60「BACK 逐级返回」）。 -->
+        <activity
+            android:name=".LogViewerActivity"
+            android:exported="true"
+            android:label="@string/log_viewer_label" />
 
 
         <!-- T3：最小可用输入法服务（FR-A1 最小闭环）。

@@ -223,6 +223,62 @@
                 android:textStyle="normal" />
         </LinearLayout>
 
+        <!-- T71 · 决策 60 画板 7 第四行：「日志」入口（样式与检查更新/测试打字同款） +
+             行右侧状态点 + 状态文字（默认灰点「调试日志已关闭」；开启绿点「调试日志已开启」，
+             状态刷新在 SettingsActivity.onResume）。点击跳转 LogSettingsActivity（BACK 逐级返回）。 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_divider_h"
+            android:background="@color/divider_soft" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_test_row_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_logs"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_btn_logs"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/btn_logs"
+                android:textColor="@color/text_body"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="normal" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <LinearLayout
+                android:id="@+id/log_status_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/log_status_dot"
+                    android:layout_width="@dimen/set_status_dot_size"
+                    android:layout_height="@dimen/set_status_dot_size"
+                    android:background="@drawable/bg_status_dot_idle" />
+
+                <TextView
+                    android:id="@+id/log_status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/set_status_gap"
+                    android:text="@string/log_status_off"
+                    android:textColor="@color/text_dim"
+                    android:textSize="@dimen/set_status_text" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- 更新说明（T21 · FR-D4 发现新版态：release notes；默认隐藏） -->
         <TextView
             android:id="@+id/update_notes"

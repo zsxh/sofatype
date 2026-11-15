@@ -107,6 +107,17 @@
                         android:textSize="@dimen/ime_remote_from_text"
                         android:visibility="gone" />
 
+                    <!-- T72 · 决策 61 连接代号胶囊占位（已连接态由服务层 ClientCodePill 装配，
+                         文字「来自 ·」紧随其后同显；等待 / 未连接态保持 GONE） -->
+                    <LinearLayout
+                        android:id="@+id/remote_status_pill"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/ime_remote_status_gap"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone" />
+
                     <Space
                         android:layout_width="0dp"
                         android:layout_height="1dp"

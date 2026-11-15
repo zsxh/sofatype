@@ -3,6 +3,7 @@
 // SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 日志接线以源码扫描锁定回归——先例：UpdateApiCompatTest（T46）、UiChannelHealFlowTest（T50 R1）。
 // 红线锁定：日志语句仅含 endpoint / tag / reason / http 取值，不含用户输入内容。
+// T71 · 决策 60：日志点机械迁移到 Timber（Timber.tag(UPDATE_LOG_TAG)），文案与守卫口径不变。
 package com.sofatype.ime
 
 import org.junit.Assert.assertTrue
@@ -19,8 +20,8 @@ class ManualCheckLogTest {
     fun `手动检查发起日志接线存在`() {
         val text = mainSource("SettingsActivity.kt")
         assertTrue(
-            "startCheck 须以 UPDATE_LOG_TAG 写发起日志并携带 endpoint（T50 R2 取证口径）",
-            text.contains("Log.i(UPDATE_LOG_TAG, \"手动检查发起 endpoint=\$endpoint\")"),
+            "startCheck 须以 UPDATE_LOG_TAG 写发起日志并携带 endpoint（T50 R2 取证口径；T71 起 Timber 形态）",
+            text.contains("Timber.tag(UPDATE_LOG_TAG).i(\"手动检查发起 endpoint=\$endpoint\")"),
         )
     }
 
@@ -28,8 +29,8 @@ class ManualCheckLogTest {
     fun `检查落态日志覆盖三态标识与失败原因`() {
         val text = mainSource("SettingsActivity.kt")
         assertTrue(
-            "onCheckResult 须以 UPDATE_LOG_TAG 写落态日志（T50 R2 取证口径）",
-            text.contains("Log.i(UPDATE_LOG_TAG, \"手动检查结果 \${checkResultLabel(result)}\")"),
+            "onCheckResult 须以 UPDATE_LOG_TAG 写落态日志（T50 R2 取证口径；T71 起 Timber 形态）",
+            text.contains("Timber.tag(UPDATE_LOG_TAG).i(\"手动检查结果 \${checkResultLabel(result)}\")"),
         )
         for (marker in listOf("result=UP_TO_DATE", "result=NEWER tag=", "result=FAILED reason=")) {
             assertTrue("落态日志须含三态标识 $marker（T50 R2）", text.contains(marker))

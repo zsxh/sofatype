@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- T72 · 决策 61 · 浏览器地球通用图形（决策 61：品类无官方标，保留画板通用图形——
+     唯一允许自绘的类型；紫 #A78BFA，画板风格线型描边）。
+     圆与经线椭圆以四段三次贝塞尔近似（κ=0.55228），不用 SVG 弧命令，兼容全 API 级 VectorDrawable 解析。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="@dimen/client_code_icon_size"
+    android:height="@dimen/client_code_icon_size"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 球体外轮廓（r 8.2，圆心 12,12） -->
+    <path
+        android:pathData="M12 3.8C16.5287 3.8 20.2 7.4713 20.2 12C20.2 16.5287 16.5287 20.2 12 20.2C7.4713 20.2 3.8 16.5287 3.8 12C3.8 7.4713 7.4713 3.8 12 3.8Z"
+        android:strokeColor="@color/device_code_browser"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <!-- 赤道线 -->
+    <path
+        android:pathData="M3.8 12H20.2"
+        android:strokeColor="@color/device_code_browser"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <!-- 经线椭圆（rx 4.6，ry 8.2） -->
+    <path
+        android:pathData="M12 3.8C14.5405 3.8 16.6 7.4713 16.6 12C16.6 16.5287 14.5405 20.2 12 20.2C9.4595 20.2 7.4 16.5287 7.4 12C7.4 7.4713 9.4595 3.8 12 3.8Z"
+        android:strokeColor="@color/device_code_browser"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+</vector>

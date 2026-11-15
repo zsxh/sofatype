@@ -67,4 +67,13 @@
     <!-- 悬浮卡片底部柔影（PRD 6.3「黑 55% 模糊 30」）：画板① 为 rgba(0,0,0,.55)+blur(30px)，
          垫层近似取 blur 扩散后边缘的可见强度（黑 40%） -->
     <color name="card_shadow">#66000000</color>
+
+    <!-- 连接代号胶囊（T72 · 决策 61：四类型官方标固定色 + 胶囊底，画板 6/8；
+         品牌标固定色为决策 61 锁定值，非主题配色方案） -->
+    <color name="device_code_android">#3DDC84</color>
+    <color name="device_code_apple">#94A3B8</color>
+    <color name="device_code_wechat">#07C160</color>
+    <color name="device_code_browser">#A78BFA</color>
+    <!-- 胶囊底 rgba(232,239,246,.10)：text_body 10% 透明度（画板 pill background） -->
+    <color name="client_code_pill_bg">#1AE8EEF6</color>
 </resources>

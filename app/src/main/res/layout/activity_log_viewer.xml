@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T71 · 决策 60 画板 15 · 查看日志页（面包屑 ｜ 查看日志）。
+  操作行 [刷新] [清空日志] + 右侧统计（共 N 行 · X MB / Y MB）；日志浏览卡只读展示
+  （旧→新，进入定位最新即底部，滚动/刷新/清空确认在 LogViewerActivity）；无导出。
+  根视图 SettingsRootView：pre-IME 键分路（T54/T59/T67 口径）由 Activity 接线。
+-->
+<com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/log_viewer_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <!-- 顶部页签：sofatype 输入法 ｜ 设置 ｜ 日志 ｜ 查看日志（末段高亮，画板 15） -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/page_padding_start"
+        android:paddingTop="@dimen/page_padding_top">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_app"
+            android:textColor="@color/text_muted"
+            android:textSize="@dimen/breadcrumb_text_size" />
+
+        <View
+            android:layout_width="@dimen/breadcrumb_divider_w"
+            android:layout_height="@dimen/breadcrumb_divider_h"
+            android:layout_marginStart="@dimen/breadcrumb_gap"
+            android:layout_marginEnd="@dimen/breadcrumb_gap"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_settings"
+            android:textColor="@color/text_muted"
+            android:textSize="@dimen/breadcrumb_text_size" />
+
+        <View
+            android:layout_width="@dimen/breadcrumb_divider_w"
+            android:layout_height="@dimen/breadcrumb_divider_h"
+            android:layout_marginStart="@dimen/breadcrumb_gap"
+            android:layout_marginEnd="@dimen/breadcrumb_gap"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_log_settings"
+            android:textColor="@color/text_muted"
+            android:textSize="@dimen/breadcrumb_text_size" />
+
+        <View
+            android:layout_width="@dimen/breadcrumb_divider_w"
+            android:layout_height="@dimen/breadcrumb_divider_h"
+            android:layout_marginStart="@dimen/breadcrumb_gap"
+            android:layout_marginEnd="@dimen/breadcrumb_gap"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/breadcrumb_log_viewer"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/breadcrumb_text_size" />
+    </LinearLayout>
+
+    <!-- 操作行：刷新（画板 15 初始焦点态）· 清空日志 · 右侧统计 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/log_actions_margin_top"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/log_actions_padding_h"
+        android:paddingEnd="@dimen/log_actions_padding_h">
+
+        <Button
+            android:id="@+id/btn_log_refresh"
+            android:layout_width="@dimen/btn_width"
+            android:layout_height="@dimen/btn_height"
+            android:background="@drawable/bg_btn_accent"
+            android:contentDescription="@string/cd_btn_log_refresh"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:text="@string/log_viewer_refresh"
+            android:textColor="@color/text_body"
+            android:textSize="@dimen/btn_text"
+            android:textStyle="normal" />
+
+        <Button
+            android:id="@+id/btn_log_clear"
+            android:layout_width="@dimen/btn_width"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginStart="@dimen/btn_gap"
+            android:background="@drawable/bg_btn_accent"
+            android:contentDescription="@string/cd_btn_log_clear"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:text="@string/btn_clear_logs"
+            android:textColor="@color/text_body"
+            android:textSize="@dimen/btn_text"
+            android:textStyle="normal" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/log_stats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/log_empty_stats"
+            android:textColor="@color/text_dim"
+            android:textSize="@dimen/log_stats_text" />
+    </LinearLayout>
+
+    <!-- 日志浏览卡（只读；进入定位最新 = 底部，画板 15） -->
+    <ScrollView
+        android:id="@+id/log_scroll"
+        android:layout_width="@dimen/log_view_card_width"
+        android:layout_height="@dimen/log_view_card_height"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/log_view_card_margin_top"
+        android:background="@drawable/bg_log_view_card"
+        android:fillViewport="true"
+        android:paddingStart="@dimen/log_view_card_padding_h"
+        android:paddingTop="@dimen/log_view_card_padding_v"
+        android:paddingEnd="@dimen/log_view_card_padding_h"
+        android:paddingBottom="@dimen/log_view_card_padding_v"
+        android:scrollbars="none">
+
+        <TextView
+            android:id="@+id/log_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="@dimen/log_view_line_spacing"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/log_view_text" />
+    </ScrollView>
+
+    <!-- 底部操作提示（画板 15） -->
+    <TextView
+        android:id="@+id/log_viewer_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/log_viewer_hint_margin_top"
+        android:text="@string/log_viewer_hint"
+        android:textColor="@color/text_hint_faint"
+        android:textSize="@dimen/bottom_hint_text" />
+
+</com.sofatype.ime.SettingsRootView>

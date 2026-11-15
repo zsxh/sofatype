@@ -43,7 +43,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import android.view.FocusFinder
 import android.view.KeyEvent
 import android.view.View
@@ -54,6 +53,7 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import com.sofatype.ime.debug.DebugLogStore
 import com.sofatype.ime.update.InstallChannel
 import com.sofatype.ime.update.InstallChannels
 import com.sofatype.ime.update.InstallReceipt
@@ -70,6 +70,7 @@ import com.sofatype.ime.update.UpdateRelease
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
+import timber.log.Timber
 
 class SettingsActivity : Activity() {
 
@@ -108,19 +109,19 @@ class SettingsActivity : Activity() {
                         intent.getParcelableExtra(Intent.EXTRA_INTENT)
                     }
                     if (confirm != null) {
-                        Log.i(UPDATE_LOG_TAG, "安装确认框转交系统 startActivity")
+                        Timber.tag(UPDATE_LOG_TAG).i("安装确认框转交系统 startActivity")
                         context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } else {
-                        Log.i(UPDATE_LOG_TAG, "安装确认 intent 缺失")
+                        Timber.tag(UPDATE_LOG_TAG).i("安装确认 intent 缺失")
                     }
                 }
-                InstallReceiptDecision.SUCCESS -> Log.i(UPDATE_LOG_TAG, "安装成功回执")
+                InstallReceiptDecision.SUCCESS -> Timber.tag(UPDATE_LOG_TAG).i("安装成功回执")
                 InstallReceiptDecision.FAILURE -> {
                     // T46 附加（T21「失败可重试」口径）：安装回执失败必须切 UI 失败态——
                     // 红点 + 原因文案（携带系统状态码）+ 按钮变「重试」。修复前仅写 log，
                     // 界面滞留「已提交系统安装」成功态（真机 INSTALL_FAILED_USER_RESTRICTED
                     // 实证，qa Round 2 r2-t46z.xml）。onReceive 在主线程，可直接刷新 UI。
-                    Log.i(UPDATE_LOG_TAG, "安装回执失败 status=$status message=$message")
+                    Timber.tag(UPDATE_LOG_TAG).i("安装回执失败 status=$status message=$message")
                     showFailed(
                         R.string.failed_prefix_install,
                         UpdateCheckResult.Failed(
@@ -162,6 +163,8 @@ class SettingsActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var updateNotes: TextView
     private lateinit var downloadProgress: ProgressBar
+    private lateinit var logStatusDot: View
+    private lateinit var logStatusText: TextView
 
     /**
      * T54 Round 2 · 输入法可见性去重标记：T63 起焦点接管接线随调试区迁至 TestTypingActivity，
@@ -195,12 +198,19 @@ class SettingsActivity : Activity() {
         statusText = findViewById(R.id.status_text)
         updateNotes = findViewById(R.id.update_notes)
         downloadProgress = findViewById(R.id.download_progress)
+        // T71 · 决策 60：日志入口行状态位（点 + 文字，onResume 刷新）
+        logStatusDot = findViewById(R.id.log_status_dot)
+        logStatusText = findViewById(R.id.log_status_text)
 
         btnCheckUpdate.setOnClickListener { onUpdateAction() }
         // T63 · 「测试打字」入口（画板 7 第三行）：点击进入独立测试打字页。
         // 同应用内 startActivity，BACK 由测试打字页 finish 后回到本页（系统返回栈）。
         findViewById<Button>(R.id.btn_test_typing).setOnClickListener {
             startActivity(Intent(this, TestTypingActivity::class.java))
+        }
+        // T71 · 决策 60 画板 7 第四行：「日志」入口 → 日志子页（BACK 由子页 finish 返回本页）。
+        findViewById<Button>(R.id.btn_logs).setOnClickListener {
+            startActivity(Intent(this, LogSettingsActivity::class.java))
         }
         // T54 Round 2 · pre-IME 键分路接线（docs/issues/open/T54.md）：
         // 输入会话为窗口级绑定，键盘收起后遥控键仍先路由进隐藏态 IME 被消费（Round 1 定位；
@@ -236,6 +246,17 @@ class SettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         evaluateUiChannelInstallResult()
+        // T71 · 决策 60：日志入口行状态随动（子页开关切换后返回本页刷新）
+        refreshLogStatusRow()
+    }
+
+    /** T71 · 日志入口行状态：关 = 灰点「调试日志已关闭」（默认态）；开 = 绿点「调试日志已开启」。 */
+    private fun refreshLogStatusRow() {
+        val enabled = DebugLogStore.isEnabled
+        logStatusDot.setBackgroundResource(
+            if (enabled) R.drawable.bg_status_dot_success else R.drawable.bg_status_dot_idle,
+        )
+        logStatusText.text = getString(if (enabled) R.string.log_status_on else R.string.log_status_off)
     }
 
     /** T50 · 判定终态随实例状态保存，供自愈重建实例恢复（无判定终态时不写，零残留）。 */
@@ -266,7 +287,7 @@ class SettingsActivity : Activity() {
         clearUiInstallMarker()
         val afterCode = readVersionCode()
         val decision = UiInstallReceipt.decisionFor(beforeCode, afterCode)
-        Log.i(UPDATE_LOG_TAG, "UI 渠道结果判定 before=$beforeCode after=$afterCode decision=$decision")
+        Timber.tag(UPDATE_LOG_TAG).i("UI 渠道结果判定 before=$beforeCode after=$afterCode decision=$decision")
         updateApkFile().delete()
         applyDecision(decision)
         scheduleHealRecreate()
@@ -275,7 +296,7 @@ class SettingsActivity : Activity() {
     /** T50 · 恢复分支：应用自愈重建实例带回的判定终态（一次性消费，不再排队重建）。 */
     private fun restoreUiChannelDecision(decision: UiInstallDecision) {
         pendingUiChannelDecision = null
-        Log.i(UPDATE_LOG_TAG, "UI 渠道判定终态自恢复 decision=$decision")
+        Timber.tag(UPDATE_LOG_TAG).i("UI 渠道判定终态自恢复 decision=$decision")
         applyDecision(decision)
     }
 
@@ -301,7 +322,7 @@ class SettingsActivity : Activity() {
         mainHandler.post {
             if (!healRecreatePending || destroyed) return@post
             healRecreatePending = false
-            Log.i(UPDATE_LOG_TAG, "判定终态自愈：重建实例呈现（T50）")
+            Timber.tag(UPDATE_LOG_TAG).i("判定终态自愈：重建实例呈现（T50）")
             recreate()
         }
     }
@@ -356,7 +377,7 @@ class SettingsActivity : Activity() {
                 if (SettingsKeyRouter.confirmActivatesIme(focused) && focused is EditText) {
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                     val shown = imm?.showSoftInput(focused, InputMethodManager.SHOW_IMPLICIT) ?: false
-                    Log.i(FOCUS_LOG_TAG, "pre-IME CONFIRM：焦点在输入框 -> showSoftInput=$shown")
+                    Timber.tag(FOCUS_LOG_TAG).i("pre-IME CONFIRM：焦点在输入框 -> showSoftInput=$shown")
                 } else {
                     focused?.performClick()
                 }
@@ -387,10 +408,10 @@ class SettingsActivity : Activity() {
      */
     private fun handleBackForExit(fromPath: String) {
         if (backExitGate.onBack(SystemClock.uptimeMillis()) == BackExitGate.Decision.EXIT) {
-            Log.i(FOCUS_LOG_TAG, "$fromPath BACK：二次返回退出设置页")
+            Timber.tag(FOCUS_LOG_TAG).i("$fromPath BACK：二次返回退出设置页")
             finish()
         } else {
-            Log.i(FOCUS_LOG_TAG, "$fromPath BACK：首击提示（二次退出窗口开启）")
+            Timber.tag(FOCUS_LOG_TAG).i("$fromPath BACK：首击提示（二次退出窗口开启）")
             Toast.makeText(this, R.string.back_exit_hint, Toast.LENGTH_SHORT).show()
         }
     }
@@ -430,7 +451,7 @@ class SettingsActivity : Activity() {
         applyState(UiState.CHECKING)
         val endpoint = UpdateEndpoint.endpoint(this)
         // T50 Round 2 · 手动检查发起日志（走查取证用；endpoint 为配置的更新源地址，非用户输入内容）
-        Log.i(UPDATE_LOG_TAG, "手动检查发起 endpoint=$endpoint")
+        Timber.tag(UPDATE_LOG_TAG).i("手动检查发起 endpoint=$endpoint")
         ioExecutor.execute {
             val result = UpdateCheck.check(endpoint, currentVersionName()) { url ->
                 UpdateHttp.fetchText(url)
@@ -441,7 +462,7 @@ class SettingsActivity : Activity() {
 
     private fun onCheckResult(result: UpdateCheckResult) {
         // T50 Round 2 · 手动检查落态日志（走查取证用）：含三态标识与失败原因，仅写日志不改分派
-        Log.i(UPDATE_LOG_TAG, "手动检查结果 ${checkResultLabel(result)}")
+        Timber.tag(UPDATE_LOG_TAG).i("手动检查结果 ${checkResultLabel(result)}")
         when (result) {
             is UpdateCheckResult.UpToDate -> applyState(UiState.UP_TO_DATE)
             is UpdateCheckResult.Newer -> {
@@ -513,7 +534,7 @@ class SettingsActivity : Activity() {
                 val installer = packageManager.packageInstaller
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
                 val sessionId = installer.createSession(params)
-                Log.i(UPDATE_LOG_TAG, "安装会话创建 sessionId=$sessionId bytes=${file.length()}")
+                Timber.tag(UPDATE_LOG_TAG).i("安装会话创建 sessionId=$sessionId bytes=${file.length()}")
                 installer.openSession(sessionId).use { session ->
                     file.inputStream().use { input ->
                         session.openWrite("sofatype_update", 0, file.length()).use { output ->
@@ -537,12 +558,12 @@ class SettingsActivity : Activity() {
                         callbackFlags,
                     )
                     session.commit(callback.intentSender)
-                    Log.i(UPDATE_LOG_TAG, "安装会话已提交 sessionId=$sessionId")
+                    Timber.tag(UPDATE_LOG_TAG).i("安装会话已提交 sessionId=$sessionId")
                 }
                 file.delete() // 装后清理：会话已接管数据，cache 副本即删
                 postIfCurrent(generation) { applyState(UiState.INSTALL_SUBMITTED) }
             } catch (e: Exception) {
-                Log.i(UPDATE_LOG_TAG, "安装会话失败：${e.javaClass.simpleName} ${e.message}")
+                Timber.tag(UPDATE_LOG_TAG).i("安装会话失败：${e.javaClass.simpleName} ${e.message}")
                 file.delete()
                 postIfCurrent(generation) {
                     showFailed(
@@ -572,8 +593,7 @@ class SettingsActivity : Activity() {
                 if (!file.setReadable(true, false)) {
                     throw IOException("安装器读权限放开失败")
                 }
-                Log.i(
-                    UPDATE_LOG_TAG,
+                Timber.tag(UPDATE_LOG_TAG).i(
                     "UI 渠道转交系统安装器 tag=${release.tag} bytes=${file.length()} beforeCode=$beforeCode",
                 )
                 postIfCurrent(generation) {
@@ -583,7 +603,7 @@ class SettingsActivity : Activity() {
                         startActivity(uiChannelInstallIntent(file))
                     } catch (e: ActivityNotFoundException) {
                         clearUiInstallMarker()
-                        Log.i(UPDATE_LOG_TAG, "系统安装器缺失：${e.message}")
+                        Timber.tag(UPDATE_LOG_TAG).i("系统安装器缺失：${e.message}")
                         showFailed(
                             R.string.failed_prefix_install,
                             UpdateCheckResult.Failed(UpdateFailureReason.UI_INSTALL_NOT_UPDATED),
@@ -593,7 +613,7 @@ class SettingsActivity : Activity() {
                     applyState(UiState.INSTALL_SUBMITTED)
                 }
             } catch (e: Exception) {
-                Log.i(UPDATE_LOG_TAG, "UI 渠道安装准备失败：${e.javaClass.simpleName} ${e.message}")
+                Timber.tag(UPDATE_LOG_TAG).i("UI 渠道安装准备失败：${e.javaClass.simpleName} ${e.message}")
                 postIfCurrent(generation) {
                     showFailed(
                         R.string.failed_prefix_install,

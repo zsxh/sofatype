@@ -4,6 +4,8 @@
 // T15 · input / clear 业务分发；T16 · commit 分发、码点兜底截断、committed 回执（ack → sender）。
 // T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A：仅 connected:true 携带，被拒不带）+
 // disconnect 断连通知分发（记事件、连接保持，PRD 第 7 章 disconnect 双向）。
+// T72 · 决策 61：hello 增 deviceType / deviceKey（配对回调上送；缺失 / 空白 / 超长按匿名）+
+// state 增 clientCode（仅 connected:true 携带，被拒不带，转义回环锁定）。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -22,10 +24,11 @@ class PairingSessionTest {
         onInput: (String) -> Unit = {},
         onClear: () -> Unit = {},
         onCommit: (text: String, ack: (Boolean) -> Unit) -> Unit = { _, _ -> },
-        onPaired: (deviceName: String?) -> Unit = {},
+        onPaired: (deviceName: String?, deviceType: DeviceType, deviceKey: String?) -> Unit = { _, _, _ -> },
         onPairedSessionClosed: () -> Unit = {},
         onConnectionAttached: (WsMessageSender, (Int) -> Unit) -> Unit = { _, _ -> },
         pairingUrl: () -> String? = { null },
+        clientCode: () -> String? = { null },
     ) = PairingSession(
         store,
         tvName,
@@ -38,6 +41,7 @@ class PairingSessionTest {
         onPairedSessionClosed,
         onConnectionAttached,
         pairingUrl,
+        clientCode,
     )
 
     private fun helloJson(token: String?): String =
@@ -390,7 +394,7 @@ class PairingSessionTest {
         val store = PairingTokenStore()
         val token = store.issue()
         val names = mutableListOf<String?>()
-        val session = newSession(store, onPaired = { names.add(it) })
+        val session = newSession(store, onPaired = { name, _, _ -> names.add(name) })
         session.onTextMessage(helloJson(token))
         assertEquals(listOf<String?>("browser"), names)
     }
@@ -401,7 +405,7 @@ class PairingSessionTest {
         val store = PairingTokenStore()
         val token = store.issue()
         var callbackCount = 0
-        val session = newSession(store, onPaired = { callbackCount++ })
+        val session = newSession(store, onPaired = { _, _, _ -> callbackCount++ })
         session.onTextMessage(helloJson(null)) // 缺失 token
         session.onTextMessage(helloJson("wrong-guess")) // 错误 token
         session.onTextMessage(helloJson(token))
@@ -414,9 +418,129 @@ class PairingSessionTest {
         val store = PairingTokenStore()
         val token = store.issue()
         val names = mutableListOf<String?>()
-        val session = newSession(store, onPaired = { names.add(it) })
+        val session = newSession(store, onPaired = { name, _, _ -> names.add(name) })
         session.onTextMessage("""{"type":"hello","token":"$token"}""")
         assertEquals(listOf<String?>(null), names)
+    }
+
+    // ---- T72 · 决策 61 · hello 增 deviceType / deviceKey（连接代号签发数据源） ----
+
+    @Test
+    fun pairedCallbackCarriesDeviceTypeAndDeviceKey() {
+        // hello 携带 deviceType / deviceKey：原样上送（类型判定在手机端，TV 不解析 UA）
+        val store = PairingTokenStore()
+        val paired = mutableListOf<Triple<String?, DeviceType, String?>>()
+        val session = newSession(
+            store,
+            onPaired = { name, type, key -> paired.add(Triple(name, type, key)) },
+        )
+        session.onTextMessage(
+            """{"type":"hello","token":"${store.issue()}","deviceName":"微信内置","deviceType":"wechat","deviceKey":"0f52-uuid-a"}""",
+        )
+        assertEquals(1, paired.size)
+        assertEquals("微信内置", paired[0].first)
+        assertEquals(DeviceType.WECHAT, paired[0].second)
+        assertEquals("0f52-uuid-a", paired[0].third)
+    }
+
+    @Test
+    fun missingOrUnknownDeviceTypeFallsBackToBrowser() {
+        // deviceType 缺失 / 非法取值：按浏览器兜底（命中即停链终点，决策 61）
+        val store = PairingTokenStore()
+        val types = mutableListOf<DeviceType>()
+        var session = newSession(store, onPaired = { _, type, _ -> types.add(type) })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}"}""")
+        session = newSession(store, onPaired = { _, type, _ -> types.add(type) })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}","deviceType":"robot"}""")
+        assertEquals(listOf(DeviceType.BROWSER, DeviceType.BROWSER), types)
+    }
+
+    @Test
+    fun deviceTypeMustBeJsonStringFallsBackToBrowser() {
+        // deviceType 为数字 / 字面量：类型不符按缺失处理（浏览器兜底），不影响配对
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val types = mutableListOf<DeviceType>()
+        val session = newSession(store, onPaired = { _, type, _ -> types.add(type) })
+        val reply = session.onTextMessage("""{"type":"hello","token":"$token","deviceType":7}""")
+        assertTrue(reply is WsReply.Text)
+        assertEquals(listOf(DeviceType.BROWSER), types)
+    }
+
+    @Test
+    fun blankOrOversizedDeviceKeyTreatedAsAnonymous() {
+        // deviceKey 空白 / 超长（>128）：一律按匿名处理（回调 null，决策 61）
+        val store = PairingTokenStore()
+        val oversized = "x".repeat(129)
+        val paired = mutableListOf<Pair<DeviceType, String?>>()
+        var session = newSession(store, onPaired = { _, t, k -> paired.add(t to k) })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}","deviceType":"apple","deviceKey":"  "}""")
+        session = newSession(store, onPaired = { _, t, k -> paired.add(t to k) })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}","deviceType":"apple","deviceKey":"$oversized"}""")
+        session = newSession(store, onPaired = { _, t, k -> paired.add(t to k) })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}","deviceType":"apple"}""")
+        assertEquals(3, paired.size)
+        assertTrue(paired.all { it.second == null })
+        assertTrue(paired.all { it.first == DeviceType.APPLE })
+    }
+
+    @Test
+    fun deviceKeyWithinLimitIsAcceptedVerbatim() {
+        // 恰好 128 长度的 deviceKey 合法（上限边界），原样上送
+        val store = PairingTokenStore()
+        val key = "y".repeat(128)
+        var received: String? = null
+        val session = newSession(store, onPaired = { _, _, k -> received = k })
+        session.onTextMessage("""{"type":"hello","token":"${store.issue()}","deviceKey":"$key"}""")
+        assertEquals(key, received)
+    }
+
+    // ---- T72 · 决策 61 · state 增 clientCode（代号唯一事实源） ----
+
+    @Test
+    fun connectedStateCarriesClientCode() {
+        // hello 校验通过 → state 附连接代号（Manager 在 onPaired 内签发后提供，此处以固定值模拟）
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store, clientCode = { "微信设备 01" })
+        val reply = session.onTextMessage(helloJson(token))
+        val body = (reply as WsReply.Text).text
+        assertTrue(body, body.contains(""""clientCode":"微信设备 01""""))
+        val fields = MinimalJson.parseTopLevelObject(body)
+        assertEquals("微信设备 01", fields["clientCode"])
+    }
+
+    @Test
+    fun stateOmitsClientCodeWhenProviderReturnsNull() {
+        // 未提供代号（缺省 / 防御分支）：state 不带该字段，既有基线不受影响
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store)
+        val reply = session.onTextMessage(helloJson(token))
+        val body = (reply as WsReply.Text).text
+        assertFalse(body, body.contains(""""clientCode""""))
+    }
+
+    @Test
+    fun rejectedStateDoesNotCarryClientCode() {
+        // FR-B10 防套取延伸：被拒连接未通过配对校验，不得获得连接代号
+        val store = PairingTokenStore()
+        store.issue()
+        val session = newSession(store, clientCode = { "微信设备 01" })
+        val reply = session.onTextMessage(helloJson("wrong-guess"))
+        val body = (reply as WsReply.TextThenClose).text
+        assertFalse(body, body.contains(""""clientCode""""))
+    }
+
+    @Test
+    fun connectedStateEscapesClientCode() {
+        // clientCode 含需转义字符时按 JSON 转义下发，解析回环一致
+        val store = PairingTokenStore()
+        val token = store.issue()
+        val session = newSession(store, clientCode = { """带"引号"代号""" })
+        val reply = session.onTextMessage(helloJson(token))
+        val fields = MinimalJson.parseTopLevelObject((reply as WsReply.Text).text)
+        assertEquals("""带"引号"代号""", fields["clientCode"])
     }
 
     // ---- T35 · 连接控制与断连回调（决策 35：滚动 token / 自动顶替 / 断连回退） ----

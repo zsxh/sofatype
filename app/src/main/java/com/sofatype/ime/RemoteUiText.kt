@@ -1,7 +1,8 @@
 // T17 · 跨屏输入界面文案与格式化（FR-B1 / FR-B9 / FR-B3 / 决策 32/34）。
 // 纯 Kotlin，不依赖 Android 类：文案为代码常量（IME 侧既有口径，同 KeyboardLayout 键面文字 / PairingCard 标注），
-// 单元测试锁定与 PRD 原文逐字一致。格式化函数输出状态行展示文本：
-// 设备名来自 hello.deviceName（决策 34：会话内存驻留用于展示，不入日志不持久化）。
+// 单元测试锁定与 PRD 原文逐字一致。格式化函数输出状态行展示文本。
+// T72（决策 61）：设备名展示口径由连接代号胶囊替代——胶囊文本 = ClientCode.text
+//（[类型]设备 + 两位序号，如「微信设备 01」），类型与序号由手机端 hello 与 TV 端注册表签发。
 package com.sofatype.ime
 
 /** 跨屏输入界面文案（FR-B1 引导卡 / FR-B9 状态行 / FR-B3 远程主卡 / 决策 32/33）。 */
@@ -45,22 +46,17 @@ object RemoteUiText {
     /** 已连接状态行文字（绿点态主标题，FR-B3「实时接收中」）。 */
     const val STATUS_CONNECTED = "实时接收中"
 
-    /** 已连接卡面文字前缀（FR-B9「已连接 · 设备名」）。 */
-    private const val CONNECTED_FACE_PREFIX = "已连接 · "
-
-    /** 已连接卡面（FR-B9）：deviceName 为 null（hello 未携带）时只显示「已连接」。 */
-    fun connectedFaceText(deviceName: String?): String =
-        if (deviceName.isNullOrEmpty()) "已连接" else "$CONNECTED_FACE_PREFIX$deviceName"
+    /**
+     * 副卡已连接状态行文字（T72 · 决策 61：设备名展示口径由连接代号胶囊替代，
+     * 本行只保留「已连接」，胶囊紧随其后）。
+     */
+    const val CONNECTED_FACE_TEXT = "已连接"
 
     /**
-     * 远程主卡状态行「来自 · <设备名>」（FR-B3；决策 34：协议无位置字段，只展示设备名）。
-     * hello 未携带设备名（null / 空）时返回 null——渲染层据此隐藏「来自」行（T18 · T17 遗留：
-     * 修复「来自 · 」悬空尾巴），不再输出悬空前缀。
+     * 主卡「来自 ·」前缀（T72 · 决策 61）：连接代号胶囊展示于此后（画板 6），
+     * 替代原「来自 · 设备名」的设备名拼接口径。
      */
-    fun connectedFromText(deviceName: String?): String? {
-        val name = deviceName?.takeIf { it.isNotBlank() } ?: return null
-        return "来自 · $name"
-    }
+    const val CONNECTED_FROM_LABEL = "来自 ·"
 
     // ---- 远程模式主卡其余框架（FR-B3 / 决策 33，画板⑤原文） ----
 

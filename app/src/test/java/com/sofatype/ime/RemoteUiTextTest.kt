@@ -1,11 +1,13 @@
 // T17 · 跨屏界面文案单元测试：锁定与 PRD 原文逐字一致（FR-B1 三步指引 / 按钮下提示、
-// FR-B9 状态行三态、FR-B3 实时接收中 / 来自 · 设备名 / 底部提示 / 退出远程）。
-// T18 · FR-B8「连接已断开」瞬时提示文案（Q3 lead 拍板）+ T17 遗留修复：
-// connectedFromText 未携带设备名返回 null（渲染层隐藏「来自」行，不再输出悬空前缀）。
+// FR-B9 状态行三态、FR-B3 实时接收中 / 底部提示 / 退出远程）。
+// T18 · FR-B8「连接已断开」瞬时提示文案（Q3 lead 拍板）。
+// T72 · 决策 61：设备名展示口径由连接代号胶囊替代——锁定「已连接」行文字、「来自 ·」前缀
+// 与 ClientCode 全文 / 序号文本（示例「微信设备 01」）。
 package com.sofatype.ime
 
+import com.sofatype.ime.remote.ClientCode
+import com.sofatype.ime.remote.DeviceType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class RemoteUiTextTest {
@@ -38,21 +40,26 @@ class RemoteUiTextTest {
     }
 
     @Test
-    fun connectedFaceTextFormatsDeviceNamePerFrB9() {
-        // FR-B9「已连接 · 设备名」；hello 未携带设备名时只显示「已连接」
-        assertEquals("已连接 · browser", RemoteUiText.connectedFaceText("browser"))
-        assertEquals("已连接", RemoteUiText.connectedFaceText(null))
-        assertEquals("已连接", RemoteUiText.connectedFaceText(""))
+    fun connectedFaceAndFromLabelsPerDecision61() {
+        // T72 · 决策 61：副卡已连接状态行只保留「已连接」（胶囊紧随其后）；主卡「来自 ·」前缀不变
+        assertEquals("已连接", RemoteUiText.CONNECTED_FACE_TEXT)
+        assertEquals("来自 ·", RemoteUiText.CONNECTED_FROM_LABEL)
     }
 
     @Test
-    fun connectedFromTextFormatsPerFrB3() {
-        // FR-B3「来自 · <设备名>」（决策 34：协议无位置字段，只展示设备名）；
-        // T18 · T17 遗留修复：hello 未携带设备名（null / 空 / 空白）返回 null → 渲染层隐藏「来自」行
-        assertEquals("来自 · browser", RemoteUiText.connectedFromText("browser"))
-        assertNull(RemoteUiText.connectedFromText(null))
-        assertNull(RemoteUiText.connectedFromText(""))
-        assertNull(RemoteUiText.connectedFromText("   "))
+    fun clientCodeTextFormatsTypeDeviceAndTwoDigitNumber() {
+        // 决策 61 胶囊文案：「[类型]设备[两位序号]」，画板示例「微信设备 01」；四类型逐字锁定
+        assertEquals("微信设备 01", ClientCode(DeviceType.WECHAT, 1).text)
+        assertEquals("苹果设备 03", ClientCode(DeviceType.APPLE, 3).text)
+        assertEquals("安卓设备 09", ClientCode(DeviceType.ANDROID, 9).text)
+        assertEquals("浏览器设备 12", ClientCode(DeviceType.BROWSER, 12).text)
+    }
+
+    @Test
+    fun clientCodeNumberTextPadsToTwoDigits() {
+        assertEquals("01", ClientCode(DeviceType.WECHAT, 1).numberText)
+        assertEquals("08", ClientCode(DeviceType.WECHAT, 8).numberText)
+        assertEquals("12", ClientCode(DeviceType.WECHAT, 12).numberText)
     }
 
     @Test

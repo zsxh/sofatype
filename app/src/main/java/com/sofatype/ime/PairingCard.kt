@@ -1,10 +1,10 @@
-// T14/T35/T68 · 配对二维码分区装配（FR-B4 / 决策 4 / 决策 35 / 决策 58，画板 RemotePairing/
-// RemoteConnected 20261114）：
+// T14/T35/T68/T72 · 配对二维码分区装配（FR-B4 / 决策 4 / 决策 35 / 决策 58 / 决策 61，画板
+// RemotePairing/RemoteConnected 20261114）：
 // 等待扫码态：二维码分区整区 = 配对二维码（316×316 随板高自适应，圆角 32）+ 下方访问地址一行，
 // 地址与二维码内容一致（同源 pairingUrl，含一次性 token），二维码下方不显示其他文案（决策 4）。
-// 已连接态（决策 35）：二维码分区保留，二维码为配对成功后滚动签发的新 token 有效码，
-// 下方网址行**原位换成**绿点状态行「已连接 · 设备名」（决策 32 独立已连接卡面废止）；
-// 决策 4 只约束等待态配对卡。
+// 已连接态（决策 35 / T72 决策 61）：二维码分区保留，二维码为配对成功后滚动签发的新 token
+// 有效码，下方网址行**原位换成**绿点状态行「已连接」+ 连接代号胶囊（设备名展示口径由代号
+// 胶囊替代，决策 61）；决策 4 只约束等待态配对卡。
 // 规格全部走 Token（dimens.xml / colors.xml）；二维码黑模块白底为扫码对比度所需
 //（画板资产同形），属功能性用色，不入主题 Token 方案（不新增配色方案）。
 package com.sofatype.ime
@@ -23,6 +23,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sofatype.ime.remote.ClientCode
 import com.sofatype.ime.remote.QrCodeEncoder
 
 object PairingCard {
@@ -42,14 +43,15 @@ object PairingCard {
     private const val QR_BACKGROUND_COLOR = Color.WHITE
 
     /**
-     * 渲染副卡二维码卡（T35 · 决策 35）：二维码 + 下方一行——
-     * [statusLineText] 为 null = 等待扫码态：访问地址一行（FR-B4 / 决策 4）；
-     * 非 null = 已连接态：绿点 + 状态行文字（RemoteUiText.connectedFaceText，「已连接 · 设备名」），
-     * 网址行不再显示（token 已消费，滚动新码见二维码本体）。
+     * 渲染副卡二维码卡（T35 · 决策 35，T72 · 决策 61）：二维码 + 下方一行——
+     * [clientCode] 为 null = 等待扫码态：访问地址一行（FR-B4 / 决策 4）；
+     * 非 null = 已连接态：绿点 + 「已连接」（RemoteUiText.CONNECTED_FACE_TEXT）+ 连接代号胶囊
+     * （ClientCodePill，[类型]设备 + 两位序号，两端同显），网址行不再显示
+     *（token 已消费，滚动新码见二维码本体）。
      * 容器原占位内容清空；重复调用幂等（先清后装）。
      * 卡片为纯展示（无遥控交互），视图不设可聚焦。
      */
-    fun show(context: Context, container: FrameLayout, pairingUrl: String, statusLineText: String? = null) {
+    fun show(context: Context, container: FrameLayout, pairingUrl: String, clientCode: ClientCode? = null) {
         container.removeAllViews()
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -61,7 +63,7 @@ object PairingCard {
         // 与下方一行的间距：等待态地址行 5dp（画板⑤ gap）；已连接状态行更松 16dp
         //（户主 2026-11-07 反馈状态行太贴近二维码，T35 回访调整）
         val rowGapPx = context.resources.getDimensionPixelSize(
-            if (statusLineText != null) R.dimen.ime_pairing_status_gap else R.dimen.ime_pairing_gap,
+            if (clientCode != null) R.dimen.ime_pairing_status_gap else R.dimen.ime_pairing_gap,
         )
         val qrView = ImageView(context).apply {
             setImageBitmap(renderQrBitmap(pairingUrl, qrSizePx))
@@ -82,7 +84,7 @@ object PairingCard {
             },
         )
         content.addView(
-            if (statusLineText != null) buildStatusLine(context, statusLineText) else buildUrlLine(context, pairingUrl),
+            if (clientCode != null) buildStatusLine(context, clientCode) else buildUrlLine(context, pairingUrl),
             // 状态行显式 WRAP_CONTENT：竖向 LinearLayout 子视图默认宽 MATCH_PARENT，
             // 不给显式宽度会整行靠左（列重力居中不生效），户主反馈居中问题的根因
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
@@ -120,8 +122,8 @@ object PairingCard {
         return urlView
     }
 
-    /** 已连接态下方状态行（决策 35 · FR-B9）：绿点 + 「已连接 · 设备名」，排印同远程主卡状态行。 */
-    private fun buildStatusLine(context: Context, statusText: String): LinearLayout {
+    /** 已连接态下方状态行（决策 35 / T72 决策 61）：绿点 + 「已连接」+ 连接代号胶囊，排印同远程主卡状态行。 */
+    private fun buildStatusLine(context: Context, clientCode: ClientCode): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -135,7 +137,7 @@ object PairingCard {
         )
         row.addView(
             TextView(context).apply {
-                text = statusText
+                text = RemoteUiText.CONNECTED_FACE_TEXT
                 setTextColor(context.getColor(R.color.text_primary))
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, context.resources.getDimension(R.dimen.ime_remote_status_text))
                 // 与远程主卡状态行同一排印层级（20px/500 语义 → bold）
@@ -145,6 +147,18 @@ object PairingCard {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { marginStart = context.resources.getDimensionPixelSize(R.dimen.ime_pairing_status_text_gap) },
+        )
+        // T72 · 决策 61：连接代号胶囊（[官方标 icon][类型]设备[两位序号]）紧随「已连接」
+        val pill = LinearLayout(context)
+        ClientCodePill.show(context, pill, clientCode)
+        row.addView(
+            pill,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart = context.resources.getDimensionPixelSize(R.dimen.ime_pairing_status_text_gap)
+            },
         )
         return row
     }

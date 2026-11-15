@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 日志子页行容器背景（T71 · 决策 60 画板 14，焦点态口径决策 50 / PRD 6.4）：
+     焦点 = accent-wash 上界底（.28）+ border-accent 描边、圆角 14px；
+     常态透明（行本体不常亮高亮，决策 44）。禁用态（开关关闭行 2/3 置灰不可调）不获焦点。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/accent_wash_strong" />
+            <stroke android:width="@dimen/stroke_width" android:color="@color/border_accent" />
+            <corners android:radius="@dimen/log_row_corner" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

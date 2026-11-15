@@ -6,5 +6,15 @@
         <!-- 光标/选区控制色走主色 Token -->
         <item name="android:colorAccent">@color/accent</item>
         <item name="android:colorControlActivated">@color/accent</item>
+        <!-- T71 · 决策 60：清空日志确认框走深色基底（framework Material 暗色 Alert）+ 主色控制色，
+             与全深色星夜青一致（不引第三方依赖） -->
+        <item name="android:alertDialogTheme">@style/Theme.Sofatype.Dialog</item>
+    </style>
+
+    <!-- T71：清空日志确认框主题（framework Material 暗色基底 + 主色控制色） -->
+    <style name="Theme.Sofatype.Dialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+        <item name="android:windowBackground">@drawable/bg_dialog_dark</item>
     </style>
 </resources>

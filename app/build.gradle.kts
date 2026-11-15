@@ -64,4 +64,7 @@ dependencies {
     // T14（FR-B4）：二维码生成用 ZXing core（工具链拍板 2026-11-03「二维码 ZXing core」；
     // 仅 core 纯 Java 库，无 ZXing Android 嵌入件等第三方 SDK）
     implementation("com.google.zxing:core:3.5.3")
+    // T71 · 决策 60：日志组件 Timber（户主明确指令，「纯 Kotlin 无第三方 SDK」约束的指令例外，
+    // 随 ZXing 先例入册；issue T71 如实记录）——双树 = logcat 树（行为同现状）+ 文件树（开关控制）。
+    implementation("com.jakewharton.timber:timber:5.0.1")
 }
