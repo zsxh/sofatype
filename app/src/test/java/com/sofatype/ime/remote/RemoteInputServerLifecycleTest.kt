@@ -136,6 +136,38 @@ class RemoteInputServerLifecycleTest {
         }
     }
 
+    @Test
+    fun bindingTakenPortFlagsPortInUse() {
+        // T75 · 决策 63：被占绑定（BindException）结论须带 portInUse 标记，
+        // 供 Manager 端口策略（RemotePortPolicy）判定「换新随机端口重试」
+        val blocker = ServerSocket()
+        blocker.bind(java.net.InetSocketAddress(loopback, 0))
+        val taken = blocker.localPort
+        try {
+            val result = newServer(taken).start()
+            val failure = result as? RemoteInputServer.StartResult.Failed
+            assertTrue("应绑定失败", failure != null)
+            assertTrue("被占绑定应带 portInUse 标记", failure?.portInUse == true)
+        } finally {
+            blocker.close()
+        }
+    }
+
+    @Test
+    fun immediateRebindOfSamePortSucceedsAfterConnectionTeardown() {
+        // T75 · 决策 63「退出立即重开」：先跑一轮真实 HTTP 连接（服务端 Connection: close
+        // 主动关 + 客户端随后关，服务侧同端口留下 TIME_WAIT 形态），停服后立刻同端口重绑，
+        // setReuseAddress(true) 下重绑必须成功且端口一致。
+        val firstServer = newServer()
+        val port = (firstServer.start() as RemoteInputServer.StartResult.Started).port
+        assertEquals("HTTP/1.1 200 OK", httpGet(port).lineSequence().first())
+        firstServer.stop()
+        val second = newServer(port).start()
+        val rebound = second as? RemoteInputServer.StartResult.Started
+        assertTrue("停服后立刻同端口重绑应成功：$second", rebound != null)
+        assertEquals("重绑端口应与上一轮一致", port, rebound?.port)
+    }
+
     // ---- HTTP 回环 ----
 
     @Test

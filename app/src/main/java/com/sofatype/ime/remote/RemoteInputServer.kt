@@ -17,10 +17,16 @@
 // 网络 IO 会使 IME 进程崩溃，见 issue T16 坑 1）；attachConnection 提供连接级回发与关闭通道。
 // T35 增量（决策 35 自动顶替 / 断连回退）：attachConnection 注入关闭句柄（CLOSE 帧 + 断开），
 // 会话结束回调 onSessionClosed 通知上层已配对连接断开（回等待扫码态）。
+// T75 增量（决策 63 · 端口持久复用）：绑定一律 setReuseAddress(true)——「退出立即重开」时
+// 对端连接残留 TIME_WAIT 不阻塞同端口快速重绑定（内核对活跃监听占用仍拒绝，被占语义不变）；
+// 绑定失败按 BindException 分类：StartResult.Failed 增 portInUse 标记，供 Manager 端口策略
+// （RemotePortPolicy）判定「被占换新随机」或「原样终止」。端口来源策略化：requestedPort 由
+// 调用方按策略解析后传入，服务本体不再自行随机（0 仍为系统分配口径，T13 回环测试基线不变）。
 package com.sofatype.ime.remote
 
 import java.io.BufferedInputStream
 import java.io.IOException
+import java.net.BindException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -114,8 +120,11 @@ class RemoteInputServer(
         /** 启动成功；port 为实际监听端口。 */
         class Started(val port: Int) : StartResult()
 
-        /** 启动失败；reason 为可直接记录的原因描述。 */
-        class Failed(val reason: String) : StartResult()
+        /**
+         * 启动失败；reason 为可直接记录的原因描述。[portInUse] = 绑定目标端口被其他套接字
+         * 占用（BindException，T75 · 决策 63：端口策略据此判定换新随机端口重试）。
+         */
+        class Failed(val reason: String, val portInUse: Boolean = false) : StartResult()
     }
 
     private val lock = Any()
@@ -147,7 +156,17 @@ class RemoteInputServer(
         }
         val serverSocket = ServerSocket()
         try {
+            // T75 · 决策 63：绑定一律启用 SO_REUSEADDR（须在 bind 前设置）——「退出立即重开」
+            // 场景下同端口残留 TIME_WAIT 时不阻塞快速重绑定；内核对活跃监听占用仍拒绝
+            //（BindException 语义不变，被占判定不受影响）
+            serverSocket.setReuseAddress(true)
             serverSocket.bind(InetSocketAddress(bindAddress, requestedPort))
+        } catch (e: BindException) {
+            runCatching { serverSocket.close() }
+            return StartResult.Failed(
+                "绑定 ${bindAddress.hostAddress}:$requestedPort 失败（端口被占）：${e.message}",
+                portInUse = true,
+            )
         } catch (e: IOException) {
             runCatching { serverSocket.close() }
             return StartResult.Failed("绑定 ${bindAddress.hostAddress}:$requestedPort 失败：${e.message}")

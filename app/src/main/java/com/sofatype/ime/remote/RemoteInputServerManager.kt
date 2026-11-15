@@ -66,6 +66,14 @@
 // 注册表随进程驻留：停服不清表（保号窗口跨 TV 退出持续，断开后 15 分钟内重连保号），
 // 仅钉住键随会话切换 / 停服解除（连接中代号永不变）。deviceKey 与序号仅内存驻留，
 // 不持久化、不入日志（隐私红线，决策 61）。
+// T75 增量（决策 63 · 远程服务端口持久复用）：端口来源策略化，判定收口 RemotePortPolicy
+//（纯逻辑，JVM 单测覆盖）——每轮启动优先复用上次持久化端口；复用被占（BindException）→
+// 动态段 49152–65535 重新随机并持久化新值，有限重试（3 次）仍失败按启动失败明示原因、
+// 不静默放弃；随机绑定成功即持久化新端口号。持久化走 SharedPreferences 适配
+//（RemoteServicePortStore，仅端口号一个配置项，无用户输入内容与身份信息，T71 先例口径，
+// 跨停服 / 跨进程重启保留）。服务绑定层 setReuseAddress(true) 见 RemoteInputServer。
+// 协议与 H5 零改动；网络重建路径共用 startInternal，重建后端口亦复用持久化值（决策 63
+// 残余边界 ③：网络变化自动重建后端口不变）。
 package com.sofatype.ime.remote
 
 import android.content.Context
@@ -316,63 +324,107 @@ object RemoteInputServerManager {
             exitRequested = false // T18：新会话清除上一轮退出标记（重建路径据此放行）
             mainPageCache = null // 页面缓存随服务会话失效：资产更新后本次启动即生效
             val tvName = resolveTvName()
-            val instance = RemoteInputServer(
-                address,
-                0, // 端口随机：requestedPort 默认 0（决策 16）
-                wsDelegateFactory = {
-                    // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发；
-                    // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）；
-                    // T17（FR-B9 / 决策 34）：配对成功驻留 deviceName 并通知 UI 刷新状态机。
-                    // T35（决策 35）：配对成功滚动签发新 token + 顶替旧连接；已配对连接断开
-                    // 清登记并回等待扫码卡。回调在连接线程：volatile 写安全，
-                    // UI 通知经主线程 Handler 派发。会话实例先创建再闭包捕获（作登记身份键）。
-                    // T18（Q1 lead 拍板 A）：state 经 pairingUrlProvider 下发滚动新码配对地址
-                    //（hello 校验通过后才取值，被拒路径不消费；FR-B10 一次性不变）。
-                    // T72（决策 61）：onPaired 扩参上送 deviceType / deviceKey 供序号签发；
-                    // state 经 clientCodeProvider 下发连接代号（hello 校验通过后才取值）。
-                    lateinit var session: PairingSession
-                    session = PairingSession(
-                        tokens = tokens,
-                        tvName = tvName,
-                        logEvent = { Timber.tag(TAG).i(it) },
-                        onInput = ::onRemoteInput,
-                        onClear = ::onRemoteClear,
-                        onCommit = ::onRemoteCommit,
-                        onPaired = { deviceName, deviceType, deviceKey ->
-                            onPaired(session, deviceName, deviceType, deviceKey)
-                        },
-                        onPairedSessionClosed = { onPairedSessionClosed(session) },
-                        onConnectionAttached = { sender, close ->
-                            onPairedConnectionAttached(session, sender, close)
-                        },
-                        pairingUrlProvider = { pairingUrlText },
-                        clientCodeProvider = { pairedClientCode?.text },
-                    )
-                    session
-                },
-                mainPageProvider = { loadMainPage(context) },
-            )
-            val result = instance.start()
-            when (result) {
-                is RemoteInputServer.StartResult.Started -> {
-                    server = instance
-                    addressText = address.hostAddress
-                    pairingUrlText = "http://${address.hostAddress}:${result.port}/?token=${tokens.peek()}"
-                    watcherContext = context.applicationContext
-                    registerNetworkWatcher(context.applicationContext) // T18：网络变化自动重建（运行期生效）
-                    // T25：进入远程模式即处于「无手机连接」态，空闲窗口自此起算
-                    armIdleExit(System.currentTimeMillis())
-                    // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
-                    Timber.tag(TAG).i("远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
-                    // T18：start 可经网络重建在 teardown 线程进入，UI 回调统一主线程派发
-                    mainHandler.post { onPairingStateChanged?.invoke() }
+            // T75（决策 63）端口策略化：按策略解析端口——优先复用持久化端口，被占（BindException）
+            // 动态段重新随机、有限重试；随机绑定成功即持久化。每个候选端口各起一个独立实例
+            //（requestedPort 构造后不可变），仅绑定成功实例保留进入运行态，失败实例就地弃置。
+            var startedServer: RemoteInputServer? = null
+            var startedPort = -1
+            val assignment = RemotePortPolicy(RemoteServicePortStore(context)).resolve { candidate ->
+                val attemptServer = buildRemoteInputServer(address, tvName, context, candidate)
+                when (val result = attemptServer.start()) {
+                    is RemoteInputServer.StartResult.Started -> {
+                        startedServer = attemptServer
+                        startedPort = result.port
+                        PortBindAttempt.Bound(result.port)
+                    }
+                    is RemoteInputServer.StartResult.Failed ->
+                        if (result.portInUse) {
+                            PortBindAttempt.Occupied // 决策 63：被占 → 换新随机端口重试
+                        } else {
+                            PortBindAttempt.Unavailable(result.reason) // 非占用失败 → 原样终止不静默
+                        }
                 }
-                is RemoteInputServer.StartResult.Failed ->
-                    Timber.tag(TAG).w("启动失败：${result.reason}")
             }
-            return result
+            val instance = startedServer
+            if (instance == null) {
+                val reason = (assignment as? PortAssignment.Failed)?.reason ?: "端口分配失败（未知原因）"
+                Timber.tag(TAG).w("启动失败：$reason")
+                return RemoteInputServer.StartResult.Failed(reason)
+            }
+            when (assignment) {
+                is PortAssignment.Reused ->
+                    Timber.tag(TAG).i("端口复用命中：$startedPort（决策 63 持久化端口，跨停服 / 进程重启保留）")
+                is PortAssignment.Randomized ->
+                    Timber.tag(TAG).i(
+                        assignment.previousPort
+                            ?.let { "持久化端口 $it 被占，动态段换新随机端口：$startedPort（已持久化新值）" }
+                            ?: "首次启动动态段随机取得端口：$startedPort（已持久化，后续轮复用）",
+                    )
+                else -> Unit // 失败分支上方已 return，防御不可达
+            }
+            server = instance
+            addressText = address.hostAddress
+            pairingUrlText = "http://${address.hostAddress}:${startedPort}/?token=${tokens.peek()}"
+            watcherContext = context.applicationContext
+            registerNetworkWatcher(context.applicationContext) // T18：网络变化自动重建（运行期生效）
+            // T25：进入远程模式即处于「无手机连接」态，空闲窗口自此起算
+            armIdleExit(System.currentTimeMillis())
+            // 验收通道：端口与配对地址经此条日志获知（adb logcat -s RemoteInputServer，仅 debug 构建）
+            Timber.tag(TAG).i("远程输入服务已启动：${addressUrl()}；配对地址：${pairingUrlText}（WS 端点同端口 /ws）")
+            // T18：start 可经网络重建在 teardown 线程进入，UI 回调统一主线程派发
+            mainHandler.post { onPairingStateChanged?.invoke() }
+            return RemoteInputServer.StartResult.Started(startedPort)
         }
     }
+
+    /**
+     * 构建远程输入服务实例（T75 · 决策 63 端口策略化抽出的工厂）：每个候选端口各建一个实例，
+     * [requestedPort] 由 RemotePortPolicy 解析后传入（原决策 16 内联固定 0 随机口径随之退役）。
+     * 会话装配与原 startInternal 内联构造逐行一致：token 会话、业务回调、主线程派发、
+     * 滚动配对地址与连接代号下发均不变。
+     */
+    private fun buildRemoteInputServer(
+        address: InetAddress,
+        tvName: String,
+        context: Context,
+        requestedPort: Int,
+    ): RemoteInputServer =
+        RemoteInputServer(
+            address,
+            requestedPort,
+            wsDelegateFactory = {
+                // T15：每连接独立会话实例（配对态不跨连接）；业务回调经缓冲 + 主线程派发；
+                // T16：commit 上屏指令经 onRemoteCommit 派发（写入 + 回执 + 成功停服）；
+                // T17（FR-B9 / 决策 34）：配对成功驻留 deviceName 并通知 UI 刷新状态机。
+                // T35（决策 35）：配对成功滚动签发新 token + 顶替旧连接；已配对连接断开
+                // 清登记并回等待扫码卡。回调在连接线程：volatile 写安全，
+                // UI 通知经主线程 Handler 派发。会话实例先创建再闭包捕获（作登记身份键）。
+                // T18（Q1 lead 拍板 A）：state 经 pairingUrlProvider 下发滚动新码配对地址
+                //（hello 校验通过后才取值，被拒路径不消费；FR-B10 一次性不变）。
+                // T72（决策 61）：onPaired 扩参上送 deviceType / deviceKey 供序号签发；
+                // state 经 clientCodeProvider 下发连接代号（hello 校验通过后才取值）。
+                lateinit var session: PairingSession
+                session = PairingSession(
+                    tokens = tokens,
+                    tvName = tvName,
+                    logEvent = { Timber.tag(TAG).i(it) },
+                    onInput = ::onRemoteInput,
+                    onClear = ::onRemoteClear,
+                    onCommit = ::onRemoteCommit,
+                    onPaired = { deviceName, deviceType, deviceKey ->
+                        onPaired(session, deviceName, deviceType, deviceKey)
+                    },
+                    onPairedSessionClosed = { onPairedSessionClosed(session) },
+                    onConnectionAttached = { sender, close ->
+                        onPairedConnectionAttached(session, sender, close)
+                    },
+                    pairingUrlProvider = { pairingUrlText },
+                    clientCodeProvider = { pairedClientCode?.text },
+                )
+                session
+            },
+            mainPageProvider = { loadMainPage(context) },
+        )
 
     /**
      * 停止服务（T18 · FR-B7 重写）：存在已配对会话时先向手机回发 disconnect { reason }
@@ -925,5 +977,29 @@ object RemoteInputServerManager {
             emptyList()
         }
         return BindAddressSelector.select(candidates)?.ipv4?.let { InetAddress.getByName(it) }
+    }
+}
+
+/**
+ * 服务端口持久化（T75 · 决策 63）：SharedPreferences 适配（T71 DebugLogStore 先例口径）——
+ * 仅持久化「端口号」这一个配置项，无用户输入内容与身份信息（隐私红线不破）；
+ * 跨停服 / 跨进程重启保留。经 [RemotePortPersistence] 接口供端口策略与 JVM 单测注入。
+ */
+private class RemoteServicePortStore(context: Context) : RemotePortPersistence {
+
+    private val prefs =
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** 读持久化端口（决策 63 首轮启动无记录返回 null，交由策略走随机分配）。 */
+    override fun read(): Int? = prefs.getInt(KEY_SERVICE_PORT, -1).takeIf { it > 0 }
+
+    /** 持久化端口（仅策略在真实绑定成功后调用）。 */
+    override fun write(port: Int) {
+        prefs.edit().putInt(KEY_SERVICE_PORT, port).apply()
+    }
+
+    private companion object {
+        const val PREFS_NAME = "remote_service_prefs"
+        const val KEY_SERVICE_PORT = "service_port"
     }
 }
