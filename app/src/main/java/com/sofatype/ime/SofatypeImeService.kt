@@ -53,6 +53,10 @@
 // RemoteBackPolicy 纯模型，单测锁定）——已连接态只收起键盘窗口保活（服务 / 会话 / 远程
 // 缓冲 / 连接代号全保持、手机端无感知，重入沿 T17 路径自动回远程模式）；未连接态维持
 // 既有 exitRemoteMode() 完整清理退出；键盘态分支不变。见 dispatchKeyDown BACK 分支。
+// T76 接线（焦点保持口径 · 决策 50/62）：远程大字区装载滚动改 smoothScrollTo 纯滚动
+//（目标偏移收口 RemoteTextScrollTarget 纯模型，单测锁定），废止 fullScroll(FOCUS_DOWN)
+// 对「退出远程」按钮焦点的连带夺取（T74 坑 2）——上屏后按钮焦点保持可触发，OK 一击
+// 完整退出远程。见 renderRemoteText。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -79,6 +83,7 @@ import com.sofatype.ime.debug.DebugLogStore
 import com.sofatype.ime.remote.RemoteBackPolicy
 import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
+import com.sofatype.ime.remote.RemoteTextScrollTarget
 import com.sofatype.pinyin.PinyinEngine
 import timber.log.Timber
 
@@ -137,6 +142,9 @@ class SofatypeImeService : InputMethodService() {
 
         /** 上档键容器内下划线条视图 tag（触发态可见性刷新用，T65 · 决策 47-①）。 */
         const val SHIFT_BAR_TAG = "shift_bar"
+
+        /** 「退出远程」按钮焦点 tag（T76 取证判读：trace 焦点行区分按钮持焦与被夺形态）。 */
+        const val REMOTE_EXIT_TAG = "remote_exit"
     }
 
     /**
@@ -366,8 +374,12 @@ class SofatypeImeService : InputMethodService() {
         remoteTextScroll = root.findViewById(R.id.remote_text_scroll)
         remoteTextView = root.findViewById(R.id.remote_text)
         // T17 「退出远程」按钮（FR-B3 / 决策 33）：文案与无障碍标注、可聚焦（远程模式内唯一焦点件）、
-        // OK 触发（onKeyDown 确认键统一 performClick）接既有 stop 链路（FR-B7 完整清理语义仍归 T18）
+        // OK 触发（onKeyDown 确认键统一 performClick）接既有 stop 链路（FR-B7 完整清理语义仍归 T18）。
+        // T76：补焦点 tag（REMOTE_EXIT_TAG）——ImeKeyTrace 焦点行从此可区分「按钮持焦
+        //（focus=remote_exit）」与「焦点被滚动容器夺走（focus=null，T74 坑 2 取证形态）」，
+        // 仅取证判读用途；DPAD 路径未知 tag 走格网查表空表 no-op，行为无影响。
         remoteExitButton?.apply {
+            tag = REMOTE_EXIT_TAG
             text = RemoteUiText.EXIT_BUTTON_LABEL
             contentDescription = RemoteUiText.EXIT_BUTTON_DESCRIPTION
             isFocusable = true
@@ -651,9 +663,21 @@ class SofatypeImeService : InputMethodService() {
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
         )
         textView.text = spannable
-        // 折行内容超出显示区高度时纵向滚动保持末尾（决策 31）：装载后滚动到底（光标恒可见）
-        val scroll = remoteTextScroll
-        scroll?.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        // 折行内容超出显示区高度时纵向滚动保持末尾（决策 31）：装载后滚动到底（光标恒可见）。
+        // T76（焦点保持口径）：滚动走 smoothScrollTo 纯滚动、不再走 fullScroll(FOCUS_DOWN)——
+        // ScrollView.fullScroll 会顺带执行焦点查找，大字区内无可聚焦子项时把焦点移给滚动容器
+        // 自身，「退出远程」按钮焦点被夺走（T74 坑 2），OK 到达时 performClick 无目标，
+        // 「上屏后直接 OK 退出远程」路径失效。装载滚动全程不触碰焦点树，按钮焦点保持可触发
+        //（决策 50 / 62：上屏后直接 OK 一击完整退出）；目标偏移经 RemoteTextScrollTarget
+        // 纯模型计算（未溢出归 0 不滚动）。
+        val scroll = remoteTextScroll ?: return
+        scroll.post {
+            val bottom = RemoteTextScrollTarget.bottomOffset(
+                contentHeightPx = scroll.getChildAt(0)?.height ?: 0,
+                viewportHeightPx = scroll.height,
+            )
+            if (bottom > 0) scroll.smoothScrollTo(0, bottom)
+        }
     }
 
     /**
