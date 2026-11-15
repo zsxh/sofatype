@@ -238,3 +238,9 @@ adb shell getprop ro.product.cpu.abilist
 
 **修复验证（2026-11-13，T54 真机复验批次）**：修复包（`805d894`，sha256 f15b70c5…d4eb232）上本坑缺陷形态**零复现**——tap 按钮→BACK 收起后单发 DPAD/OK/BACK 全部宿主语义响应（焦点移动／UpdateCheck 双日志／退出设置页）、ImeKeyTrace 零劫持行、`mShowRequested` 恒 false、无自发 onStartInputView；主链＋[完成] 收起路径＋收起→再弹循环全过。**勘误（经本轮 dump 实证更正，2026-11-13）**：上文「tap 按钮使焦点转移」表述不准确——真机主卡按钮 tap 一击激活且视图焦点不离开 test_input（dump 在案），劫持机制应归会话／键路由层变化，非视图焦点转移。收起沿焦点回编辑框后无自动弹回（坑 18 家族风险观测 0/3）。
 
+### 坑 24：`adb shell reboot -p` 不关机，等同重启（2026-11-14，户主指令关机实测）
+
+**现象**：户主指令关机真机，`adb shell reboot -p` 执行后设备未关机：实测等同一次重启，设备回到在线状态。该机型无 adb 关机通道。
+
+**处置**：真机关机改由户主遥控执行；agent 不再尝试 `reboot -p` 关机。
+
