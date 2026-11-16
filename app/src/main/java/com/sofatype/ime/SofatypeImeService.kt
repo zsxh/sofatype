@@ -85,6 +85,7 @@ import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.sofatype.ime.debug.DebugLogStore
 import com.sofatype.ime.remote.RemoteBackPolicy
 import com.sofatype.ime.remote.RemoteInputServer
@@ -641,7 +642,9 @@ class SofatypeImeService : InputMethodService() {
     /**
      * 进入远程模式（FR-B2 · 决策 32/33）：引导卡主按钮触发——启动服务（随机端口 + 签发 token）；
      * 成功后 Manager 经 onPairingStateChanged 通知本层切远程模式（副卡切配对卡 / 主卡切远程框架）。
-     * 失败（如端口分配失败）保持键盘态引导卡，不崩溃不阻塞宿主（可靠性口径）。
+     * 失败（如端口分配失败）保持键盘态引导卡，不崩溃不阻塞宿主（可靠性口径）；
+     * 失败弹系统 Toast 提示（T79 · 决策 65：不再静默；文案走通用资源，零失败原因细节——
+     * reason 可能含配对地址与 token，不得上屏暴露，隐私红线）。
      */
     private fun enterRemoteMode() {
         trace("remote enter requested")
@@ -650,6 +653,7 @@ class SofatypeImeService : InputMethodService() {
             // 只记失败事件，不记任何输入内容（隐私红线）；成功路径 start() 内已同步触发
             // onPairingStateChanged → renderRemoteUi（切远程模式 / 副卡切配对卡）
             trace("remote enter failed: ${result.reason}")
+            Toast.makeText(this, R.string.remote_start_failed_hint, Toast.LENGTH_SHORT).show()
         }
     }
 

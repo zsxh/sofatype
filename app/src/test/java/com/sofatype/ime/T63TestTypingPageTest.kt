@@ -1,5 +1,6 @@
 // T63 · 测试打字独立页守卫单测（docs/PRD_20261112.md FR-D1）：
-// ① 门控纯决策（TestTypingGate）：决策 21「仅 debug 构建显示」沿用口径锁定（核对记录见类注释）；
+// ① 门控纯决策（TestTypingGate）：~~决策 21「仅 debug 构建显示」沿用口径锁定~~（→ 被 T79 ·
+//    决策 65 取代：「debug / release 均显示」口径锁定，核对记录见 TestTypingGate）；
 // ② 布局扫描：设置页调试区移除 + 第三行「测试打字」入口（样式与检查更新同款 + 无障碍标注）；
 //    测试打字页三件套与底部提示落位、全部可交互元素标注齐全；
 // ③ 清单扫描：测试打字页无 intent-filter（无 LAUNCHER 入口，不从桌面可达）+ adjustResize 检测通道；
@@ -46,12 +47,15 @@ class T63TestTypingPageTest {
         return layoutText.substring(start, end + 1)
     }
 
-    // ── ① 门控纯决策（决策 21 沿用口径：现行调试区实现 = BuildConfig.DEBUG 可见性）──
+    // ── ① 门控纯决策（T79 · 决策 65：debug / release 均显示；原决策 21 仅 debug 口径废止）──
 
     @Test
-    fun `门控纯决策为debug构建显示三件套`() {
-        assertTrue("debug 构建须显示测试三件套（决策 21 沿用）", TestTypingGate.contentVisible(true))
-        assertFalse("release 构建须隐藏测试三件套（决策 21 沿用）", TestTypingGate.contentVisible(false))
+    fun `门控纯决策为debug与release均显示三件套`() {
+        assertTrue("debug 构建须显示测试三件套", TestTypingGate.contentVisible(true))
+        assertTrue(
+            "release 构建须显示测试三件套（T79 · 决策 65：原仅 debug 门控放开）",
+            TestTypingGate.contentVisible(false),
+        )
     }
 
     // ── ② 布局扫描：设置页 ──
@@ -112,9 +116,10 @@ class T63TestTypingPageTest {
             "测试打字页底部提示须落位（画板 9：调试走查页 · 由设置页「测试打字」进入）",
             testTypingLayout.contains("@string/test_hint"),
         )
-        // 门控缺省态：三件套默认 GONE，debug 由 Activity 置 VISIBLE（release 整体隐藏）
+        // 门控缺省态：三件套默认 GONE，由 Activity 经 TestTypingGate 置 VISIBLE
+        //（T79 · 决策 65 起 debug / release 一致置 VISIBLE）
         val content = viewBlock(testTypingLayout, "test_typing_content")
-        assertTrue("三件套容器须默认 gone（决策 21 门控基线）", content.contains("android:visibility=\"gone\""))
+        assertTrue("三件套容器须默认 gone（门控基线，由 Activity 置 VISIBLE）", content.contains("android:visibility=\"gone\""))
     }
 
     // ── ③ 清单扫描：无 LAUNCHER 入口 ──
@@ -158,7 +163,7 @@ class T63TestTypingPageTest {
     fun `测试打字页门控与三件套接线落源码`() {
         val activity = mainSource("TestTypingActivity.kt")
         assertTrue(
-            "门控须走 TestTypingGate 纯决策（决策 21 沿用口径单点维护）",
+            "门控须走 TestTypingGate 纯决策（单点维护，T79 · 决策 65 口径）",
             activity.contains("TestTypingGate.contentVisible(BuildConfig.DEBUG)"),
         )
         assertTrue(

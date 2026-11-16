@@ -1,5 +1,6 @@
 // T77 · 测试打字页双输入框表单守卫单测（docs/issues/open/T77.md，Round 1）：
-// ① 布局扫描：test_input_2 存在于 test_typing_content 门控容器（决策 21：release 整体 GONE）、
+// ① 布局扫描：test_input_2 存在于 test_typing_content 门控容器（~~决策 21：release 整体 GONE~~
+//    → T79 · 决策 65：debug / release 一致显示）、
 //    声明序在 test_input 之后（首框在前，既有三件套语义与扫描口径不回归）、规格与 test_input
 //    同 Token 体系、hint / contentDescription / importantForAccessibility 无障碍标注齐备
 //    且走 strings 资源（不硬编码中文于布局）；
@@ -51,7 +52,7 @@ class T77DualInputFormTest {
             inputIdx >= 0 && inputIdx < input2Idx,
         )
         assertTrue(
-            "test_input_2 须位于 test_typing_content 容器内（决策 21 门控承载，release 整体 GONE）",
+            "test_input_2 须位于 test_typing_content 容器内（T79 · 决策 65：debug / release 一致显示）",
             contentIdx >= 0 && hintIdx > contentIdx && input2Idx in (contentIdx + 1) until hintIdx,
         )
     }

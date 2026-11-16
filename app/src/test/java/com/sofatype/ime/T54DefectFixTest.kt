@@ -3,7 +3,8 @@
 //    （会话保活），且仅在可见性跳变沿执行；接管决策语义修订以纯函数四象限锁定
 //    （SettingsFocusTakeoverTest）；本文件锁接线与禁区。
 // ② T62（IC 输出黑洞，设备档案坑 22）：输入法切换广播接收接线（restartInput 重建会话）
-//    + onDestroy 注销（零残留）+ debug 门控（release 设置页无输入框）。
+//    + onDestroy 注销（零残留）+ 门控块接线（~~release 设置页无输入框~~ → 被 T79 · 决策 65
+//    取代：debug / release 均接线，release 也有输入框、黑洞面存在）。
 // T63（docs/PRD_20261112.md）：调试三件套迁入独立测试打字页，T54 接线与 T62 接线承载面
 // 随迁——扫描目标由 SettingsActivity 改为 TestTypingActivity（pre-IME 分路设置页保留项
 // 与 IME 服务禁区不变）。
@@ -103,14 +104,14 @@ class T54DefectFixTest {
     }
 
     @Test
-    fun `T62 接线须在 debug 门控内且随窗口注销`() {
+    fun `T62 接线须在门控块内且随窗口注销`() {
         // T63：扫描目标 = TestTypingActivity（接线承载面随调试区迁移）
         val debugIdx = carrier.indexOf("TestTypingGate.contentVisible(BuildConfig.DEBUG)")
         // 门控块之后的代码级接线（绕过类头注释中的 action 文字说明）
         val imeIdx = carrier.indexOf("Intent.ACTION_INPUT_METHOD_CHANGED)", debugIdx)
-        assertTrue("debug 门控块存在（决策 21 沿用口径，TestTypingGate 承载）", debugIdx >= 0)
+        assertTrue("门控块存在（TestTypingGate 承载，T79 · 决策 65 起 debug / release 均放行）", debugIdx >= 0)
         assertTrue(
-            "T62 广播接线须在 debug 门控内（release 页无输入框，黑洞面不存在）",
+            "T62 广播接线须在门控块内（T79 · 决策 65：release 同样接线生效——release 也有输入框，黑洞面存在）",
             imeIdx > debugIdx,
         )
         assertTrue(

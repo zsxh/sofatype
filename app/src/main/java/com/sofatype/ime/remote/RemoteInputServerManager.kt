@@ -289,14 +289,11 @@ object RemoteInputServerManager {
 
     /**
      * 启动服务：解析默认路由 IPv4 → 随机端口绑定 → 签发一次性 token → 进入监听。
-     * 仅 debug 构建可用（决策 21 口径）；release 返回 Failed，不做任何动作。
+     * debug 与 release 构建均可用（T79 · 决策 65：release 门控放开）。
      * 失败只返回结果，不抛异常（第 8 章可靠性：不得影响 IME 进程）。
      * 显式启动 = 新的会话意图：清除退出标记（网络重建路径走 [startInternal]，不清标记）。
      */
     fun start(context: Context): RemoteInputServer.StartResult {
-        if (!BuildConfig.DEBUG) {
-            return RemoteInputServer.StartResult.Failed("远程输入服务启动入口仅 debug 构建可用（决策 21）")
-        }
         synchronized(this) {
             exitRequested = false
         }

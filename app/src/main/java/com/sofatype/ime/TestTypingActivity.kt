@@ -1,6 +1,7 @@
 // T63 · FR-D1 本批次（docs/PRD_20261112.md）：独立测试打字页。
 // 自设置页顶部调试走查区整体迁入三件套（测试输入框 + 填入示例文本 + 全选），
-// 门控沿用决策 21（BuildConfig.DEBUG 可见性，核对记录见 TestTypingGate 与 issue T63）。
+// ~~门控沿用决策 21（BuildConfig.DEBUG 可见性，核对记录见 TestTypingGate 与 issue T63）~~
+//（→ 被 T79 · 决策 65 取代：门控放开，debug / release 一致显示，口径见 TestTypingGate）。
 // T54 Round 2 机制随迁（原接线在 SettingsActivity debug 块，承载面随调试区移至本页）：
 // - pre-IME 键分路（SettingsRootView + SettingsKeyRouter）：键盘显示态透传 IME，
 //   隐藏态按宿主语义路由——方向键=FocusFinder 焦点搜索、OK=焦点控件激活（EditText 分流
@@ -53,7 +54,8 @@ class TestTypingActivity : Activity() {
         setContentView(R.layout.activity_test_typing)
 
         val content = findViewById<View>(R.id.test_typing_content)
-        // 决策 21 门控沿用（T63 迁移，口径见 TestTypingGate）：测试三件套仅 debug 构建显示
+        // T79 · 决策 65 门控放开（口径见 TestTypingGate；原决策 21 仅 debug 口径废止）：
+        // 测试三件套 debug / release 均显示
         if (TestTypingGate.contentVisible(BuildConfig.DEBUG)) {
             content.visibility = View.VISIBLE
             val input = findViewById<EditText>(R.id.test_input)
@@ -111,8 +113,8 @@ class TestTypingActivity : Activity() {
             // T62 · IC 输出黑洞修复（docs/issues/open/T62.md，设备档案坑 22）机制原样迁入：
             // default_input_method 被夺回后 `ime set` 切回会重启 IME 服务实例，既有输入会话的
             // IC 输出不落宿主输入框。修复 = 监听输入法切换系统广播，收到即 restartInput
-            // 重建输入会话（新 IC），输出恢复落框。仅 debug 接线（三件套为 debug 门控，
-            // release 页无输入框、黑洞面不存在）。
+            // 重建输入会话（新 IC），输出恢复落框。debug / release 均接线（T79 · 决策 65：
+            // 三件套两构建均显示，release 也有输入框、黑洞面存在）。
             val imeChangedFilter = IntentFilter(Intent.ACTION_INPUT_METHOD_CHANGED)
             imeChangedReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {

@@ -92,6 +92,9 @@
     <string name="log_settings_hint">OK 切换开关 · 左右键调档 · BACK 返回设置</string>
     <string name="log_viewer_hint">上下键滚动 · 焦点在按钮时 OK 刷新 / 清空 · 清空需确认 · BACK 返回日志设置</string>
 
+    <!-- 远程输入启动失败 Toast（T79 · 决策 65：启动失败用户可见反馈，不再静默；通用文案零输入内容与敏感信息） -->
+    <string name="remote_start_failed_hint">远程输入启动失败，请稍后重试</string>
+
     <!-- 输入法（T5：键面文字与无障碍标注由 KeyboardLayout 模型承载，系统输入法列表 label 走资源） -->
     <string name="ime_service_label">sofatype 输入法</string>
 </resources>
