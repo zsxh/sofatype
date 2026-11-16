@@ -57,6 +57,12 @@
 //（目标偏移收口 RemoteTextScrollTarget 纯模型，单测锁定），废止 fullScroll(FOCUS_DOWN)
 // 对「退出远程」按钮焦点的连带夺取（T74 坑 2）——上屏后按钮焦点保持可触发，OK 一击
 // 完整退出远程。见 renderRemoteText。
+// T78 接线（决策 64 · 保活重显沿焦点策略）：保活收起沿（BACK HIDE_KEEP_ALIVE 分支）暂抑
+//「退出远程」聚焦性并经 RemoteReentryFocusPolicy 纯模型（单测锁定）标记重显沿——宿主切框
+// 沿 show 自动重显时默认焦点不落「退出远程」键（首发 OK 不误杀会话，设备档案坑 25；落窗沿
+// 框架会对触屏模式首个可聚焦视图自动赋焦且时机在框架内部，不可聚焦是结构性保证）；显式唤起
+// 沿（隐藏态确认键 requestShowSelf）恢复聚焦性并清除标记，维持决策 50-① 默认持焦；无焦点态
+// 下任一 DPAD 方向键导航到「退出远程」（FR-B7 显式退出通道可达）；远程模式退出沿复位标记。
 package com.sofatype.ime
 
 import android.inputmethodservice.InputMethodService
@@ -83,6 +89,7 @@ import com.sofatype.ime.debug.DebugLogStore
 import com.sofatype.ime.remote.RemoteBackPolicy
 import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
+import com.sofatype.ime.remote.RemoteReentryFocusPolicy
 import com.sofatype.ime.remote.RemoteTextScrollTarget
 import com.sofatype.pinyin.PinyinEngine
 import timber.log.Timber
@@ -184,6 +191,24 @@ class SofatypeImeService : InputMethodService() {
      * 窗口状态判定抽为纯 Kotlin 类，边界语义由 ImeShowGuardTest 锁定）。
      */
     private val showGuard = ImeShowGuard(SHOW_GUARD_MS, WAKE_GUARD_MS)
+
+    /**
+     * T78 · 决策 64：保活收起后自动重显沿默认焦点决策（纯 Kotlin 状态机，
+     * 转移语义由 RemoteReentryFocusPolicyTest 锁定）——保活重显沿无默认焦点（首发 OK 不命中
+     * 「退出远程」）；首次进入 / 显式唤起沿维持决策 50-① 默认持焦。接线见 dispatchKeyDown
+     * BACK 分支 / 隐藏态确认键分支 / onStartInputView 远程分支 / renderMainCardMode 退出沿。
+     */
+    private val remoteReentryFocusPolicy = RemoteReentryFocusPolicy()
+
+    /**
+     * T78 · 决策 64：「退出远程」按钮聚焦性暂抑标记。保活收起沿置为不可聚焦（远程模式唯一
+     * focusableInTouchMode 件）——框架在落窗沿会对触屏模式首个可聚焦视图自动赋焦
+     *（模拟器 tap 通道实测在案，赋值时机晚于即时 clearFocus 且在框架内部），不可聚焦使
+     * 「重入渲染默认焦点不落退出键」成为结构性保证，与输入通道 / 时序无关。恢复点：
+     * onStartInputView 默认持焦分支（首次进入 / 显式唤起沿）、DPAD 无焦点导航分支、
+     * renderMainCardMode 模式转换沿（进入远程 / 回键盘），恢复前 requestFocus 前置。
+     */
+    private var remoteExitFocusSuppressed = false
 
     /**
      * T38 · 输入窗可见性自跟踪：onWindowShown 在 API 34 会话更新时重复回调（非跳变沿），
@@ -580,6 +605,8 @@ class SofatypeImeService : InputMethodService() {
             resetCandidatePageState()
             if (prevMode != RemoteMode.REMOTE) {
                 trace("remote mode -> REMOTE（status=${state.status}）")
+                // T78 · 决策 64：进入远程沿恢复聚焦性（防御：上一保活周期暂抑残留；幂等）
+                restoreRemoteExitFocusability()
                 keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
             }
         } else {
@@ -587,6 +614,11 @@ class SofatypeImeService : InputMethodService() {
             remoteBottomHint?.visibility = View.GONE
             if (prevMode == RemoteMode.REMOTE) {
                 trace("remote mode -> KEYBOARD")
+                // T78 · 决策 64：远程模式退出沿复位保活重显标记（BACK 未连接退出 / 按钮 / 超时
+                // 自退共用此沿）——防陈旧标记跨越完整远程生命周期，吞掉下次进入的默认持焦；
+                // 聚焦性暂抑成对恢复。
+                remoteReentryFocusPolicy.reset()
+                restoreRemoteExitFocusability()
                 keyArea?.visibility = View.VISIBLE
                 // 候选栏内容按当前模式与组合态重算（空态占位恒在 + 展开行回收；键区几何静态恒定，
                 // 决策 42 起键区上边距为布局静态值，无运行期顶距切换）
@@ -758,6 +790,8 @@ class SofatypeImeService : InputMethodService() {
      * T17：远程模式运行中（键盘重建补渲染 / 切换输入框重连）——候选栏保持隐藏
      *（远程模式显隐由 renderRemoteUi 驱动，此处不重算，防空候选栏顶低状态行），
      * 焦点落「退出远程」按钮（远程模式唯一可聚焦元素，FR-B3）；服务未运行走键盘态常规路径。
+     * T78 · 决策 64：保活收起后的宿主自发重显沿例外——默认焦点不落「退出远程」键
+     *（RemoteReentryFocusPolicy 裁决，首发 OK 不误杀会话）；显式唤起沿默认持焦不变。
      */
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
@@ -771,12 +805,47 @@ class SofatypeImeService : InputMethodService() {
         // T38 诊断：输入会话起点（restarting 标记只记结构信息）
         trace("onStartInputView restarting=$restarting")
         if (RemoteInputServerManager.isRunning()) {
-            keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
+            // T78 · 决策 64：保活收起后的宿主自发重显沿（切框 show 请求，T17 路径）默认焦点
+            // 不落「退出远程」键——首发 OK 不触发退出，会话 / 缓冲 / 连接代号全程保持；
+            // 显式唤起沿（唤醒护栏已清除标记）与首次进入沿维持决策 50-① 默认持焦。
+            // 无焦点态下「退出远程」仍可 DPAD 导航到达（dispatchKeyDown 方向键分支，FR-B7）。
+            when (remoteReentryFocusPolicy.resolveOnShow()) {
+                RemoteReentryFocusPolicy.ReentryFocus.NONE ->
+                    // 保活重显沿：默认焦点不落「退出远程」（按钮不可聚焦，框架无从赋焦）
+                    trace("onStartInputView keep-alive re-entry -> no default focus（决策 64）")
+                RemoteReentryFocusPolicy.ReentryFocus.EXIT_BUTTON -> {
+                    restoreRemoteExitFocusability()
+                    keyboardView?.post { remoteExitButton?.requestFocus(View.FOCUS_DOWN) }
+                }
+            }
             return
         }
         refreshCandidatesBar()
         keyboardView?.post {
             keyViews[navigator.initialKey()]?.requestFocus()
+        }
+    }
+
+    /**
+     * T78 · 决策 64：恢复「退出远程」按钮可聚焦（幂等）。恢复点 = 默认持焦分支（首次进入 /
+     * 显式唤起沿）、DPAD 无焦点导航分支、renderMainCardMode 模式转换沿；收起沿暂抑成对。
+     */
+    private fun restoreRemoteExitFocusability() {
+        if (!remoteExitFocusSuppressed) return
+        remoteExitFocusSuppressed = false
+        remoteExitButton?.apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+        }
+    }
+
+    /** T78 · 决策 64：暂抑「退出远程」按钮可聚焦（保活收起沿接线；先清焦点再摘聚焦性）。 */
+    private fun suppressRemoteExitFocusability() {
+        keyboardView?.findFocus()?.clearFocus()
+        remoteExitFocusSuppressed = true
+        remoteExitButton?.apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
         }
     }
 
@@ -835,8 +904,14 @@ class SofatypeImeService : InputMethodService() {
                     }
                     RemoteBackPolicy.Action.HIDE_KEEP_ALIVE -> {
                         // 远程模式无组合态，不涉及 finishComposition（与键盘态 BACK 收起唯一差异）；
-                        // BACK 路径不开抑制窗（hideSelfAfterKeyDispatch 注释既有口径，直接收起）
+                        // BACK 路径不开抑制窗（hideSelfAfterKeyDispatch 注释既有口径，直接收起）。
                         trace("remote keep-alive hide via BACK")
+                        remoteReentryFocusPolicy.onKeepAliveHide()
+                        // T78 · 决策 64：收起沿暂抑「退出远程」聚焦性（含清焦点）——宿主切框沿
+                        // show 自动重显（T17 路径）时默认焦点不落「退出远程」键，首发 OK 不误杀
+                        // 会话（设备档案坑 25 缺陷链修复，方向 B）：焦点若不清除，视图树在收起
+                        // 期间保留按钮持焦；聚焦性若不摘除，落窗沿框架触屏工件仍会自动赋焦。
+                        suppressRemoteExitFocusability()
                         requestHideSelf(0)
                         return true
                     }
@@ -877,6 +952,13 @@ class SofatypeImeService : InputMethodService() {
                         currentId.isCandidateId() -> handleCandidateRowDirection(currentId, direction)
                         else -> handleKeyboardDirection(currentId, direction)
                     }
+                } else if (RemoteInputServerManager.isRunning()) {
+                    // T78 · 决策 64：保活重显无默认焦点态下任一方向键 = 导航到「退出远程」
+                    //（远程模式唯一可聚焦元素，显式退出通道 FR-B7 可达性不回归）；
+                    // 键盘态（服务未运行）无焦点维持既有 no-op 不变。
+                    restoreRemoteExitFocusability()
+                    trace("focus null $direction -> remote_exit（保活重显无焦点态导航）")
+                    remoteExitButton?.requestFocus(View.FOCUS_DOWN)
                 }
             }
             return true
@@ -895,6 +977,12 @@ class SofatypeImeService : InputMethodService() {
                 // 抑制窗，本键已吞无转发副本，其后第二发确认键被 wake guard 吞一次（T38
                 // 真机复验既有语义）。
                 if (!isInputViewShown()) {
+                    // T78 · 决策 64：显式唤起路径（唤醒护栏）清除保活重显标记——决策 50-①
+                    // 「显式唤起『退出远程』键仍默认持焦（OK 一击即退）」条款不变（T74 真机
+                    // 轮 2/3 已验证路径零回归）；保活重显标记只服务宿主自发 show 沿。
+                    // 聚焦性暂抑同步恢复（重显沿默认持焦分支的前置条件）。
+                    restoreRemoteExitFocusability()
+                    remoteReentryFocusPolicy.onExplicitWake()
                     trace("onKeyDown keyCode=$keyCode swallowed（输入窗隐藏态）-> requestShowSelf")
                     requestShowSelf(0)
                     return true
