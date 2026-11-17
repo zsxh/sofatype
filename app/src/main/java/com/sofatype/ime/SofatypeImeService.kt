@@ -1046,6 +1046,19 @@ class SofatypeImeService : InputMethodService() {
                 execute(letterKey)
                 return true
             }
+            // T80（户主拍板 2026-11-16）· FR-A9 数字统一口径：硬件数字键码（KEYCODE_0-9，含 adb
+            // 注入通道）与网格数字键 OK 同路走 execute——框架默认直写不进组，数字插在组合区之后
+            // 且 composer 不同步（组合态 × 数字失同步，T80 实测 4 项：顺序错乱 nie5、旧拼音复活、
+            // 删除反长、光标锚死）。映射到对应数字键后经 execute 直出分支：组合态先终结组合串
+            // 再直出数字（"ni" + 5 → "ni5"，拍板语义），无组合态与框架直写等价。守卫条件与上方
+            // T45 字母拦截完全同构（同一 if 块）；英文模式 / 符号键盘 / 远程模式 / 输入窗隐藏
+            // 维持框架直写，口径不变。KEYCODE_SPACE（62）不在 digitIdForKeyCode 映射内，
+            // R-2 空格键面语义另行评估（T80 本轮不动空格键码）。
+            val digitKey = KeyboardLayout.digitIdForKeyCode(keyCode)?.let { KeyboardLayout.keyById[it] }
+            if (digitKey != null) {
+                execute(digitKey)
+                return true
+            }
         }
         return super.onKeyDown(keyCode, ev)
     }
@@ -1061,6 +1074,8 @@ class SofatypeImeService : InputMethodService() {
      * T45（T27 缺陷 B 同族）：字母键码 UP 同样一律消费——DOWN 已在 [dispatchKeyDown] 拦截入组，
      * 孤儿 UP 经框架转发路径直写宿主文本会与组合串并存（真机实测组合「e」+直落「e」双写，
      * qa r2-b.xml「额额e」）；UP 在按键语义上无独立文本效应，消费无副作用。
+     * T80：数字键码（KEYCODE_0-9）UP 同口径消费——中文模式显示态 DOWN 已拦截走 execute
+     *（数字统一口径），孤儿 UP 直写宿主有双写风险；隐藏态透传对称（T59 口径同族）。
      * 真机补充实证（Round 3 指纹实验，2026-11-09）：motion 触摸点击（input tap）命中字母键
      * 同样经 click → execute 入组且无 onKeyDown 行（fromKey=false 装载行首行数可指纹区分被
      * tap 的键：'a'=9 / 'e'=10），属触摸输入通道设计行为，非状态缺陷。
@@ -1079,6 +1094,13 @@ class SofatypeImeService : InputMethodService() {
             // T59（户主拍板 2026-11-11）：隐藏态字母 UP 透传对称——隐藏态 DOWN 已透传宿主
             //（T45 拦截分支含 isInputViewShown 门控，隐藏态未入组），UP 同样透传宿主，
             // 消除 DOWN/UP 分裂派发。
+            return true
+        }
+        if (event != null && KeyboardLayout.digitIdForKeyCode(keyCode) != null && isInputViewShown()) {
+            // T80：数字键码 UP 与字母 UP 同款口径（T45/T59 对称）——中文模式显示态 DOWN 已在
+            // [dispatchKeyDown] 拦截走 execute（数字统一口径），孤儿 UP 经框架转发直写宿主有双写
+            // 风险；UP 无独立文本效应，消费无副作用。隐藏态 DOWN 未拦截（守卫含显示态门控），
+            // UP 同样透传宿主，消除 DOWN/UP 分裂派发。
             return true
         }
         return super.onKeyUp(keyCode, event)
@@ -1602,6 +1624,19 @@ class SofatypeImeService : InputMethodService() {
                     updateComposingText()
                     refreshCandidatesBar()
                 } else {
+                    // T80（户主拍板 2026-11-16）：字母键盘 × 中文模式 × 非字母直出键（数字列 /
+                    // .com / @）先终结组合态再直出——组合串原样上屏（finishComposition 既有语义：
+                    // setComposingText + finishComposingText 剥离切分符 + composer 复位），数字紧随
+                    // 其后直出（组合 "ni" 按 5 → 正文 "ni5"）。不终结时框架 commitText 语义是替换
+                    // 当前组合区文本：拼音被吞、composer 残留幻影组合串（后续字母复活、删除反长），
+                    // 网格 OK 与拦截后的硬件数字键码两通道同走本分支，修一处两通道同治。
+                    // 终结后候选栏同步清空（refreshCandidatesBar 按 composer 空态清 chips，与
+                    // moveCursor 落定路径同口径）；英文模式 / 符号键盘 / 无组合态不进本分支
+                    //（空组合终结为无操作，行为不变）。
+                    if (languageMode == LanguageMode.CHINESE && composer.composition.isNotEmpty()) {
+                        finishComposition()
+                        refreshCandidatesBar()
+                    }
                     commitText(KeyboardLayout.outputValue(key, caseState))
                 }
             }

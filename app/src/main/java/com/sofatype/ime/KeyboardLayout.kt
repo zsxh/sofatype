@@ -314,6 +314,19 @@ object KeyboardLayout {
     }
 
     /**
+     * 硬件数字键码 → 数字键 id（T80 · FR-A9 统一口径）：KEYCODE_0(7)..KEYCODE_9(16) 映射
+     * "digit_0".."digit_9"，与数字列键 id 同名；非数字键码返回 null（字母/空格/确认键/删除
+     * 等不在此映射，T45/T48 拦截口径不变）。键码用字面量保持本模型无 Android 依赖
+     *（KEYCODE_0=7 / KEYCODE_9=16 为 android.view.KeyEvent 自 API 1 起的稳定常量）。
+     * 服务层据此把硬件数字键事件接入与网格 OK 相同的 execute 路径——框架默认直写不进组：
+     * 数字插在组合区之后且 composer 不同步，组合态 × 数字混输失同步（T80 实测 4 项，2026-11-16）。
+     */
+    fun digitIdForKeyCode(keyCode: Int): String? {
+        if (keyCode < 7 || keyCode > 16) return null
+        return "digit_${keyCode - 7}"
+    }
+
+    /**
      * 键面文字（T66 · 决策 51-②/③ 修订决策 48-②「恒显大写」为仅中文模式）：
      * 中文模式字母键恒显大写形态（无 ⇧ 键位，大小写与键面无关）；英文模式键面随大小写
      * 输出状态——小写态键面小写、大写态键面大写；非字母键键面原样。
