@@ -1693,9 +1693,12 @@ class SofatypeImeService : InputMethodService() {
                     if (symbolsWidth == SymbolsWidth.FULL_WIDTH) SymbolsWidth.HALF_WIDTH
                     else SymbolsWidth.FULL_WIDTH
                 trace("symbolsWidth -> $symbolsWidth")
-                // T64：行步进窗口偏移跨全/半切换保留（两页同位语义，画板 10/11 两页各有下移态），
-                // 焦点回初始键（既有口径）
-                rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
+                // T64：行步进窗口偏移跨全/半切换保留（两页同位语义，画板 10/11 两页各有下移态）；
+                // T81：焦点保持 [全/半] 键（2026-11-17 户主拍板修订既有「焦点回初始键」口径，
+                // 与 [中/英] 键既有「焦点保持本键」接线同型）
+                rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = false)
+                // 焦点保持 [全/半] 键（键区重建后视图重建，该键两页恒存在）
+                keyViews[SymbolsLayout.TOGGLE_WIDTH_ID]?.requestFocus(View.FOCUS_DOWN)
             }
             // FR-A4 中/英切换 × T55（户主拍板 2026-11-11「模式切换键必须同时复位组合与候选」）
             // × T66 · 决策 51：中文 → 英文切换唯一路径 = 本键（决策 43-② 复位口径不变——组合串
