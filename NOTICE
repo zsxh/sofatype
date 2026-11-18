@@ -2,7 +2,9 @@
 
 SofaType 输入法 · 第三方数据说明
 
-本产品的拼音词库（`app` 模块 assets 内置的 `dict/pinyin_dict.bin`，SPD1 自有精简格式）
+本产品的拼音词库（`app` 模块 assets 内置的 `dict/pinyin_dict.bin` 全量产物与
+`dict/pinyin_dict_highfreq.bin` 高频子集产物，均 SPD1 自有精简格式，后者为前者按
+内建频次的子集，T85）
 由 AOSP 谷歌拼音词库在构建期转换生成（PRD 决策 28，2026-11-06；源文件入库条款经
 决策 29 同日修订）。
 

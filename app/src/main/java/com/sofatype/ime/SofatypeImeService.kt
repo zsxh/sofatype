@@ -92,7 +92,6 @@ import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.ime.remote.RemoteReentryFocusPolicy
 import com.sofatype.ime.remote.RemoteTextScrollTarget
-import com.sofatype.pinyin.PinyinEngine
 import timber.log.Timber
 
 // 「更多⌄」入口无障碍标注常量随 T66 · 决策 53 废止删除（FR-A15 展开 mechanism废止，
@@ -133,6 +132,9 @@ class SofatypeImeService : InputMethodService() {
         /** assets 内置拼音词库产物路径（T9 接线，决策 28/29）。 */
         const val DICT_ASSET_PATH = "dict/pinyin_dict.bin"
 
+        /** assets 内置拼音词库高频子集产物路径（T85 · 方向 C；词条按内建频次降序取前 4000，构建期同源生成）。 */
+        const val DICT_HIGH_FREQ_ASSET_PATH = "dict/pinyin_dict_highfreq.bin"
+
         /** 远程大字区末尾光标 Span 的锚点字符（\u00A0 不换行空格：不与末字折行拆开；宽度/绘制由 RemoteCursorSpan 提供，T33）。 */
         const val CURSOR_ANCHOR = "\u00A0"
 
@@ -168,6 +170,8 @@ class SofatypeImeService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         trace("onCreate")
+        // T85 · 方向 A：进程建立即后台预加载词库（高频子集先行），主线程零磁盘 IO
+        pinyinEngineLoader.startPreload()
     }
 
     /** 键位视图注册表：key id → 视图（焦点导航定位用），onCreateInputView 重建时清空重建。 */
@@ -280,16 +284,25 @@ class SofatypeImeService : InputMethodService() {
     private val composer = ChineseComposer(::queryPinyinCandidates)
 
     /**
-     * 拼音引擎（懒加载，首次查询触发）：读取 assets 内置 SPD1 产物（1.5 MB 量级，一次性成本）。
-     * 加载失败置 null，中文模式退化为无候选（组合串仍可经空格上屏，不崩溃不阻塞宿主，可靠性口径）。
+     * 拼音引擎分段预加载器（T85 · 方向 C+A）：onCreate 起专用后台线程先装高频子集（首键即用）、
+     * 再装全量并整体替换；主线程查询路径只读活动引擎（volatile），零磁盘 IO（StrictMode 口径）。
+     * 全部加载失败时引擎为 null，中文模式退化为无候选（组合串仍可经空格上屏，不崩溃不阻塞宿主，
+     * 可靠性口径不变）。
      */
-    private val pinyinEngine: PinyinEngine? by lazy {
-        try {
-            assets.open(DICT_ASSET_PATH).use { PinyinEngine.load(it) }
-        } catch (t: Throwable) {
-            Timber.tag(TRACE_TAG).w(t, "拼音词库加载失败，中文模式退化为无候选")
-            null
-        }
+    private val pinyinEngineLoader: PinyinEngineLoader by lazy {
+        PinyinEngineLoader(
+            openAsset = assets::open,
+            fullAssetPath = DICT_ASSET_PATH,
+            highFreqAssetPath = DICT_HIGH_FREQ_ASSET_PATH,
+            onEngineReady = { scope, entryCount ->
+                trace("pinyin engine ready scope=$scope entryCount=$entryCount")
+            },
+            onLoadFailure = { scope, error ->
+                trace("pinyin engine load failed scope=$scope reason=${error.javaClass.simpleName}")
+            },
+            // T87：失败恒记通道（任何变体与开关状态都写 logcat；DebugTree 常驻，成功路径不经过）
+            alwaysLog = { message -> Timber.tag(TRACE_TAG).w(message) },
+        )
     }
 
     // ---- 候选栏单行行内翻页（T66 · 决策 53，原 T11「更多⌄」展开行字段废止） ----
@@ -1800,9 +1813,9 @@ class SofatypeImeService : InputMethodService() {
         }
     }
 
-    /** 拼音候选查询（ChineseComposer 注入点）：接 :pinyin 真实词库引擎；引擎未就绪时无候选（降级不崩溃）。 */
+    /** 拼音候选查询（ChineseComposer 注入点）：读预加载器活动引擎；未就绪时无候选（降级不崩溃）。 */
     private fun queryPinyinCandidates(input: String): List<String> {
-        val engine = pinyinEngine ?: return emptyList()
+        val engine = pinyinEngineLoader.engineForQuery() ?: return emptyList()
         return engine.query(input, CANDIDATE_QUERY_LIMIT).map { it.word }
     }
 

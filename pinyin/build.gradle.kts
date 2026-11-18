@@ -44,6 +44,10 @@ tasks.withType<Test>().configureEach {
 val dictSourceFile = layout.projectDirectory.file("dictsrc/rawdict_utf16_65105_freq.txt")
 // 转换产物（自有精简格式 SPD1，入包：app assets 源目录指向 pinyin/assets/；构建产物不入库）
 val dictOutputFile = layout.projectDirectory.file("assets/dict/pinyin_dict.bin")
+// 高频子集产物（T85 · 方向 C：词条按内建频次降序取前 4000，音节表全量保留、词表紧缩重映射；
+// 与全量产物同源同时生成、同 SPD1 格式；构建产物不入库）
+val dictHighFreqOutputFile = layout.projectDirectory.file("assets/dict/pinyin_dict_highfreq.bin")
+val dictHighFreqEntryLimit = 4000
 
 // 构建期门禁：校验仓库内源文件存在且 sha256 与锁定值一致（PRD 决策 29：构建零网络，无下载逻辑）。
 // 无输出声明 → 每次构建都执行校验（3.5 MB 哈希约几十毫秒），源文件被改后立即暴露。
@@ -57,17 +61,23 @@ tasks.register<JavaExec>("verifyDict") {
     args(dictSourceFile.asFile.absolutePath)
 }
 
-// 构建期转换：UTF-16 源文本 → SPD1 精简格式产物。
+// 构建期转换：UTF-16 源文本 → SPD1 精简格式产物（全量 + 高频子集，同源一次生成）。
 // 输入输出声明：源文件与转换器版本未变且产物已存在时 up-to-date 跳过。
 tasks.register<JavaExec>("convertDict") {
     group = "sofatype"
-    description = "词库源文件构建期转换为 SPD1 精简格式（决策 28/29）"
+    description = "词库源文件构建期转换为 SPD1 精简格式（决策 28/29）+ 高频子集产物（T85 方向 C）"
     classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
     mainClass.set("com.sofatype.pinyin.tools.ConvertDictKt")
-    args(dictSourceFile.asFile.absolutePath, dictOutputFile.asFile.absolutePath)
+    args(
+        dictSourceFile.asFile.absolutePath,
+        dictOutputFile.asFile.absolutePath,
+        dictHighFreqOutputFile.asFile.absolutePath,
+        dictHighFreqEntryLimit.toString(),
+    )
     dependsOn("verifyDict") // 先过 sha256 门禁，再转换
     inputs.file(dictSourceFile)
     outputs.file(dictOutputFile)
+    outputs.file(dictHighFreqOutputFile)
 }
 
 // 一站式任务：校验源文件 + 转换产物

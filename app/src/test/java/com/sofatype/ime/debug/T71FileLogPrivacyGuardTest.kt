@@ -141,7 +141,9 @@ class T71FileLogPrivacyGuardTest {
         // ImeKeyTrace 结构行（SofatypeImeService）
         val ime = mainSource("SofatypeImeService.kt")
         assertTrue(ime.contains("Timber.tag(TRACE_TAG).d(message)"))
-        assertTrue(ime.contains("\"拼音词库加载失败，中文模式退化为无候选\""))
+        // T85 · 方向 C+A：词库失败日志点由 lazy 段内 Timber.w 迁移为加载器失败回调 trace（文案变更在此锁定）
+        assertTrue(ime.contains("trace(\"pinyin engine ready scope="))
+        assertTrue(ime.contains("trace(\"pinyin engine load failed scope="))
         assertTrue(ime.contains("\"远程上屏写入失败：\${t.javaClass.simpleName}\""))
         // 远程服务（TAG=RemoteInputServer 既有口径）
         val manager = mainSource("remote/RemoteInputServerManager.kt")

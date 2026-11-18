@@ -41,6 +41,7 @@ android {
     sourceSets {
         // T9（PRD 决策 28）：拼音词库 SPD1 转换产物入包 —— pinyin 模块的
         // assets/dict/pinyin_dict.bin 以 APK assets 形式内置（原始源文件不入库）。
+        // T85（方向 C）：同目录高频子集产物 pinyin_dict_highfreq.bin 一并入包。
         getByName("main") {
             assets.srcDir(rootDir.resolve("pinyin/assets"))
         }
