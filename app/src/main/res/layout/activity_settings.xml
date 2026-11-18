@@ -49,6 +49,54 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
+    <!-- T82 · 决策 66：默认输入法夺回检测横幅（夺回态可见；默认态 GONE 零新增零位移）。
+         显隐刷新接线在 SettingsActivity（onResume / 窗口焦点回归，ImeTakeoverPrompt 共用件）；
+         「一键选回」调 InputMethodManager.showInputMethodPicker()（公开 API 零权限）。 -->
+    <LinearLayout
+        android:id="@+id/ime_takeover_banner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="@dimen/takeover_margin_top"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/version_card_padding_h"
+        android:paddingTop="@dimen/takeover_padding_v"
+        android:paddingEnd="@dimen/version_card_padding_h"
+        android:paddingBottom="@dimen/takeover_padding_v"
+        android:visibility="gone">
+
+        <View
+            android:id="@+id/takeover_dot"
+            android:layout_width="@dimen/set_status_dot_size"
+            android:layout_height="@dimen/set_status_dot_size"
+            android:background="@drawable/bg_status_dot_error" />
+
+        <TextView
+            android:id="@+id/takeover_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/set_status_gap"
+            android:text="@string/takeover_hint"
+            android:textColor="@color/text_body"
+            android:textSize="@dimen/takeover_text_size" />
+
+        <Button
+            android:id="@+id/btn_recover_ime"
+            android:layout_width="@dimen/btn_width"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginStart="@dimen/btn_gap"
+            android:background="@drawable/bg_btn_accent"
+            android:contentDescription="@string/cd_btn_recover_ime"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:text="@string/btn_recover_ime"
+            android:textColor="@color/text_body"
+            android:textSize="@dimen/btn_text"
+            android:textStyle="normal" />
+    </LinearLayout>
+
     <!-- T63：原顶部 test_input_area 调试区（测试输入框 + 填入示例文本 + 全选）整体迁入
          activity_test_typing.xml，设置页不再承载调试区（FR-D1 本批次细项 2）。 -->
 

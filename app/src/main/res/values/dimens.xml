@@ -260,6 +260,15 @@
     <dimen name="log_hint_margin_top">415dp</dimen>
     <dimen name="log_viewer_hint_margin_top">474dp</dimen>
 
+    <!-- ═══ T82 · 决策 66 · 设置页夺回检测横幅（夺回态可见；默认态 GONE 零位移） ═══
+         横幅 = bg_card 卡片单行：错误态红点 + 提示文字 + 「一键选回」按钮（btn_* 既有 Token 复用）。
+         位置在面包屑下方空带：设置页 / 日志子页 64dp（下方内容 150dp / 180dp 起）；
+         查看日志页 42dp（操作行 84dp 起，带内唯一容位）。 -->
+    <dimen name="takeover_margin_top">64dp</dimen>
+    <dimen name="takeover_viewer_margin_top">42dp</dimen>
+    <dimen name="takeover_padding_v">4dp</dimen>
+    <dimen name="takeover_text_size">9.5sp</dimen>
+
     <!-- ═══ 连接代号胶囊（T72 · 决策 61，画板 RemoteConnected/PhoneRemote 20261114；1080p px ÷ 2 = dp/sp） ═══
          胶囊 = 官方标 icon + 「[类型]设备」+ 两位序号（两端同显，画板示例「微信设备 01」）：
          icon TV 22px / H5 18px（决策 61 户主两次加大）；胶囊内边距 1px 10px、圆角 8px、

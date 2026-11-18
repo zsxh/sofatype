@@ -27,6 +27,10 @@
 //（pre-IME 分路 BACK 分支；冷实例经 IME 隐藏态透传落到 Activity 默认 BACK）收敛到同一
 // BackExitGate 裁决（纯决策，单测锁定）：首击只在屏幕下方弹系统 Toast 提示「再按一次返回
 // 退出sofatype设置页」（文案 back_exit_hint）、不退出；2 秒窗口内再击直接退出；超窗重新计。
+// T82 · 决策 66 · B2 设置页检测引导（docs/issues/open/T82.md）：onResume / 窗口焦点回归读
+// Settings.Secure.DEFAULT_INPUT_METHOD（公开读取零权限），夺回态显示页面横幅提示 +
+// 「一键选回」调 showInputMethodPicker()（公开 API 零权限）；默认态横幅恒 GONE
+// （零新增提示、零行为变化）。接线共用件 ImeTakeoverPrompt（日志设置 / 查看日志页同构接线）。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -179,6 +183,13 @@ class SettingsActivity : Activity() {
      */
     private val backExitGate = BackExitGate(windowMs = BackExitGate.WINDOW_MS)
 
+    /**
+     * T82 · 决策 66 · 默认输入法夺回检测横幅（接线见 onCreate，刷新见 onResume 与
+     * onWindowFocusChanged）：夺回态显示横幅 + 「一键选回」；默认态横幅 GONE
+     * （布局零位移、零行为变化）。
+     */
+    private lateinit var imeTakeoverPrompt: ImeTakeoverPrompt
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -221,6 +232,8 @@ class SettingsActivity : Activity() {
         //（T63 起本页无输入框，调试走查链路移至 TestTypingActivity，本分路服务设置页
         // 既有控件语义。）
         findViewById<SettingsRootView>(R.id.settings_root).preImeKeyHandler = { handlePreImeKey(it) }
+        // T82 · 决策 66：夺回检测横幅接线（「一键选回」按钮 → 系统输入法选择器）
+        imeTakeoverPrompt = ImeTakeoverPrompt(this)
         applyState(UiState.IDLE)
         // 回执广播经本应用 PendingIntent 发出（发起身份=本应用），NOT_EXPORTED 可收；
         // targetSdk 34 起 registerReceiver 必须显式 export 标志，4 参重载 API 26 起可用，低版本走 2 参。
@@ -248,6 +261,17 @@ class SettingsActivity : Activity() {
         evaluateUiChannelInstallResult()
         // T71 · 决策 60：日志入口行状态随动（子页开关切换后返回本页刷新）
         refreshLogStatusRow()
+        // T82 · 决策 66：默认输入法夺回检测（夺回态显示横幅；默认态零变化）
+        imeTakeoverPrompt.refresh()
+    }
+
+    /**
+     * T82 · 决策 66：窗口焦点回归即重跑夺回检测——系统输入法选择器关闭不触发 onResume，
+     * 选回 sofatype 后横幅在本页重新获得焦点时即时隐藏。
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) imeTakeoverPrompt.refresh()
     }
 
     /** T71 · 日志入口行状态：关 = 灰点「调试日志已关闭」（默认态）；开 = 绿点「调试日志已开启」。 */

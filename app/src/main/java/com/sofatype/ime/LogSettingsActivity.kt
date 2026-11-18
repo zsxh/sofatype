@@ -5,6 +5,10 @@
 // 上下键移焦、OK 切换开关 / 进查看页、左右键调档、BACK 返回设置页（决策 60「BACK 逐级返回」）。
 // 无障碍：三个行容器均有 contentDescription（状态随动，可读性要求）。
 // 用量提示（当前 X MB / Y MB）读文件长度在后台线程执行（严禁主线程磁盘 IO）。
+// T82 · 决策 66 · B2 设置页检测引导：本页同为设置页面，接默认输入法夺回检测——
+// onResume / 窗口焦点回归读 default_input_method（公开读取零权限），夺回态显示横幅 +
+// 「一键选回」showInputMethodPicker()（公开 API 零权限）；默认态横幅恒 GONE 零新增。
+// 接线共用件 ImeTakeoverPrompt（与设置页 / 查看日志页同构）。
 package com.sofatype.ime
 
 import android.app.Activity
@@ -39,6 +43,9 @@ class LogSettingsActivity : Activity() {
     private lateinit var sizeOptionBoxes: List<View>
     private lateinit var sizeOptionTexts: List<TextView>
     private lateinit var sizeOptionBars: List<View>
+
+    /** T82 · 决策 66 · 默认输入法夺回检测横幅（接线见 onCreate，刷新见 onResume / onWindowFocusChanged）。 */
+    private lateinit var imeTakeoverPrompt: ImeTakeoverPrompt
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +84,9 @@ class LogSettingsActivity : Activity() {
         // pre-IME 键分路（与设置页 / 测试打字页同构）：本页无输入框，键盘隐藏态语义全部在此路由
         findViewById<SettingsRootView>(R.id.log_settings_root).preImeKeyHandler = { handlePreImeKey(it) }
 
+        // T82 · 决策 66：夺回检测横幅接线（「一键选回」按钮 → 系统输入法选择器）
+        imeTakeoverPrompt = ImeTakeoverPrompt(this)
+
         refreshUi()
     }
 
@@ -84,6 +94,17 @@ class LogSettingsActivity : Activity() {
         super.onResume()
         // 返回本页（查看页清空后 / 设置页重进）刷新行态与用量提示
         refreshUi()
+        // T82 · 决策 66：默认输入法夺回检测（夺回态显示横幅；默认态零变化）
+        imeTakeoverPrompt.refresh()
+    }
+
+    /**
+     * T82 · 决策 66：窗口焦点回归即重跑夺回检测（系统输入法选择器关闭不触发 onResume，
+     * 选回后横幅即时隐藏）。
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) imeTakeoverPrompt.refresh()
     }
 
     override fun onDestroy() {
