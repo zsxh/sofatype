@@ -1001,7 +1001,20 @@ class SofatypeImeService : InputMethodService() {
                     restoreRemoteExitFocusability()
                     remoteReentryFocusPolicy.onExplicitWake()
                     trace("onKeyDown keyCode=$keyCode swallowed（输入窗隐藏态）-> requestShowSelf")
-                    requestShowSelf(0)
+                    // T86（PRD 决策 67）分层兜底：MiTV4 真机 API 23 框架对 requestShowSelf
+                    // 不可达（IllegalAccessError 必崩，crash 缓冲 10 条同签名在案）。第一层
+                    // 保留 requestShowSelf（正常框架语义最全：system server 状态同步 +
+                    // onShowInputRequested veto 链原样，模拟器 API 34 走本层零变化），调用点
+                    // 窄捕获固件缺陷型 LinkageError（IllegalAccessError 为其子类）；第二层
+                    // veto 复检（T38 收起抑制窗同口径：「完成」收起后立即 OK 不唤起零回归）
+                    // 通过后走 SDK 公开本地唤起通道 showWindow(true)；第三层再失败 trace
+                    // 留痕 + 不崩安全降级。层序与留痕细则见 HiddenConfirmWake。
+                    HiddenConfirmWake(
+                        requestShowSelf = { requestShowSelf(0) },
+                        vetoed = { showGuard.shouldVetoShowRequest(SystemClock.uptimeMillis()) },
+                        showWindow = { showWindow(true) },
+                        trace = ::trace,
+                    ).wake()
                     return true
                 }
                 // T38（Bug B · T12 坑 1 / 设备档案坑 6）：键盘收起后 OK 唤起时，同一按键的转发
