@@ -70,18 +70,64 @@ class RealDictTest {
     }
 
     @Test
-    fun `候选频次单调不升`() {
+    fun `简拼_zg_这个与中国居前`() {
         val engine = loadEngine()
+        val top = engine.query("zg", limit = 10).map { it.word }
+        assertEquals("zg 前两名应为 这个/中国（PRD_20261118 FR-E1 立项调研口径），实际：$top", listOf("这个", "中国"), top.take(2))
+    }
+
+    @Test
+    fun `简拼_bj_北京居前`() {
+        val engine = loadEngine()
+        val top = engine.query("bj", limit = 10).map { it.word }
+        assertTrue("bj 前 5 应含「北京」，实际：$top", "北京" in top.take(5))
+    }
+
+    @Test
+    fun `单字母即出首字母高频词`() {
+        val engine = loadEngine()
+        val cases = mapOf("z" to "在", "d" to "的", "n" to "你", "s" to "是", "w" to "我")
+        for ((input, expect) in cases) {
+            assertEquals("单字母 $input 首候选应为「$expect」（单字母简拼口径，决策 D2）", expect, engine.query(input).firstOrNull()?.word)
+        }
+    }
+
+    @Test
+    fun `拼音无以iu v开头音节_恒无候选`() {
+        val engine = loadEngine()
+        for (input in listOf("i", "u", "v", "iu")) {
+            assertEquals("输入 $input 应无候选（拼音体系限制，非缺陷）", emptyList<Candidate>(), engine.query(input))
+        }
+    }
+
+    @Test
+    fun `双路合并无重复词且简拼路命中`() {
+        val engine = loadEngine()
+        for (input in listOf("ha", "nh", "zh", "ma")) {
+            val words = engine.query(input, limit = 200).map { it.word }
+            assertEquals("输入 $input 候选不应有重复词（全拼/简拼双路去重口径）", words.size, words.toSet().size)
+            assertTrue("输入 $input 应有候选", words.isNotEmpty())
+        }
+        assertTrue("nh 应命中「你好」", "你好" in engine.query("nh", limit = 50).map { it.word })
+    }
+
+    @Test
+    fun `候选频次组内单调不升`() {
+        val engine = loadEngine()
+        // 纯全拼路输入：频次应整体降序；双路合并输入（如 zg）按「全拼组在前、简拼组在后」分组，
+        // 组内各自降序（合并口径不保证跨组全局降序）
         for (input in listOf("ke", "keting", "xian", "zhongwen", "nihao")) {
             val freqs = engine.query(input, limit = 20).map { it.freq }
             assertEquals("输入 $input 频次应降序", freqs, freqs.sortedDescending())
         }
+        val zg = engine.query("zg", limit = 20).map { it.freq }
+        assertEquals("zg 全为简拼路命中，频次应降序", zg, zg.sortedDescending())
     }
 
     @Test
     fun `查询性能量级佐证_单次查询不超过200毫秒`() {
         val engine = loadEngine()
-        val inputs = listOf("k", "ke", "ket", "keti", "keting", "n", "ni", "nihao", "x", "xi", "xian", "zhongwen", "zhuangzhuang")
+        val inputs = listOf("k", "ke", "ket", "keti", "keting", "n", "ni", "nihao", "x", "xi", "xian", "zhongwen", "zhuangzhuang", "z", "zg", "nh", "ma")
         // 预热：触发 JIT 与常量池稳定
         repeat(30) { engine.query(inputs[it % inputs.size]) }
         // 计时：全部样例多轮查询，单次最大耗时受性能预算约束（PRD 第 8 章：中文候选刷新 ≤ 200ms）
