@@ -48,16 +48,21 @@ class AbbrQueryTest {
     }
 
     @Test
-    fun `两字母简拼无命中时返回空`() {
-        // "zh"：简拼路无 "zh" 开头首字母串（中国 zg / 重 z），全拼路无合法首音节
-        assertEquals(emptyList<Candidate>(), engine().query("zh"))
+    fun `两字母声母形态命中纯声母首音节词`() {
+        // T84 起两字母输入不再恒空（一期此断言为「zh 双路皆空」，混合缩写路按声母形态命中）：
+        // "zh" = zhong 整声母缩写 → 中国（词前缀边界命中）/ 重（zhong 读音词条）；
+        // 全拼路（"zh"/"z" 均非合法音节）与简拼路（无 "zh" 开头首字母串）零命中，纯混合路贡献
+        assertEquals(listOf("中国", "重"), wordsOf(engine(), "zh"))
+        // "zr" 两字母下任何分段皆不可达（简拼无 "zr" 首字母串、无音节真前缀能吃满）→ 恒空
+        assertEquals(emptyList<Candidate>(), engine().query("zr"))
     }
 
     @Test
-    fun `双路同时命中_全拼路排前且同词去重`() {
-        // "sh"：全拼路命中傻哈（sha，频次 20），简拼路命中上海（100）与傻哈——
-        // 全拼命中排前不按频次互换；傻哈两路同词只出现一次
-        assertEquals(listOf("傻哈", "上海"), wordsOf(engine(), "sh"))
+    fun `三层级合并_全拼路排前_简拼次之_混合路殿后`() {
+        // "sh"：全拼路命中傻哈（sha 前缀，频次 20），简拼路命中上海（100）与傻哈——
+        // 全拼命中排前不按频次互换；傻哈两路同词只出现一次；
+        // T84 混合路命中山（shan 整声母 "sh" 缩写，频次 50）殿后，两路旧词序不回归
+        assertEquals(listOf("傻哈", "上海", "山"), wordsOf(engine(), "sh"))
     }
 
     @Test
@@ -98,8 +103,11 @@ class AbbrQueryTest {
     @Test
     fun `全拼查询行为不变`() {
         assertEquals(listOf("上海"), wordsOf(engine(), "shanghai"))
-        assertEquals(listOf("山"), wordsOf(engine(), "shan"))
-        assertEquals("全拼前缀增量命中不回归", listOf("傻哈"), wordsOf(engine(), "sha"))
+        // "shan"：全拼路命中山（shan 整音节）不变；T84 混合路增量命中上海（shan 为 shang 真前缀，
+        // 全拼路只扫完整首音节桶看不见的形态）殿后
+        assertEquals(listOf("山", "上海"), wordsOf(engine(), "shan"))
+        // "sha"：全拼路首位傻哈（sha 真前缀）不变；混合路增量命中上海（s + ha 真前缀）与山（shan 真前缀）殿后
+        assertEquals("全拼路首位不变，混合路增量殿后", listOf("傻哈", "上海", "山"), wordsOf(engine(), "sha"))
         assertEquals("组合态整词命中不回归", listOf("上海"), wordsOf(engine(), "shanghai", limit = 5))
     }
 

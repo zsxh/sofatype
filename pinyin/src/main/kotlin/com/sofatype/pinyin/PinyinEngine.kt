@@ -6,14 +6,18 @@ import java.io.InputStream
 data class Candidate(val word: String, val freq: Double)
 
 /**
- * 拼音查询引擎（T9 / T83，FR-A8 / FR-E1 / 决策 28 / PRD_20261118 决策 D1-D2）。
+ * 拼音查询引擎（T9 / T83 / T84，FR-A8 / FR-E1 / 决策 28 / PRD_20261118 决策 D1-D2 / D6）。
  *
- * 查询口径（双路并行，FR-E1）：
+ * 查询口径（多路并行，FR-E1 + T84 混合缩写）：
  * - 全拼路：输入为全拼小写字母串；先切分出全部可能的首音节，再从对应词条桶做字母级前缀匹配；
  *   命中 = 词条全拼与输入相等（整词命中），或输入是词条全拼的真前缀（组合态增量命中）；
  * - 简拼路：词条首字母串（各音节首字母拼接，如 [zhong,guo] → "zg"）与输入做前缀匹配；
+ * - 混合缩写路（T84 · 决策 D6）：逐音节「全拼 / 缩写」混合匹配——输入按音节位分段，每段可为
+ *   整音节（全拼位）、首字母缩写（1 字母）或 zh/ch/sh 整声母缩写（2 字母），末段还允许为音节
+ *   真前缀（组合态增量）；覆盖 zguo → 中国（缩写位 + 全拼位）、zhly 声母形态等一期两路之外的形态；
  * - 合并：单字母输入取简拼路结果（该输入下简拼路为全拼路超集，按频次统一排序）；
- *   ≥2 字母输入全拼命中排前、简拼命中按内建频次排后（词 id 去重）；
+ *   ≥2 字母输入三层级合并：全拼命中排前 → 简拼命中剔重排后 → 混合缩写命中再剔重殿后
+ *   （词 id 去重，同词只保留首个命中的层级；一期两路排序口径原样保留）；
  * - 词组与单字均为词库词条，单字词兜底由词库自然覆盖（源库含 17 037 条单字词条）；
  * - 排序：各路词库内建频次降序；频次相同按源词库行序稳定排列；
  * - 同词多读音（多音字，源库 658 词多词条）去重为一个候选，频次取最高读音。
@@ -69,15 +73,19 @@ class PinyinEngine private constructor(
 
         val full = rankedFull(input)
         val abbr = rankedAbbr(input)
-        // 合并口径（FR-E1）：单字母取简拼路（该输入下为全拼路超集，频次统一排序）；
-        // ≥2 字母全拼命中排前，简拼命中剔除与全拼重复的词后按频次排后
+        // 合并口径（FR-E1 + T84 决策 D6）：单字母取简拼路（该输入下为全拼路超集，频次统一排序；
+        // 单字母下混合路与简拼路命中集合相同，不另跑路）；
+        // ≥2 字母三层级：全拼命中排前，简拼命中剔除与全拼重复的词后按频次排后，
+        // 混合缩写命中（T84 新增路）剔除两路已命中的词后殿后——一期两路排序原样保留
         val merged = when {
-            input.length == 1 || full.isEmpty() -> abbr
-            abbr.isEmpty() -> full
+            input.length == 1 -> abbr
             else -> {
-                val seen = HashSet<Int>(full.size * 2)
+                val seen = HashSet<Int>(full.size * 2 + abbr.size * 2)
                 for ((wordId, _) in full) seen.add(wordId)
-                full + abbr.filter { (wordId, _) -> seen.add(wordId) }
+                val abbrOnly = ArrayList<Pair<Int, Double>>(abbr.size)
+                for (hit in abbr) if (seen.add(hit.first)) abbrOnly.add(hit)
+                val mixed = rankedMixed(input, seen)
+                full + abbrOnly + mixed
             }
         }
         return merged.take(limit).map { (wordId, freq) -> Candidate(data.words[wordId], freq) }
@@ -110,6 +118,71 @@ class PinyinEngine private constructor(
         }
         return sortMatches(matches)
     }
+
+    /**
+     * 混合缩写路（T84 · PRD_20261118 决策 D6）：逐音节「全拼 / 缩写」混合匹配。
+     * 候选集扫描沿用首字母倒排桶（任何合法分段的首段首字母必同词条首音节首字母，与简拼路同桶）；
+     * 逐词条做 [mixedSegmentMatch] 动态规划；[exclude] = 全拼路 + 简拼路已命中的词 id 并集，
+     * 两路已命中的词不再进本路（保持三层级合并去重口径）。
+     */
+    private fun rankedMixed(input: String, exclude: HashSet<Int>): List<Pair<Int, Double>> {
+        if (input.isEmpty()) return emptyList()
+        val bucket = initialBuckets[input[0]] ?: return emptyList()
+        val matches = HashMap<Int, Pair<Double, Int>>()
+        for (i in bucket) {
+            val entry = data.entries[i]
+            if (entry.wordId in exclude) continue
+            if (!mixedSegmentMatch(input, entry)) continue
+            accumulateMatch(matches, data.entries[i], i)
+        }
+        return sortMatches(matches)
+    }
+
+    /**
+     * 逐音节双状态匹配（T84）：输入按位置推进的可达音节位 DP。
+     * reach[p][i] = 消费到输入位置 p、已完成音节位 0..i-1（各以整音节或缩写收边界）时可达；
+     * 音节位 i 的四类消费：
+     * ① 整音节（全拼位）；② zh/ch/sh 整声母缩写（2 字母，声母简拼形态）；
+     * ③ 首字母缩写（1 字母）；④ 音节真前缀恰好吃满输入（组合态增量，只允许末段）。
+     * 状态数上界 = 输入长 × 音节数，无组合数爆炸（对应切分器 MAX_PLANS 防御口径）。
+     */
+    private fun mixedSegmentMatch(input: String, entry: DictData.Entry): Boolean {
+        val n = entry.syllableIds.size
+        val len = input.length
+        val reach = Array(len + 1) { BooleanArray(n) }
+        reach[0][0] = true
+        var matched = false
+        for (p in 0 until len) {
+            for (i in 0 until n) {
+                if (!reach[p][i]) continue
+                val syl = data.syllables[entry.syllableIds[i]]
+                // ① 整音节（全拼位）
+                if (len - p >= syl.length && input.regionMatches(p, syl, 0, syl.length)) {
+                    val next = p + syl.length
+                    if (next == len) matched = true else if (i + 1 < n) reach[next][i + 1] = true
+                }
+                // ② 声母缩写位：zh/ch/sh 整声母（词条音节表内该形态音节长 ≥2）
+                if (syl.length >= 2 && isRetroflexInitial(syl) &&
+                    len - p >= 2 && input.regionMatches(p, syl, 0, 2)
+                ) {
+                    val next = p + 2
+                    if (next == len) matched = true else if (i + 1 < n) reach[next][i + 1] = true
+                }
+                // ③ 首字母缩写位
+                if (input[p] == syl[0]) {
+                    val next = p + 1
+                    if (next == len) matched = true else if (i + 1 < n) reach[next][i + 1] = true
+                }
+                // ④ 组合态增量：末段为音节真前缀且恰好吃满输入（整音节情形已由 ① 覆盖）
+                if (len - p < syl.length && syl.regionMatches(0, input, p, len - p)) matched = true
+            }
+        }
+        return matched
+    }
+
+    /** 翘舌声母判定：音节以 zh / ch / sh 开头（声母简拼形态的缩写键，T84） */
+    private fun isRetroflexInitial(syllable: String): Boolean =
+        syllable[1] == 'h' && (syllable[0] == 'z' || syllable[0] == 'c' || syllable[0] == 's')
 
     /**
      * 命中累计：同词多读音（同词 id 多词条）去重为一条，频次取最高读音；
