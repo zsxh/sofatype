@@ -1,254 +1,92 @@
-# 小米电视4（`MiTV4-ANSM0`）
+# 小米电视4（`MiTV4-ANSM0`）· 设备档案
 
-本项目 APK 的安装目标机。装 APK 前先通读「踩过的坑」。
+本机为本项目 APK 的验收目标机。本文面向任何在这台机器上部署、调试、走查的 agent 或人，只记录**设备固有约束**与**当前有效的问题和应对方式**，不记录排查过程与历史时间线。
 
-## 设备概述
+## 一、设备概述
 
-- **设备类型**：小米电视4 智能电视
-- **型号**：`MiTV4-ANSM0`
-- **品牌 / 设备代号**：Xiaomi / `xmen`
-- **主控平台**：Amlogic `gxbaby`（S905 系列，`ro.hardware` = `amlogic`）
-- **操作系统**：Android 6.0.1（SDK 23）
+- **机型**：小米电视4，型号 `MiTV4-ANSM0`（设备代号 `xmen`），Amlogic `gxbaby`（S905 系列）
+- **系统**：Android 6.0.1（SDK 23）
+- **内存**：约 1.6 GB；**无线**：2.4 GHz Wi-Fi；**有线**：背面 RJ45 网口
+- **预装输入法**：搜狗小米版（`com.sohu.inputmethod.sogou.tv`）为机内默认输入法
 
-## 设备参数
+## 二、连接方式
 
-### 硬件
+| 方式 | 说明 |
+| --- | --- |
+| 无线 adb | 端口 5555；IP 为 DHCP 动态分配，连不上先向设备主人确认当前地址 |
+| USB adb | 电视 USB 口连电脑，连接后可 `adb tcpip 5555` 切回无线 |
 
-| 项目 | 值 |
-|---|---|
-| CPU | 4 核；`/proc/cpuinfo` = `AArch64 Processor rev 4 (aarch64)` |
-| 内存 | 约 1.6 GB（`MemTotal` 1663152 kB） |
-| 无线 | 2.4 GHz Wi-Fi |
-| 有线 | 背面通常有 RJ45 网口（未实测确认） |
+## 三、固有约束（装机前必读）
 
-### 系统 / ABI
+1. **ABI**：内核 AArch64、Android 用户空间仅 32 位 → 只能装 `armeabi-v7a` / universal / 纯 dex 包，装 arm64 直接报 `INSTALL_FAILED_NO_MATCHING_ABIS`。装前复核：
+   ```bash
+   unzip -l <apk> | grep -oE 'lib/[a-z0-9_-]+/' | sort -u   # 无输出 = 纯 dex 包，可装
+   adb shell getprop ro.product.cpu.abilist
+   ```
+2. **签名**：API 23 只验 v1 签名——unsigned release 包用 JDK `jarsigner` + debug keystore 签名后可直接 `pm install -r` 升级；装机核验铁证 = `dumpsys package <包名>` 的 `pkgFlags`（debug 包必含 `DEBUGGABLE`）。
+3. **无 adb 关机通道**：`reboot -p` 实测等同重启；关机由设备主人遥控执行。
+4. **shell 无法真实切换 Wi-Fi**：`svc wifi disable` 报 SecurityException、airplane 设置 MiTV 栈不响应——真实网络变化只能由人在电视设置手动操作。
+5. **安装授权标准态**：安装授权判定读 global 位（UI 开关写 secure 位，两处不一致），`settings get global install_non_market_apps` 应为 `1`（长期保持置位）。
 
-| 项目 | 值 |
-|---|---|
-| `ro.product.cpu.abi` | `armeabi-v7a` |
-| `ro.product.cpu.abilist` | `armeabi-v7a,armeabi` |
-| `arm64-v8a` | **不支持**：内核是 AArch64，但 Android 用户空间只有 32 位 |
+## 四、问题与应对（当前有效）
 
-### 连接方式
+### 1. 默认输入法被夺回搜狗（核心问题）
 
-| 方式 | 地址 / 说明 |
-|---|---|
-| 无线 ADB | `192.168.1.210:5555`（2026-11-11 实测仍有效；DHCP 可能变动，连不上时先向用户确认新 IP） |
-| USB adb | 电视 USB 口连 Mac；连接后可 `adb tcpip 5555` 切回无线 |
-| 有线 | RJ45 直连路由器 |
+**现象**：多条平台链对本应用执行包级 force-stop（指纹 `Force stopping com.sofatype.ime` + `MitvWindowManager: … has system window,so kill it`，发起方 system_server），随后 AOSP 6 对「当前 IME 的包被 force-stop」清空选中并重选系统默认输入法（= 搜狗），伴随搜狗崩溃反馈弹窗（BACK 关闭、不点发送）。
 
-## 踩过的坑
+**已实证触发形态**：
+- 本应用**自家 Activity 前台切走沿**：键盘窗口创建过后即成风险态（窗口对象收起后仍挂包名下，Activity 销毁与否无关）——平台检查「刚被切走的前台包」是否持系统窗口，自家包持 IME 窗口即被杀。
+- **空闲屏保沿**：屏保启动时平台主动强杀持系统窗口的包（见四.2），同样触发夺回。
+- **第三方宿主前台切走沿不触发**（第三方包名下无系统窗口，检查不命中）——第三方应用里打字后退出不落本坑。
 
-### 坑 1：硬件 64 位、系统 32 位——装 APK 必须选 `armeabi-v7a`
+**应对**：
+- 每次弹键盘前核对 `settings get secure default_input_method`；被夺回先 `ime set com.sofatype.ime/.SofatypeImeService` 恢复再取证；任何杀进程 / 夺回链实验后同样核对。
+- 受控 `ime set` 切走不重启 IME 进程（pid 不变）——「服务重启、新 pid」仅发生于夺回链，勿把恢复动作误计为夺回证据。
+- 搜狗可能出现「`mInputShown=true` 请求态但窗口不渲染」的内部态，IME 实际显示判定须并核窗口 surface（见四.6 显示态判据）。
 
-最容易踩的坑：`/proc/cpuinfo` 显示 AArch64，容易被误导去下 arm64 包。实际 Android 用户空间只有 32 位，装纯 `arm64-v8a` 的包会直接失败：
+### 2. 空闲自动清杀（走查头号现场杀手）
 
-```
-INSTALL_FAILED_NO_MATCHING_ABIS
-```
+**现象**：
+- 空闲 480s 自动进系统屏保（`com.mitv.screensaver`）：tap 全落空、前台被屏保压住；屏保启动沿同时强杀持系统窗口的包（四.1 触发形态之一），波及前台 Activity 与远程会话。
+- `TvMgr-MemoryAutoClean` 周期性静默强杀后台 / 前台应用（SIGKILL、无应用侧日志、日志常被 chatty 吞掉）：应用后台化约 10 秒即被清杀，前台 Activity 不豁免。
 
-只能装 **`armeabi-v7a`** 的包（`universal`、`noarch` 也可以）。含原生库的包才受此限；纯 dex 的包（APK 无 `lib/` 目录）不受限，可装（拍板见 PRD 决策 23）。装前复核：
+**应对**：
+- 走查连贯执行；任何预计 >8 分钟的等待挂保活循环（每约 6 分钟注入一发 DPAD 重置屏保计时，走查毕即清）。
+- 远程 WS 走查**进远程模式即挂保活**，不等出事再挂。
+- 不对前台 Activity 存活做持久假设，关键节点前 30s 内核对前台（`dumpsys window mCurrentFocus`）。
+- 判「进程不存在」不可只凭 `ps`（见四.5 交叉验证口径）。
 
-```bash
-unzip -l <apk> | grep -oE 'lib/[a-z0-9_-]+/' | sort -u   # 无输出 = 纯 dex 包，可装；有输出时只允许 armeabi-v7a
-adb shell getprop ro.product.cpu.abilist
-```
+### 3. 安装链特殊形态
 
-### 坑 2：adb 注入英文字母被自带输入法（搜狗小米版）组合态吞掉（2026-11-05）
+**现象与应对**：
+- 安装段长时间挂起 = 电视端弹**安装许可待确认**：shell uid 发起的安装弹「从其它设备安装」确认框——先 `screencap` 目测弹窗形态与焦点态，再远程 `input tap` 代点【确定】（确认界面**只吃 tap 不吃键码**；「双钮两段式：首 tap 移焦、再 tap 激活」与「双钮无初始焦点、首 tap 直激活」两型并存，认准确认钮勿误点取消）；代点无效再通知设备主人到电视前手动确认；等待期不盲试重试（挂起会话期间复装可能被拒）。
+- 复装被拒 `INSTALL_FAILED_USER_RESTRICTED`：先排除挂起安装会话与前台安装窗，不盲试。
+- 升级安装预期副作用：伴随 default 夺回（四.1，`ime set` 恢复）+ 杀设置页任务（升级确认后需 `am start` 恢复回设置页）。
 
-**现象**：`adb shell input text "HelloTV123"` 后 EditText 只落 `123`。搜狗输入法把注入的英文字母当作拼音组合态字符，组合串不上屏；按 BACK 收起键盘时组合串整体丢弃。数字直通上屏，追加正常。
+### 4. 注入病理窗口
 
-**影响**：真机走查用 adb 注入文本时，含字母的样例（如 `Hello.com@`）不可靠，数字样例可靠。后续 T7 等英文输入任务的真机走查要么用应用内代码路径（如「填入示例文本」按钮），要么先处理输入法模式。
+**现象**：偶发幻影键（未注入的键入 trace）、单键迟到二次送达、事件沉入系统浮层（`MitvPhoneWindowManager … Unhandled key` 在案）。
 
-**适用范围**：预装搜狗小米版输入法为默认 IME 时。切换默认 IME 可规避，但需户主确认。
+**应对**：「直落 / 双写 / trace 缺行」类观测先排除病理窗口污染；重要结论换时段复测；用指纹字段（如被命中键的字母）自检。
 
-### 坑 3：切换默认输入法被系统自动夺回（2026-11-05）
+### 5. 走查工具假象
 
-**现象**：`ime set` 切到第三方 IME（sofatype）后，搜狗弹崩溃反馈弹窗（其进程被切走时异常），系统随后自动把 `default_input_method` 切回搜狗——表现为「ime set 已生效，弹出键盘却是搜狗」。
+- `ps -A` 可偶发回仅表头空表；toybox `grep` 可原生崩溃产生 tombstone → 「进程不存在 / 无匹配」必须换通道交叉验证（`dumpsys activity processes`）；计数 / 匹配操作拉回本地文件处理。
+- `/proc/net/tcp6` 端口表读数偶发假阴性（监听中报 0 条）→ 「无监听 / 残留」结论必须同参数双读 + 双表（tcp6/tcp）交叉验证，单次 0 条不定论。
+- `pidof <包名>` 返回全量 pid 不过滤 → 进程定位用 `ps | grep` 或 logcat 行内 pid。
+- `uiautomator dump` 退出段自身抛 SecurityException FATAL（shell uid 工具噪音）→ 全窗 FATAL 核查按 pid/uid 排除，不代表应用崩溃。
+- dump 坐标系是应用窗口缩放系（与屏幕像素空间比 ≈0.927），且候选栏显隐 / 中英切换 / 进出符号键盘会引起键盘区整体位移 → `input tap` 坐标一律以**当前态最新 screencap 目测像素**为准，两态切换后必须重新截图目测再点；dump 只用于读控件结构 / 文本，不产坐标。
+- 设备端 `logcat -f <文件>` 后台落盘可失效（命令在跑、文件不落盘）→ 长窗取证改用 `logcat -d` 全缓冲导出（先 `logcat -G` 扩容防 chatty 吞没），等效取证。
 
-**处置**：重新 `ime set` 后立即走查；每次弹键盘前先 `settings get secure default_input_method` 核对。搜狗异常反馈弹窗用 BACK 关闭（不点发送）。根治（第三方 IME 稳态默认）待后续任务处理。
+### 6. 输入法会话与操作边界
 
-### 坑 4：电视空闲自动进屏保，走查指令全部落空（2026-11-05）
+- **tap 激活分型**：设置页主卡按钮一击即激活；设置页副卡（随键盘窗口控件）首击仅聚焦、第二次 tap 同坐标才激活；第三方应用控件同族（首击常仅聚焦，第三方输入框可能自带应用内置键盘、需二次 tap 才调起系统 IME——内置键盘态下系统 IME 判据全部无效）。遥控通道激活优先：键码 OK 走焦点控件 performClick，单键即激活。
+- **副卡随键盘窗口渲染**，键盘收起即消失（Activity 树无副卡节点）→ 涉及副卡的操作（进远程模式、看二维码）须在键盘显示态执行。
+- 新进程 `am start` 设置页可能自动弹键盘盖住下方区域（非必现）→ 先 BACK 收起再操作页面下方区域。
+- 「收起后键码取证」（遥控宿主响应类）必须在收起后**未 tap 过任何按钮**的干净态做；tap 通道用过的状态只做显示态键盘项。
+- IME 显示 / 隐藏态判定不单凭 `mInputShown`（宿主无输入会话时读数不可靠），以截图 + ImeKeyTrace（`onWindowShown` 有无）为准。
+- 强杀链可能把前台设置页整个清掉（见四.2），系统 HOME 兜底可落到第三方应用——前台判定以 dumpsys 实测为准，不假设回到桌面。
 
-**现象**：走查间隔电视空闲后自动进 `com.mitv.screensaver`，前台被屏保压住：`input tap` 全落空、uiautomator dump 全是屏保节点。
+### 7. 文本注入限制
 
-**处置**：真机走查连贯执行；恢复操作前先 `dumpsys window` 核对前台，或先按遥控键唤醒退出屏保。
-
-### 坑 5：杀 IME 进程（同进程前台场景）→ 默认输入法被系统回退（2026-11-08，T12）
-
-**现象**：`run-as com.sofatype.ime kill <pid>` 杀 IME 进程时，若前台 Activity 与 IME 同进程（设置页测试输入区场景），`default_input_method` 被系统回退为搜狗（2/2 复现），且前台任务回退到下层 app；前台为第三方 app 时纯杀 IME 进程不夺回（变量隔离实证）。进程死亡后系统可重新拉起 IME 服务（`Start proc … for service`，logcat 为证），但需重新 `ime set`（被夺回场景）。
-
-**处置**：杀进程测试后每次弹键盘前按坑 3 口径核对 `default_input_method`；「防夺回」加固需户主拍板（详见 issue T12 坑 2）。
-
-**补充（2026-11-08 午后）**：T12 终验待验空闲期再次发生回退（sofatype → 搜狗），当时无杀进程、无同进程前台 Activity 死亡伴随（前台 orchard，机制未查明）；同日累计 2 次空闲期回退。**机制评估归档（2026-11-09，T39 / PRD 决策 37）**：回退定性 = 平台 force-stop 类动作触发 AOSP 6 原生重置（当前 IME 包被 force-stop → 清空选中并重选系统默认输入法，源码实证）；本坑空闲期回退的机制假设 = 坑 9 屏保强杀同链——下次复现抓全窗 logcat 查 `Force stopping com.sofatype.ime` 指纹即可归并（取证纪律挂账，不立项实施，见 issue T39）。
-
-**补充（2026-11-12，真机批次 review-qa 实测）**：装机走查期间再次回退（sofatype → 搜狗，14:43 观测，设置页 BACK 退出场景前后），全窗 logcat 无 `Force stopping com.sofatype` 指纹（chatty 吞没可能）——无指纹回退累计 3 次，机制仍未查明；按坑 3 口径 ime set 即恢复，恢复后连带暴露坑 22（IC 输出黑洞）。
-
-**补充（2026-11-13，T54/T62 真机复验批次 review-qa 实测）**：设置页 BACK 退出伴随 default_input_method 被夺回搜狗 **3/3 稳定复现**（09:14/09:25/09:27 三次退出三三次夺回，每次伴随 IME 进程更换），诱因锁定为「设置页 BACK 退出」本身、非空闲期——坑 5「同进程前台 Activity destroy 伴随」假设的定向实锤；`Force stopping` 指纹核验待下次复现补抓。按坑 3 口径 ime set 即恢复，走查纪律不变：退出设置页后任何走查段，弹键盘前先核对 default。
-
-### 坑 6：键盘收起后发 CENTER 唤起，CENTER 直落 IME 初始焦点键（2026-11-08，T12）
-
-**现象**：键盘收起后注入 `input keyevent 23` 唤起，宿主 `showSoftInput` 重弹与注入竞争，CENTER 在重弹完成后到达 IME，落在初始焦点键 digit_1 上直出「1」（同轮 3 次复现，ImeKeyTrace 可证）。真机竞争窗口大于 120ms（HANDOFF「CENTER 收起延迟 120ms——时序常量真机待复核」的实锤）。
-
-**处置**：唤起后先核对焦点 trace 再注入后续键；走查中避免「收起 → 立即 CENTER」的连贯操作，或唤起后检查输入区内容。
-
-**修复去向（2026-11-08）**：T38 双抑制窗加固已修复——收起后显示抑制窗 veto 迟到 show、唤起首确认键吞一次即解除；新包真机实证（veto/吞键 trace，详见 `docs/issues/closed/T38.md`）。旧包（lastUpdateTime 2026-11-08 09:33 前）仍有此坑。
-
-### 坑 7：uiautomator dump 退出阶段产生 FATAL EXCEPTION（2026-11-08，T12）
-
-**现象**：Android 6 上 `uiautomator dump` 结束时，dump 工具进程自身（shell uid）抛 SecurityException FATAL（`unregisterUiTestAutomationService` 权限拒绝），进 logcat crash 缓冲。
-
-**处置**：真机 logcat 全程核查 FATAL 时按 pid/uid 排除该工具噪音；其存在不代表应用崩溃。
-
-### 坑 8：无线 adb 链路延迟剧烈波动，注入走查须串行确认（2026-11-08，T38）
-
-**现象**：同一会话内 `adb shell` 往返在 0.4s ~ 40s+ 间波动；慢速期批量 `input keyevent` 尾部键延迟 30s+ 到达（导航偏航诱因），偶发 offline 断连（`adb connect` 即恢复）与 adb server 重启后钥匙混淆（unauthorized，按 DEV-GUIDE 1.4 kill-server 口径处置）；本地落盘的 logcat 文件滞后设备端缓冲 30s+。
-
-**处置**：①注入走查用「单键一条命令 + 设备端 `logcat -d -s ImeKeyTrace | tail` 确认」模式，勿依赖本地文件做实时判定；②批量键发送后必须核对焦点再继续，偏航按 trace 实况纠偏；③`logcat -d` 全缓冲 FATAL 核查时区分系统进程/工具噪音与应用崩溃（坑 7）。
-
-**补充（2026-11-09，T27）——注入病理窗口**：同日实测会话内出现：幻影 DEL×2、单 BACK 迟到 80s 二次送达、keycode 4 无中生有入 trace、事件沉入 T38 抑制浮层（MitvPhoneWindowManager「prepare dispatch key … Unhandled key」在案）。注入类走查的「直落/双写」类观测（trace 缺行、输入框多字符）须先排除病理窗口污染；重要结论换时段复测，指纹字段（如 firstRow=被命中键字母）可做自检。
-
-### 坑 8：搜狗输入法会话内 show 请求在、键盘窗口不渲染（2026-11-08，T12 对照定性）
-
-**现象**：某次会话中搜狗（`com.sohu.inputmethod.sogou.tv/.SogouIME`）全程 `mInputShown=true`（请求态）但 IME 窗口 surface `shown=false`、SurfaceFlinger 无其合成层；BACK/OK/CENTER toggle 均不能使其建立可见基线，收起控件在不可见窗口内无可注入坐标。机制未查明，属搜狗内部行为。
-
-**处置**：在该状态下做输入法对照实验会缺基线（T12 问题 1 对照因此不可测）；判定 IME 实际显示态不能只看 `mInputShown`，须并核窗口 surface / SurfaceFlinger 合成层。
-
-### 坑 9：屏保启动时平台强杀持有 IME 窗口的进程，连带 default_input_method 被夺回（2026-11-08，T19）
-
-**现象**：空闲 480s（`checkScreenSaverTimeoutLocked come 480000`，18:03:46 实证）屏保启动时，平台 Force stopping 本应用并杀进程（logcat：`it's time to start screen saver` → `Force stopping com.sofatype.ime` → `MitvWindowManager: com.sofatype.ime has system window,so kill it`）。进程被杀后 `default_input_method` 被系统夺回搜狗（坑 5 同族后果，诱因为平台行为而非测试动作），远程会话随进程死亡断开。
-
-**处置**：走查期间防 >8 分钟空闲，注入任意键（如 DPAD）可重置屏保计时（PowerManagerService userActivity 日志可证）；每次弹键盘前按坑 3 口径核对 `default_input_method`；恢复按坑 3/5。
-
-**补充（2026-11-09，T27）**：屏保强杀同样波及**前台设置页 Activity**（设置页消失后系统 HOME 兜底可落到第三方应用，实测 tvbox 回前台，非该应用自启拉前台——logcat 无其 START 痕迹）；长等待期用保活循环（每 6 分钟注入 DPAD 重置计时，走查毕即清，T27 实测有效）。本轮坑 9 两次复现（480s 整点触发各一次），诱因均为走查等待期未注入。
-
-### 坑 10：TvMgr-MemoryAutoClean 静默强杀后台/前台应用，无应用侧日志（2026-11-08，T19）
-
-**现象**：`TvMgr-MemoryAut`（pid 3371）周期性 Force stopping 第三方应用（18:22:52 实证连发 `Force stopping com.newtv.cboxtv ... from pid 3371` 等，自身 126 行被 chatty 吞掉）；本应用后台化（HOME 回桌面）约 10 秒后被清杀，前台静默死亡一次（~18:19，疑似同源）。SIGKILL 无应用侧异常，ActivityManager 痕迹常被 chatty 汇总吞掉。
-
-**处置**：配对/远程会话期间保持应用前台，不要 HOME/切后台；判「进程不存在」不可只凭 `ps`（坑 12），用 `dumpsys activity processes` 交叉验证；进程死后恢复按坑 3（ime set）+ 重新进远程模式。
-
-**补充（2026-11-09，T27）**：前台 Activity 并不豁免——sofatype 设置页前台亦被清杀一次（11:36:09，pid 11205，自杀型 killProcess 路径，直接诱因强嫌疑 TvMgr-MemoryAutoClean（pid 3387，死亡后 0.1s 有其 expire 痕迹，自身日志被 chatty 吞）；crash 栈未捕获）。走查脚本对前台 Activity 存活不可做持久假设，节点前 30s 内核对前台。
-
-**补充（2026-11-15，T71/T72 真机批次）**：远程 WS 走查期间保活挂晚一步即复现本坑全链（14:25 屏保链强杀 IME：进程消失 + default 夺回搜狗 + 远程服务死，`ps` + `dumpsys activity processes` 双证；H5 端 WS 断开）；恢复后即挂 5.5 分钟 DPAD 保活循环零复现。教训：远程 WS 走查**进远程模式即挂保活**，不等出事再挂。
-
-### 坑 11：shell 无法真实切换 Wi-Fi——svc 无权限、airplane 广播被 MiTV 栈忽略（2026-11-08，T19）
-
-**现象**：三通道全堵：① `svc wifi disable` → `SecurityException: WifiService: Neither user 2000 nor current process has android.permission.CHANGE_WIFI_STATE`（logcat 18:41:41.918），Wi-Fi 不下线；② Android 6 `svc` 无 airplane 子命令（仅 power）；③ `settings put global airplane_mode_on 1` + `am broadcast AIRPLANE_MODE_CHANGED` 设置位生效（读回 1）但 MiTV Wi-Fi 栈不响应，wlan0 不掉线（广播 result=0，18:43:41 实证）。
-
-**处置**：真实网络变化场景只能由户主在电视设置 UI 手动开关 Wi-Fi；adb UI 注入自行开关不可行——Wi-Fi 断则无线 adb 断，re-enable 半程无链路可注入（注入式开关只能完成 OFF 半程）。T19 的 O-6 真机触发因此免除（户主拍板模拟器口径）。
-
-### 坑 12：无线链路劣化期工具输出假象——ps 空表、grep 原生崩溃（2026-11-08，T19）
-
-**现象**：链路慢速期，设备端 `ps -A` 可回仅表头的空列表（进程实际存活）；toybox `grep` 自身可原生崩溃产生 tombstone（18:07:42 `/system/bin/grep` F/DEBUG 栈）。据此误判「进程死亡」「无匹配」会造成假结论（T19 实际踩中：误判应用进程死亡，实际存活）。
-
-**处置**：「进程不存在/无输出」类结论必须换通道交叉验证（`dumpsys activity processes`）；计数/匹配类操作拉回本地处理（`adb shell ps -A` 重定向到本地文件再 grep）；logcat 全缓冲 FATAL 核查时排除 grep/svc/uiautomator 工具自身崩溃（坑 7 同族扩展）。
-
-**补充（2026-11-16，T74/T75 真机批次）**：`/proc/net/tcp6` 端口表读数出现假阴性实例——服务监听中（logcat 启动行 + 后续同参数重读 2~3 条目双证）中间某次读数报 0 条，间隔 1 秒重读恢复；「无监听/端口残留」类结论必须同参数双读 + 双表（tcp6/tcp）交叉验证，单次 0 条不定论。另 `pidof <包名>` 在该机返回全量 pid 列表（不按包名过滤），进程定位改用 `ps | grep` 或 logcat 行内 pid。
-
-### 坑 13：uiautomator dump 坐标系是窗口缩放系，直接用于 input tap 会偏移（2026-11-08，T19）
-
-**现象**：本机 `uiautomator dump` 的 bounds 处于应用窗口坐标空间（根节点高度 1001px），与 `input tap` 的屏幕像素空间（1080px）比例 ≈0.927；把 dump 坐标直接搬去 tap 会整体偏上约 7%（实测点击 EditText 无响应，换 screencap 目测像素坐标立即命中）。
-
-**处置**：`input tap` 坐标一律以 `screencap` 截图目测像素为准（DEV-GUIDE「走查通道备注」的设备侧实锤与量化）；dump 仅用于读控件结构/文本，不用于产坐标。
-
-### 坑 14：候选栏显隐驱动键盘区整体位移，同坐标两态命中不同键（2026-11-09，T27）
-
-**现象**：中文模式候选栏区域常驻（含空组合，键盘整体处于低位）；英文/符号态候选栏隐藏，键盘上移约 72px。同一屏幕坐标在两态命中不同键（实测 (1180,730)：低位=「中/英」，高位=`123_!`）。两态切换瞬间存在渲染中间态（A2 截图「数字列消失」，自愈，非缺陷）。
-
-**处置**：`input tap` 坐标以「当前态最新一次 screencap 目测」为准；候选栏显隐、中/英切换、进出符号键盘后必须重新截图目测再点（坑 13 的扩展：不只 dump 缩放系，还有布局两态位移）。
-
-### 坑 15：应用发起安装的授权判定读 global 位，UI「未知来源」开关写 secure 位（2026-11-09，T27）
-
-**现象**：应用 PackageInstaller 会话 commit 被平台拒 `INSTALL_FAILED_USER_RESTRICTED`，当时 `secure install_non_market_apps=1` 且设置 UI「安装未知来源应用」常开（户主核对一直开着）；`settings put global install_non_market_apps 1` 补写后，mock 会话提交返回回执 SUCCESS（14:07:30 落地）——平台判定源=global 位，UI 开关写 secure 位，两处不一致。**修订（2026-11-09 户主核对证伪）**：mock 包清单版本同为 0.1.0、versionCode 未递增，上句 SUCCESS 是同版本复装，不是升级；Round 2/3 走查全程设置页版本恒 `v0.1.0 (1)`（10 份 dump 为证），原「静默直装成功」表述作废。versionCode 真递增的会话提交在本机未验证过。另实测：系统安装窗/会话活跃期间，`adb install -r` 复装亦被拒 `USER_RESTRICTED`（195s 失败回执，机制未查）——复装失败先排除会话残留与前台安装窗，不盲试。
-
-**处置**：户主拍板（2026-11-09）：`global install_non_market_apps=1` 长期保持置位，为该机安装授权标准态。涉及真机安装链验证时，先核对 `settings get global install_non_market_apps`。同日拍板：检查更新链路改走 UI 渠道（系统安装器），会话通道不再作本机更新主链路——PRD 决策 36，落地任务 T47。
-
-**关联（2026-11-11，T50 复验）**：坑 17 实证 adb install 挂起期间电视端弹安装许可、待户主手动确认——本坑「会话活跃期间复装被拒」疑似同源（挂起会话未清时新会话被拒），挂账待下次复现核实。
-
-### 坑 16：系统安装器包确认界面不响应键码，仅 tap 可操作（2026-11-10，T27）
-
-**现象**：应用发起安装后弹出的系统安装器包确认界面：遥控器键码无反应（户主现场实证），adb `input keyevent`（DPAD/OK 等）同样零视觉响应（截图逐字节一致）——仅 `input tap` 可操作。小米形态：`global install_non_market_apps=1` 下**直接弹包安装确认、无「未知来源」授权步**（T21 挂账授权链就此收口）；界面含红色警告「该版本未经过安全审核，可能存在未知风险」+【取消更新/继续更新】双钮。
-
-**处置**：涉及安装器界面的真机走查，按户主拍板意图以 `input tap` 代操作（输入通道代换须报备）；双钮坐标以 screencap 目测（坑 13/14 口径）。形态与授权链结论随 T46/T47 真机段留档（`screenshots/T27/` t27r2-b1-installer.png 等）。另注：升级安装会杀设置页任务（按「完成」后不自动回前台，需 am start 恢复，onResume 判定等效触发）；升级后 `default_input_method` 被夺回搜狗（坑 5/9/37 同链，预期内）。
-
-**补充（2026-11-11，T51）**：双钮两段式交互实证——首 tap 未聚焦按钮仅移焦不激活、二次 tap 才激活；初始带焦点的取消钮首 tap 即激活（证据 screenshots/T51/ qa-r1-tv-11 高亮移位）。同轮 Round 1 装机阻断（240s `INSTALL_FAILED_USER_RESTRICTED`，2026-11-10）未复现：户主在场同型安装一次成功，解阻条件实证=户主在场确认电视侧弹窗，机制仍未查明、挂账观察。另一次连接层 unauthorized 系 adb server 钥匙混淆（DEV-GUIDE 1.4 kill-server 重连即恢复），非电视端授权变更，已排除。
-
-**再证（2026-11-11，T50 复验）**：升级安装确认同两段式形态（移焦截图 screenshots/T50/ tv-l1-installer-focus.png）；后续系统「安装成功」弹窗初始焦点在【完成】，首 tap 即激活。
-
-### 坑 17：adb install 安装段慢 = 安装许可等待户主手动确认（2026-11-11，T50 复验；户主纠正）
-
-**现象**：3 MB 包 push 仅 81 s（传输段正常），安装段约 7 分钟才回 Success。当时误判「该机安装段常态慢」，经户主纠正：安装挂起期间电视端弹着**安装许可确认**，等待户主走到电视前手动确认，非常态耗时。
-
-**处置（2026-11-11 户主修订）**：①`adb install` / push+`pm install` 发起、包传输完成后，agent 先远程尝试代点电视端安装确认的「确定 / 继续安装」钮：确认界面不响应键码，仅 `input tap` 可操作（坑 16 口径；双钮两段式——首 tap 移焦、二次 tap 激活，坐标以 screencap 目测，认准确认钮、勿误点取消）；②远程代点无效（无视觉响应 / 链路不可用）再通知户主到电视上手动确认——安装段时长取决于确认速度，机器侧无兜底；③等待期不盲试重试（挂起会话期间复装曾被拒 `USER_RESTRICTED`，坑 15，疑似同源）；④DEV-GUIDE 第 2 节「限时 5 分钟」口径仅约束传输段。原「传输完成后立即通知户主手动确认」口径（T50 当日确立）作废；首次代点按坑 16 口径截图取证（远程代点成功案例已于 2026-11-13 实测留证，见下方补充——代点前先核当前弹窗形态再定单击/两段）。
-
-**补充（2026-11-11，T49 复验）**：APK 先 `adb push` 到 `/data/local/tmp` 再 `pm install -r`（复用已传包、免二次传输）同样触发电视端安装许可弹窗，户主确认后 Success——弹窗拦截的是 shell uid 发起的安装请求本身，与 `adb install` 直装同链路；flaky 无线链路下优先 push+pm install 分段（传输段计时清晰，坑 17 通知点=push 完成）。
-
-**补充（2026-11-13，T64 复验）——首例远程代点成功实证**：`pm install -r`（shell uid）触发弹窗形态为「安装确认」：正文「您正在从其它设备(如电脑)安装应用 t64m-app.apk，继续安装吗？」+「应用到全部」复选框 +【确定】【取消】双钮（screenshots/T64/t64m-install-0.png）。本例双钮均无初始焦点高亮，首 tap【确定】即直接激活安装（约 2 秒后 Success）——坑 16 的「双钮两段式（首 tap 移焦）」在该形态未出现，非普适；代点前先截图目测当前弹窗形态与焦点态再决定单击/两段。代点前后截图留证（t64m-install-1.png 为弹窗消失回桌面）。同轮 5 次 `uiautomator dump` 退出段各产生 1 条 SYSTEM PROCESS FATAL（坑 7 原签名 SecurityException unregisterUiTestAutomationService），与坑 7「Android 6 dump 工具噪音」同族，核对 FATAL 时按 pid/uid 与 dump 调用一一对应排除。
-
-**再证（2026-11-15，T71/T72 真机批次）**：两轮装机（t71t72-app / t72r2-app）弹窗均「从其它设备安装」同型、双钮无初始焦点、首击 tap【确定】均直接激活（51.9s / 57.6s Success，t71m-install-* / t72r2-install-* 留证）；Round 2 升级伴随 default 夺回搜狗 + 搜狗崩溃反馈页（坑 3/坑 16 补充预期内），ime set + BACK 即恢复。
-
-### 坑 18：新进程 am start 设置页自动弹搜狗键盘，遮版本卡下方区域（2026-11-11，T50 复验）
-
-**现象**：新进程 `am start` 设置页时，测试输入框自动带焦点，搜狗键盘自动弹出，盖住版本卡下方区域（同轮两轮复现）。
-
-**处置**：走查先 BACK 收起键盘，再操作版本卡区域；坐标以收起后最新 screencap 目测为准（坑 13/14 口径）。
-
-**补充（2026-11-12，真机批次 review-qa 实测）**：默认 IME 为 sofatype 时同型复现——新进程 `am start` 自动弹出 **sofatype 键盘**（a 键初始焦点），行为同族；副卡（跨屏输入卡）随键盘窗口可见。
-
-**补充（2026-11-14，T69 真机批次实测）**：同轮 `am start` 设置页**未**自动弹键盘（一轮未复现）——走查改走 [测试打字] 页经输入框焦点弹键盘后副卡可见；该坑非必现，走查计划不依赖自动弹键盘。
-
-### 坑 19：无线 adb 断连新形态——网络层通但 adbd 会话僵死（2026-11-12，真机批次 review-qa 实测）
-
-**现象**：15:16 起设备 `offline`：Mac 侧 ping 电视 0% 丢包（网络层通）、TCP 可连，但 `adb devices` 恒 offline；`adb kill-server` + 多轮 disconnect/connect（间隔 30s~90s）约 8 分钟不恢复，15:25 前后自行恢复为 `device`（恢复瞬间伴随部分服务进程 inode 更换，系统未整机重启）。与坑 8「偶发 offline 断连，`adb connect` 即恢复」不同型——本型 connect 不恢复、需等待。
-
-**诱因时序**：断连前最后一笔操作为 `input tap` 副卡[远程输入]（首击仅聚焦，见坑 20），约 6s 后断连；当时副卡[远程输入]未激活、远程服务未启动（恢复后 logcat 无服务启动记录），**因果未证实**。断连现场设备侧状态未被保留，机制未查明。经户主拍板按整机重启预案处置（预案未及执行设备已自愈）。
-
-**处置**：kill-server + connect 两轮不恢复即停手报 lead 等待，不密集轰炸重试；恢复后先核 `default_input_method`（等待期屏保强杀链可能夺回，本次实测确被夺回搜狗）与 `/proc/net/tcp6` 清场。
-
-### 坑 20：tap 首击仅聚焦不激活——应用内按钮需双击 tap（2026-11-12，真机批次 review-qa 实测）
-
-**现象**：设置页副卡[远程输入]按钮 `input tap` 首击：按钮获得焦点态高亮（accent-wash 底 + 描边可见）但**不激活**（无服务启动日志、副卡仍引导卡，复测多次同型）；第二次 tap 同坐标才激活进入远程模式。与坑 16「系统安装器确认钮首 tap 即激活（初始带焦点）」分属两型：系统弹窗钮初始带焦点、首 tap 即触发；应用内 View 首击在触摸模式下仅聚焦（HANDOFF 模拟器走查坑 3「键帽 focusableInTouchMode 首击聚焦不点击」的真机应用按钮同族扩展）。
-
-**处置**：真机走查 tap 激活应用内按钮按「双击 tap」口径执行（首击聚焦 + 二击激活），每次激活前后截图核对；遥控通道激活优先（键码 OK 走焦点控件 performClick，单键即激活）。
-
-**补充（2026-11-13，T54/T62 真机复验批次 review-qa 实测勘误）**：「首击仅聚焦」限于**副卡**随键盘窗口控件——设置页**主卡**按钮（[填入样例]）`input tap` **一击即激活**且视图焦点不离开输入框（dump 实证 focused 恒 test_input）；本坑「应用内按钮需双击」口径收窄为副卡形态，走查前先分型（主卡单击／副卡双击）再操作。
-
-### 坑 21：设置页副卡（跨屏输入卡）随 IME 键盘窗口渲染，键盘收起副卡消失（2026-11-12，真机批次 review-qa 实测）
-
-**现象**：键盘显示态副卡可见（引导卡/二维码卡）；BACK 收起键盘后副卡随之消失——`uiautomator dump` 的 Activity 树中无任何副卡控件节点（仅主卡元素），右侧全黑（截图在案）；同帧设置页主卡元素（test_input/按钮/版本卡）bounds 与键盘显示态一致，非滚动/重排。
-
-**处置**：涉及副卡的操作（进远程模式、看二维码）须在**键盘显示态**执行；键盘收起态 tap 副卡历史坐标必落空。
-
-### 坑 22：IC 输出黑洞——ime set 切回的服务重启实例上组合串/选词不落输入框（2026-11-12，真机批次 review-qa 实测；缺陷候选，修复走 dev 轮次）
-
-**现象**：default_input_method 被夺回搜狗（坑 5 同族，无 Force stopping 指纹）→ `ime set` 切回 sofatype（IME 服务重启、新 pid）→ 既有输入会话上：组合态建立正常（composer 装载 total=24、候选栏 chips 可见），但组合串 `setComposingText` 与选词 `commitText` **均不写入宿主输入框**——输入框恒占位文案（视觉截图 + uiautomator dump text 双证，dump API 23 空框时 text 属性含 hint，判据注意）；期间键码打字走键盘键面的直出同样不落框。用户 tap 输入框后恢复（会话重建）：组合串落框、选词上屏（text='n嗯'，「嗯」为选词）全部正常；黑洞期已失败的组合串在恢复后延迟落框（'nn' 双 n），如实留档。
-
-**影响**：该状态下用户经由键盘的输入全部丢失（候选栏显示、正文无字）——输入法核心输出链路失效。
-
-**处置**：走查遇组合装载正常但正文不落框，先核对 default_input_method 与 IME 进程 pid 是否在会话中途更换；恢复动作 = tap 输入框重建会话；根治修复挂账 dev 轮次（复现链：夺回 → ime set → 弹键盘输入）。本批走查期间该缺陷污染了打字键码「直写正文」的独立取证（T59 口径 4 部分项），如实标注。
-
-**修复验证（2026-11-13，T62 真机复验批次）**：修复包（`805d894`，sha256 f15b70c5…d4eb232）上黑洞态**零复现**——意外夺回实例与受控 `ime set` 切走/切回链的组合串落框、选词上屏、键面直出全部精确落框；切回沿键盘自动重显 2/2（广播→重建会话→onStartInputView+onWindowShown）。「nn」双写无复现（黑洞恢复期土壤不存在）。形态区分实测：受控 `ime set` 切走**不**重启 IME 进程（pid 不变），「服务重启、新 pid」仅发生于系统夺回链；「切走沿 finishComposingText 提交」与「组合串保留」在 dump text 值上不可区分，判读注意。
-
-### 坑 23：tap 设置页按钮后收起键盘，后续首键码触发键盘自发重显（2026-11-12，真机批次 review-qa 实测；缺陷候选，修复走 dev 轮次）
-
-**现象**：设置页 tap 过任意按钮（如 [全选]/[填入样例]）后 BACK 收起键盘，随后注入的**第一发键码（DPAD/OK）触发系统级 show**——`dumpsys input_method mShowRequested=true mShowExplicitlyRequested=true`、`onStartInputView + onWindowShown` 链执行、键盘重显；OK 被消费为 IME 键面激活（候选装载在案），宿主焦点不动。三轮复现（14:19/14:29/14:37）。对照：收起后**不 tap** 直接键码，无此重显（14:31 对照实验：tap 空白 3s 后 mInputShown=false 不弹）。伴生事实：tap 按钮使焦点转移、IMM 会话解绑，此后键码直达 IME 隐藏态分支（ImeKeyTrace 有 onKeyDown 行）；会话存活时设置页 pre-IME 分路拦截正常（BACK 退出那发 trace 零行）——「T54 修复的两派发路径行为结果一致」在真机 DPAD/OK 场景被本现象破坏。
-
-**影响**：T54 口径「收起后 DPAD 宿主移焦、OK 激活焦点控件」在 tap 过按钮的场景不可达——真机缺陷（REJECT 候选·P1，详见 open/T54.md 真机复验节），修复走 dev 轮次。
-
-**处置**：真机走查「收起后遥控宿主响应」类取证，必须在「收起后未 tap 过任何按钮」的干净态做；tap 通道用过的状态只做显示态键盘项。
-
-**修复验证（2026-11-13，T54 真机复验批次）**：修复包（`805d894`，sha256 f15b70c5…d4eb232）上本坑缺陷形态**零复现**——tap 按钮→BACK 收起后单发 DPAD/OK/BACK 全部宿主语义响应（焦点移动／UpdateCheck 双日志／退出设置页）、ImeKeyTrace 零劫持行、`mShowRequested` 恒 false、无自发 onStartInputView；主链＋[完成] 收起路径＋收起→再弹循环全过。**勘误（经本轮 dump 实证更正，2026-11-13）**：上文「tap 按钮使焦点转移」表述不准确——真机主卡按钮 tap 一击激活且视图焦点不离开 test_input（dump 在案），劫持机制应归会话／键路由层变化，非视图焦点转移。收起沿焦点回编辑框后无自动弹回（坑 18 家族风险观测 0/3）。
-
-### 坑 24：`adb shell reboot -p` 不关机，等同重启（2026-11-14，户主指令关机实测）
-
-**现象**：户主指令关机真机，`adb shell reboot -p` 执行后设备未关机：实测等同一次重启，设备回到在线状态。该机型无 adb 关机通道。
-
-**处置**：真机关机改由户主遥控执行；agent 不再尝试 `reboot -p` 关机。
-
-### 坑 25：远程保活收起后编辑器间 DPAD 切框自动重显远程 UI，重显沿【退出远程】默认持焦吃掉下一发 OK 误杀会话（2026-11-16，T74 真机批次实测；已修复 = T78 方向 B / 决策 64，同日真机复验归档）
-
-**现象**：已连接态 BACK 保活收起（该路径不开抑制窗，T74 既有口径）→ 宿主 DPAD 在编辑器间切焦点（编辑器→编辑器）→ 宿主切框沿 show 请求无 veto 直接重显远程已连接态（重显本身 = T74 设计内重入路径，截图在案）→ 重显沿【退出远程】按钮默认持焦（决策 50 口径）→ 用户下一发 OK（意图确认/继续输入）`performClick` 命中退出按钮 → `remote exit requested` 拆会话、停服（手机收 disconnect tv-exit）。API 23 真机触发链完整（2026-11-16 08:43:08 trace 留证）；对照实验：BACK 后直接 OK 走「输入窗隐藏态吞键→requestShowSelf」唤醒护栏正常重入（2/2），编辑器→按钮焦点迁移不触发重显（不移动编辑器焦点即不 show）。
-
-**处置**：已修复归档（T78，方向 B = 重显沿焦点策略，决策 64）：修复包真机（MiTV4 API 23）复走本手势链 PASS——重显沿无默认焦点、首发 OK 不误杀、会话保持；「退出远程」仍 DPAD 可达（明细 closed/T78）。「拍板前不在修复前包上复走该手势链」的历史口径随之作废；修复前应急路径（BACK 后直接 OK 的唤醒护栏路径）留作对照，不再依赖。
-
+默认 IME 为搜狗时，`adb shell input text` 注入含英文字母的文本会被搜狗当拼音组合态吞掉（数字直通可靠）→ 含字母样例不可靠，改用应用内通道（如「填入示例文本」按钮）或先处理输入法模式。
