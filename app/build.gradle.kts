@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("app.cash.paparazzi")
 }
 
 android {
@@ -15,6 +16,7 @@ android {
         // PRD 第 12 章决策 19：版本随发布批次递增，首版基线 0.1.0(1)，当前 0.2.0(2)（T89 起）
         versionCode = 2
         versionName = "0.2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -68,4 +70,9 @@ dependencies {
     // T71 · 决策 60：日志组件 Timber（户主明确指令，「纯 Kotlin 无第三方 SDK」约束的指令例外，
     // 随 ZXing 先例入册；issue T71 如实记录）——双树 = logcat 树（行为同现状）+ 文件树（开关控制）。
     implementation("com.jakewharton.timber:timber:5.0.1")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
