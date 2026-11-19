@@ -7,7 +7,7 @@
 - 简版差异：根目录 `CHANGELOG.md`
 - 实机参数与坑：`docs/devices/` 设备档案
 - 原则与红线：`AGENTS.md`
-- 任务状态与明细：`docs/TASKS_*.md`；决策全文：`docs/PRD_*.md` 第 12 章；环境与命令模板：`local/DEV-GUIDE.md`
+- 任务状态与明细：`docs/TASKS_*.md`；决策全文：`docs/PRD_*.md` 第 12 章
 - 各任务细节：`docs/issues/` 对应 issue（open / closed）
 
 ## 维护约定（三处记录分工）
@@ -20,16 +20,16 @@
 
 ## 当前快照（截至 2026-11-19）
 
-- 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
+- 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 任务状态（逐任务以 TASKS 状态行为准）：
   - 已归档（closed）：T1~T87 全部，明细见 `docs/issues/closed/` 对应 issue。
-  - 装机终态（2026-11-19 真机批次更新）：MiTV4 保留 debug 包日用（2026-11-19 HEAD 版，含 T84 / T86 / T87 改动；StrictMode 全开为日常态）。电视无线 adb 已恢复（连接残留旧钥匙时先 `adb kill-server` 再连）。
+  - 未进行：T88 隐藏态确认键消费语义修订（2026-11-19 户主拍板立项——「焦点在输入框按 OK 弹键盘，其余任何情况 OK 与 IME 无关」，修订 T59 口径 3；未开工；明细见 `docs/issues/open/T88.md`）。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立任务）。
-  - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据与处置见 DEV-GUIDE 1.5，2026-11-15 T77 实测）；透传修复属 flake 改动，待户主拍板。
+  - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
   - 平台夺回链（坑 5 / 9 同族：自家 Activity 切走沿 / 屏保沿触发平台 force-stop 本 IME 包 → 重选系统默认搜狗）为设备长期事实；应用侧治理 = 设置页检测横幅 + 一键选回恢复通道（T82 closed 2026-11-18，决策 66，明细见 `docs/issues/closed/T82.md`）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
@@ -68,11 +68,11 @@
 | 62 | 远程模式 BACK 分连接态：已连接只收起键盘保会话（切输入框零扫码），未连接维持 FR-B7 完整退出；显式退出收窄「退出远程」按钮（修订 FR-B7 / 决策 59 退出通道） |
 | 63 | 远程服务端口持久复用：首次随机、持久化、使用期复用（修订决策 16 端口随机）——服务 URL origin 跨退出重开稳定，决策 61 保号链真实路径生效 |
 
-## 坑清单（按主题合并；细节见对应 issue 与 DEV-GUIDE）
+## 坑清单（按主题合并；细节见对应 issue）
 
 ### 构建与环境
 
-1. 沙箱构建四件套重定向（HOME / GRADLE_USER_HOME / XDG_CACHE_HOME / `JAVA_TOOL_OPTIONS=-Duser.home`）；JAVA_TOOL_OPTIONS 必须单独一条 export、写在 HOME 之后——同一 export 语句内展开先于赋值生效；模板固化 DEV-GUIDE 1.5（T1/T3）。
+1. 沙箱构建四件套重定向（HOME / GRADLE_USER_HOME / XDG_CACHE_HOME / `JAVA_TOOL_OPTIONS=-Duser.home`）；JAVA_TOOL_OPTIONS 必须单独一条 export、写在 HOME 之后——同一 export 语句内展开先于赋值生效（T1/T3）。
 2. Gradle wrapper 官方域名超时：腾讯镜像 + `distributionSha256Sum` 钉官方校验和；版本以 nix 包为准（决策 24）（T1）。
 3. flake 三坑：SDK 许可走 nixpkgs config `android_sdk.accept_license`；unfree 组件需 `allowUnfree = true`；`nix run` 的 app 脚本 PATH 自带 `${sdk}/bin` 且要 `set -euo pipefail`（否则失败还打印成功文案）。
 4. 组合 SDK 镜像目录是符号链接，`find -type d` 看不见，用 `ls -la`；镜像路径带 `android-` 前缀。
@@ -120,7 +120,7 @@
 5. 平台安装授权判定读 global 位（UI 开关写 secure，两处不一致，户主拍板 global=1 长期保持）；注入病理窗口（幻影键/迟到副本/事件沉浮层）会污染直落/双写类走查观测——细节见设备档案坑 15 与坑 8 补充（T27）。
 6. 系统安装器包确认界面只吃 tap 不吃键码（遥控/adb 键码全死），双钮两段式交互（首 tap 移焦、再 tap 激活；初始带焦点钮首 tap 即激活），小米形态含「未经过安全审核」红色警告——安装器走查按户主意图 tap 代操作并报备（T46/T47/T51 真机段，设备档案坑 16）。
 7. `adb install` 传输完成后电视端弹安装许可：agent 先远程 `input tap` 代点「确定 / 继续安装」（键码无效、双钮两段式，设备档案坑 16/17），代点无效再通知户主手动确认；安装段时长取决于确认速度，等待期不盲试重试（T50 复验 + 2026-11-11 户主修订流程，设备档案坑 17）。
-8. `/proc` 端口表读数偶发假阴性（监听在报 0 条）：同参数重读即恢复，「无监听」类结论必须双读 + 双表（tcp6/tcp）交叉验证；设备占端口通道 = `/system/xbin/busybox` nc 且占用与走查序列须同一条 adb shell 会话内执行（2026-11-16 T74/T75 真机批次，设备档案坑 12 补充、DEV-GUIDE 走查通道备注）。
+8. `/proc` 端口表读数偶发假阴性（监听在报 0 条）：同参数重读即恢复，「无监听」类结论必须双读 + 双表（tcp6/tcp）交叉验证；设备占端口通道 = `/system/xbin/busybox` nc 且占用与走查序列须同一条 adb shell 会话内执行（2026-11-16 T74/T75 真机批次，设备档案坑 12 补充）。
 
 ### 词库与数据
 
@@ -135,4 +135,4 @@
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
-- 开工顺序：`AGENTS.md` → `docs/PRD_*.md` → `docs/TASKS_*.md` → `docs/devices/` → `local/DEV-GUIDE.md` → `designs/`。
+- 开工顺序：`AGENTS.md` → `docs/PRD_*.md` → `docs/TASKS_*.md` → `docs/devices/` → `designs/`。
