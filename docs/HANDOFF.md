@@ -7,39 +7,39 @@
 - 简版差异：根目录 `CHANGELOG.md`
 - 实机参数与坑：`docs/devices/` 设备档案
 - 原则与红线：`AGENTS.md`
-- 任务状态与明细：`docs/TASKS_*.md`；决策全文：`docs/PRD_*.md` 第 12 章
-- 各任务细节：`docs/issues/` 对应 issue（open / closed）
+- 任务制已废止（2026-11-19 起基线冻结、issue 制）：变更状态即 issue 状态（`docs/issues/`）；决策全文：1~78 见 `docs/PRD_20261104.md` 第 12 章（基线已冻结），其后拍板见对应 issue
+- 各变更细节：`docs/issues/` 对应 issue（open / closed）
 
 ## 维护约定（三处记录分工）
 
-1. **issue（`docs/issues/`）**：单次变更的唯一详细记录，与 TASKS 任务同名同编号；`open/` 进行中，户主验收拍板后挪入 `closed/`。纯文档调整不建 issue。规范见 `docs/issues/README.md`。
-2. **本文（HANDOFF）**：只留关键决策、踩过的坑、当前状态与待办，细节指向 issue。**不记录工作过程**——干了什么事的过程叙事不进本文（归 issue 与 git 历史）；**已归档（closed）任务的结果不在本文复述**（2026-11-12 户主指令，含真机 PASS 与归档明细）；任务状态只以 bullet 列「已归档 / 进行中 / 未进行」，不写归档原因与过程（2026-11-15 户主指令）；与 TASKS / issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
+1. **issue（`docs/issues/`）**：单次变更的唯一记录，issue 即需求；编号即全局变更编号。`open/` 进行中，户主验收拍板后挪入 `closed/`。纯文档调整不建 issue。规范见 `docs/issues/README.md`（2026-11-19 修订：TASKS 冻结、任务制废止）。
+2. **本文（HANDOFF）**：只留关键决策、踩过的坑、当前状态与待办，细节指向 issue。**不记录工作过程**——干了什么事的过程叙事不进本文（归 issue 与 git 历史）；**已归档（closed）任务的结果不在本文复述**（2026-11-12 户主指令，含真机 PASS 与归档明细）；任务状态只以 bullet 列「已归档 / 进行中 / 未进行」，不写归档原因与过程（2026-11-15 户主指令）；与 issue 重复的内容用指针代替；每次更新顺手收缩，发现膨胀先整理再收笔。
 3. **`CHANGELOG.md`**：发版时更新，一版一节，按该版本 issue 汇总。
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
-5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。**开发环境工具链拍板不入 PRD**，记录于本文决策速查与对应 issue。
+5. 需求 / 设计变更与新拍板一律入对应 issue（issue 即需求），本文决策速查表按 issue 号登记一行。**基线 PRD（`docs/PRD_20261104.md`）已冻结，开发环境工具链拍板不入基线**，记录于本文决策速查与对应 issue。
 
 ## 当前快照（截至 2026-11-19）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
-- 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 任务状态（逐任务以 TASKS 状态行为准）：
-  - 已归档（closed）：T1~T88 全部，明细见 `docs/issues/closed/` 对应 issue。
+- 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
+- 变更状态（任务制已废止，以 issue 目录为准）：
+  - 已关闭（closed）：T1~T88 全部（v1.2 收口，2026-11-19 户主拍板），明细见 `docs/issues/closed/` 对应 issue。
 - 遗留观察（挂账，不影响功能）：
-  - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立任务）。
+  - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
   - 平台夺回链（坑 5 / 9 同族：自家 Activity 切走沿 / 屏保沿触发平台 force-stop 本 IME 包 → 重选系统默认搜狗）为设备长期事实；应用侧治理 = 设置页检测横幅 + 一键选回恢复通道（T82 closed 2026-11-18，决策 66，明细见 `docs/issues/closed/T82.md`）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
   - 键盘 hide→重弹短间隔视图可能不重建，会话内语言 / 大小写 / 全半角状态延续（FR-A13 P2 记忆边界族，含 UPPER 态收起重弹后首键 OK 输出大写 A；T65 走查复核确认既有边界、非 T65 引入；T66 走查同族确认 keyboardMode 重显残留 SYMBOLS，非缺陷）。
-  - WS 配对成功后已连接 UI 切换有秒级延迟（首帧约 3.5s 未切、约 6s 帧已切；renderRemoteUi 未被 T65 触碰，T65 走查发现，如需查证另立任务）。
+  - WS 配对成功后已连接 UI 切换有秒级延迟（首帧约 3.5s 未切、约 6s 帧已切；renderRemoteUi 未被 T65 触碰，T65 走查发现，如需查证另立 issue）。
   - 换网段子分支与安卓 Chrome 走查户主拍板不测（issue T19）。
   - TestTypingActivity exported=true（沿 T2 走查先例，第三方可显式拉起调试页；2026-11-13 review-qa 建议挂账，当时依托 debug 门控、风险低——决策 65 / T79 起测试打字页 release 同样可达，暴露面随之放开；待走查通道收敛时拍板是否收紧，issue T63 审查记录 + closed/T79）。
-  - 远程重显双 show 沿焦点竞争边界（2026-11-16 T79 review-qa 模拟器实测）：`am start` 同应用 Activity 触发双 `onStartInputView`（间隔约 1ms）时，第二沿按 `RemoteReentryFocusPolicy` 设计语义回归退出键焦点，决策 64「首发 OK 不误杀」护栏在该场景失效（拆会话一次、自动重建）；干净单沿场景（T78 口径）PASS；触发条件窄、T79 改动零触碰焦点链，非 T79 回归——如需修复另立任务评估。
+  - 远程重显双 show 沿焦点竞争边界（2026-11-16 T79 review-qa 模拟器实测）：`am start` 同应用 Activity 触发双 `onStartInputView`（间隔约 1ms）时，第二沿按 `RemoteReentryFocusPolicy` 设计语义回归退出键焦点，决策 64「首发 OK 不误杀」护栏在该场景失效（拆会话一次、自动重建）；干净单沿场景（T78 口径）PASS；触发条件窄、T79 改动零触碰焦点链，非 T79 回归——如需修复另立 issue 评估。
   - 设置页 BACK finish 退出后 27ms 出现一次新实例即时重建（2026-11-14 T67 真机批次，此后语义全正确；疑似坑 8 家族注入病理 artifact，下次真机批次复测，明细见 closed/T67）。
 
-## 关键决策速查（全文以 PRD 第 12 章为准）
+## 关键决策速查（决策 1~78 全文见基线 PRD `docs/PRD_20261104.md` 第 12 章，已冻结；新条目键 = issue 号，详情入对应 issue）
 
 | 决策 | 一句话 |
 | --- | --- |
@@ -134,4 +134,4 @@
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
-- 开工顺序：`AGENTS.md` → `docs/PRD_*.md` → `docs/TASKS_*.md` → `docs/devices/` → `designs/`。
+- 开工顺序：`AGENTS.md` → `docs/issues/README.md`（规范与模板）→ 基线 `docs/PRD_20261104.md`（按需查阅，先核对第 12 章修订链）→ `docs/devices/` → `designs/`。
