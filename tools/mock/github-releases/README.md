@@ -37,7 +37,7 @@ app 侧检查请求、解析、下载、安装链全是真实实现，本目录�
 方式在 AGP 8.2.2 **实测无效**（clean 重建后清单版本仍 1，dev 与 review-qa 双向复现），勿用。
 
 ```bash
-# 递增包（示例 0.3.0(3)，随 --newer-version 目标走；环境重定向四件套见 local/DEV-GUIDE.md 2.3）
+# 递增包（示例 0.3.0(3)，随 --newer-version 目标走；环境重定向四件套见仓库本地开发指引「构建与测试」节）
 nix develop -c ./gradlew --no-daemon clean assembleDebug \
   -I tools/mock/github-releases/build-incremented-apk.gradle \
   -PmockVersionCode=3 -PmockVersionName=0.3.0
