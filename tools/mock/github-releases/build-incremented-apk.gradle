@@ -1,6 +1,7 @@
 // T46/T47 mock 递增包构建注入(本文件随 tools/mock/github-releases/ 入库,README「APK 资产」
 // 节的用法唯一口径):经 Gradle init 脚本机制在 AGP 读取前改写 android.defaultConfig 的
-// versionCode/versionName,产出 versionCode 真递增的 mock 验收包(0.2.0(2))。
+// versionCode/versionName,产出 versionCode 真递增的 mock 验收包(示例 0.3.0(3),示例值随
+// 工程基线递增时同步)。
 // 背景:AGP 8.2.2 对 -Pandroid.injected.version.code/-Pandroid.injected.version.name 不生效
 // (2026-11-09 dev 与 review-qa 双向实测,含 clean 重建清单版本仍 1/0.1.0),勿用该方式。
 // 原理:init 脚本 allprojects 块先于各项目求值注册 afterEvaluate,回调顺序先于 AGP 自身的

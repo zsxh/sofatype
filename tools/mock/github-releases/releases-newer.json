@@ -2,17 +2,17 @@
   {
     "url": "https://api.github.com/repos/sofatype/sofatype/releases/2",
     "assets_url": "https://api.github.com/repos/sofatype/sofatype/releases/2/assets",
-    "tag_name": "v0.2.0",
-    "name": "v0.2.0",
+    "tag_name": "v__VER_NEWER__",
+    "name": "v__VER_NEWER__",
     "draft": false,
     "prerelease": false,
-    "body": "新增检查更新：三态走查 mock 演示数据。",
+    "body": "三态走查 mock 演示数据。",
     "assets": [
       {
         "url": "https://api.github.com/repos/sofatype/sofatype/releases/assets/2",
-        "name": "sofatype-0.2.0.apk",
+        "name": "sofatype-__VER_NEWER__.apk",
         "content_type": "application/vnd.android.package-archive",
-        "browser_download_url": "http://__HOSTPORT__/sofatype-0.2.0.apk"
+        "browser_download_url": "http://__HOSTPORT__/sofatype-__VER_NEWER__.apk"
       }
     ]
   }
