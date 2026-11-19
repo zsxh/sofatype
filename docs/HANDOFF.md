@@ -25,8 +25,7 @@
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 任务状态（逐任务以 TASKS 状态行为准）：
-  - 已归档（closed）：T1~T87 全部，明细见 `docs/issues/closed/` 对应 issue。
-  - 未进行：T88 隐藏态确认键消费语义修订（2026-11-19 户主拍板立项——「焦点在输入框按 OK 弹键盘，其余任何情况 OK 与 IME 无关」，修订 T59 口径 3；未开工；明细见 `docs/issues/open/T88.md`）。
+  - 已归档（closed）：T1~T88 全部，明细见 `docs/issues/closed/` 对应 issue。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立任务）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
@@ -129,7 +128,7 @@
 
 ## 给下一个 agent · 代码接入速查
 
-- 键位事件处理全部在 `SofatypeImeService.onKeyDown`：方向键 → FocusNavigator，OK/ENTER → performClick；新增键面行为改 `execute(action)` 分支（T6/T7）。
+- 键位事件处理全部在 `SofatypeImeService.dispatchKeyDown` / `onKeyUp`：方向键 → FocusNavigator，OK/回车显示态 → performClick + T38 两窗；隐藏态确认键 = `confirmWakeSessionActive()` 门控（会话活跃才唤起，T86 分层兜底；无会话透传宿主 DOWN/UP 对称，T88 · 决策 69）；BACK/方向/打字键码隐藏态透传宿主（T59）。新增键面行为改 `execute(action)` 分支（T6/T7）。
 - 布局切换入口：`SofatypeImeService.switchKeyboardMode` / `rebuildKeys`；新布局须提供 rows + overlayCells（跨行键格位）+ initialCell，12 列 × 4 行与既有布局同构（数字列 col1-3、功能区 col11/12）（T8）。
 - 大小写变换入口在模型层：`displayLabel` / `outputValue` / `shiftContentDescription`（T7）；键面两态渲染（英文小写/大写键面）同在 `KeyboardLayout` 模型层（T66）。
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。

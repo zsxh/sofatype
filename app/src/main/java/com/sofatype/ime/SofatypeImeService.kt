@@ -983,12 +983,27 @@ class SofatypeImeService : InputMethodService() {
         if (keyCode.isConfirmKey()) {
             // OK/回车触发焦点键（FR-A11）：框架转发路径不经过 view 树，焦点视图默认 click
             // 不可用，在此显式派发 performClick
+            // T88（户主拍板 2026-11-19，修订 T59 口径 3）：隐藏态 + 无输入会话（会话已结束 /
+            // 无会话，即焦点不在可输入控件）时确认键与 IME 无关——不消费、不唤起，透传宿主
+            //（return super）。MiTV4 固件形态 = 键盘隐藏后按键仍路由进 IME（T53 trace 实证），
+            // 该形态下第三方宿主（无 pre-IME 分路）的确认键原被无条件消费 + 唤起（T59 口径 3
+            // 无会话判定），焦点已移出输入框 / 应用已切走时形成「按 OK 被劫持弹键盘」。「会话
+            // 活跃（焦点在可输入控件）」判定 = confirmWakeSessionActive()（getCurrentInputStarted
+            // + 真实编辑器 EditorInfo 双框架信号，细则见该函数注释）；整个确认键族（含长按重复
+            // DOWN）一并透传，UP 由 onKeyUp 对称处理。会话活跃（焦点在输入框）路径原样保留
+            //（下方分支）。
+            if (!isInputViewShown() && !confirmWakeSessionActive()) {
+                trace("onKeyDown keyCode=$keyCode 确认键隐藏态无输入会话 -> 透传宿主")
+                return super.onKeyDown(keyCode, ev)
+            }
             if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) {
                 // T38：输入窗隐藏期间确认键不落键面。模拟器 API 34 实测隐藏态键事件仍路由进
                 // IME（真机 API 23 隐藏态 trace 实证同样到达，T53 tv-c1~c3b），焦点残留收起前
                 // 键位——隐形点击会在错误键位直出字符或重开收起链路。吞键语义保留。
                 // T59（户主拍板 2026-11-11）：隐藏态确认键 = 消费 + 唤起键盘（FR-A1「在可输入
                 // 焦点处确认后弹出键盘」；真机收起后 CENTER 被吞无法唤起，closed/T53 坑 1 同族）。
+                // T88（户主拍板 2026-11-19）修订适用前提：唤起仅限「会话活跃」（上方门控已过，
+                // 走到这里必为隐藏态 × 会话活跃）；无会话 / 会话已结束的确认键透传宿主。
                 // requestShowSelf 经 onShowInputRequested 裁决：收起抑制窗内被 veto（「完成」
                 // 收起后立即 OK 不唤起 = T38 既有收起语义）；唤起成功沿 onWindowShown 开唤起
                 // 抑制窗，本键已吞无转发副本，其后第二发确认键被 wake guard 吞一次（T38
@@ -1097,6 +1112,8 @@ class SofatypeImeService : InputMethodService() {
      * 再按叠加「ee」并混入正文，真机 17/17 复现，t27-a2-fulltrace-raw.txt 的 fromKey=false
      * 幽灵装载行即此）。确认键 UP 在 InputMethodService 默认链路无语义，消费无副作用；
      * 连删解除判定先行，语义与 T22 口径一致。
+     * T88（户主拍板 2026-11-19）例外：隐藏态无输入会话（DOWN 未被消费、已透传宿主）时，
+     * 确认键 UP 对称透传宿主，保证宿主完整按键语义（见方法体内 T88 分支）。
      * T45（T27 缺陷 B 同族）：字母键码 UP 同样一律消费——DOWN 已在 [dispatchKeyDown] 拦截入组，
      * 孤儿 UP 经框架转发路径直写宿主文本会与组合串并存（真机实测组合「e」+直落「e」双写，
      * qa r2-b.xml「额额e」）；UP 在按键语义上无独立文本效应，消费无副作用。
@@ -1108,6 +1125,15 @@ class SofatypeImeService : InputMethodService() {
      */
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         if (event != null && keyCode.isConfirmKey()) {
+            // T88（户主拍板 2026-11-19）：隐藏态无输入会话确认键 UP 对称透传宿主——DOWN 已在
+            // [dispatchKeyDown] 透传，遥控 OK 的宿主点击语义 = DOWN+UP（UP 被吞则宿主只收到
+            // 按下沿、click 不触发）；其余情形 DOWN 已被本服务消费（显示态 performClick /
+            // 隐藏态唤起与两窗吞键），UP 维持 T44 既有消费防幽灵点击。该状态下在途连删已在
+            // DOWN 沿被 T22 先行取消（dispatchKeyDown 任一新按下解除），无需在此处理。
+            if (!isInputViewShown() && !confirmWakeSessionActive()) {
+                trace("onKeyUp keyCode=$keyCode 确认键隐藏态无输入会话 -> 透传宿主（UP 对称）")
+                return super.onKeyUp(keyCode, event)
+            }
             if (deleteRepeatJob != null) {
                 trace("onKeyUp keyCode=$keyCode（连删解除）")
                 cancelDeleteRepeat()
@@ -1136,6 +1162,23 @@ class SofatypeImeService : InputMethodService() {
     private fun Int.isConfirmKey(): Boolean = this == KeyEvent.KEYCODE_DPAD_CENTER ||
         this == KeyEvent.KEYCODE_ENTER ||
         this == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+    /**
+     * T88 · 隐藏态确认键唤起前提：输入会话活跃且焦点在可输入控件（户主拍板 2026-11-19
+     * 「焦点在输入框按 OK 唤起；其余任何情况确认键与 IME 无关」的判定实现）。
+     * 双框架信号缺一不可：
+     * ① getCurrentInputStarted()：框架 onStartInput 置位 / onFinishInput 复位——会话级信号，
+     *    排除「会话已结束 / 无会话」（MiTV4 固件解绑态仍路由按键进 IME 的形态，T53 实证）；
+     * ② currentInputEditorInfo.inputType != TYPE_NULL（=0）：真实编辑器信号。API 30+ 框架对
+     *    无编辑器窗口也派发 startInput（dummy EditorInfo：inputType=0 / fieldId=0，模拟器
+     *    API 34 launcher 实测 dumpsys mInputEditorInfo inputType=0x0 packageName=tvlauncher），
+     *    仅凭 ① 会把「焦点不在输入框」误判为会话活跃（本轮模拟器实测存在该形态）。
+     * 显示态不经过本判定（调用点均以 !isInputViewShown() 为前置），显示态确认键语义零改动。
+     */
+    private fun confirmWakeSessionActive(): Boolean {
+        val info = currentInputEditorInfo ?: return false
+        return getCurrentInputStarted() && info.inputType != EditorInfo.TYPE_NULL
+    }
 
     /** 候选 chip 视图 tag 判定（候选行焦点路由识别）。 */
     private fun String.isCandidateId(): Boolean = startsWith(CANDIDATE_ID_PREFIX)

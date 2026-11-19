@@ -2,6 +2,8 @@
 // ① 纯决策：SettingsKeyRouter.confirmActivatesIme 的 null 边界（非 null View 分支含 Android
 //    类型判定，纯 JVM 无法构造实例，由 ② 源码扫描锁定）；
 // ② 源码扫描守卫：四类键码隐藏态口径逐条锁定 + T38/T45/T48/T53 既有语义保留锁定。
+// T88（户主拍板 2026-11-19）修订 T59 口径 3：隐藏态确认键唤起加「会话活跃」前提——
+//    无会话 / 会话已结束透传宿主（DOWN + UP 对称），会话活跃唤起路径保留，新增三用例锁定。
 // SofatypeImeService 为 Android 服务层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
 // 接线以源码扫描锁定——先例：SettingsFocusTakeoverTest（T54 R2）、CandidatesBarOccupancyTest（T53）。
 package com.sofatype.ime
@@ -74,18 +76,85 @@ class T59HiddenKeySemanticsTest {
 
     @Test
     fun `确认键隐藏态消费并唤起键盘`() {
+        // T88（户主拍板 2026-11-19）修订 T59 口径 3：唤起以「会话活跃（焦点在可输入控件）」
+        // 为前提——无会话门控（confirmWakeSessionActive）在唤起分支之前（透传专项断言见下
+        // 一用例），本用例锁定会话活跃路径保留原样：swallowed trace + requestShowSelf 唤起 +
+        // 吞键返回。
+        val gateIdx = service.indexOf("!confirmWakeSessionActive()")
+        assertTrue("确认键分支须含无会话门控（T88：confirmWakeSessionActive）", gateIdx >= 0)
         val hiddenTraceIdx = service.indexOf("swallowed（输入窗隐藏态）")
         assertTrue("确认键隐藏态分支须保留 T38 吞键 trace", hiddenTraceIdx >= 0)
+        assertTrue(
+            "唤起分支须在无会话门控之后（T88：会话活跃才走唤起）",
+            hiddenTraceIdx > gateIdx,
+        )
         val showSelfIdx = service.indexOf("requestShowSelf(0)", hiddenTraceIdx)
         val returnIdx = service.indexOf("return true", hiddenTraceIdx)
         assertTrue(
-            "隐藏态确认键须 requestShowSelf 唤起键盘（拍板 3），随后吞键返回",
+            "隐藏态确认键须 requestShowSelf 唤起键盘（拍板 3，T86 分层兜底首层字面调用），随后吞键返回",
             showSelfIdx > hiddenTraceIdx && returnIdx > showSelfIdx,
         )
         // 显示态 T38 唤起抑制窗保留
         assertTrue(
             "T38 唤起抑制窗（shouldSwallowConfirmKey）接线保留（显示态语义零改动）",
             service.contains("showGuard.shouldSwallowConfirmKey("),
+        )
+    }
+
+    @Test
+    fun `会话活跃判定为双框架信号`() {
+        // T88 判定 = getCurrentInputStarted()（会话级）+ 真实编辑器 EditorInfo（inputType
+        // 非 TYPE_NULL）双信号——API 30+ 框架对无编辑器窗口也派发 startInput（dummy
+        // EditorInfo），仅凭会话级信号会把「焦点不在输入框」误判为会话活跃。
+        val funIdx = service.indexOf("private fun confirmWakeSessionActive()")
+        assertTrue("confirmWakeSessionActive 判定函数存在", funIdx >= 0)
+        val body = service.substring(funIdx, service.indexOf("private fun", funIdx + 10))
+        assertTrue(
+            "判定须含会话级信号 getCurrentInputStarted",
+            body.contains("getCurrentInputStarted()"),
+        )
+        assertTrue(
+            "判定须含真实编辑器信号（EditorInfo.TYPE_NULL）",
+            body.contains("EditorInfo.TYPE_NULL"),
+        )
+        assertTrue(
+            "判定须读取 currentInputEditorInfo",
+            body.contains("currentInputEditorInfo"),
+        )
+    }
+
+    @Test
+    fun `确认键隐藏态无会话透传宿主且先于唤起分支`() {
+        // T88（户主拍板 2026-11-19，修订 T59 口径 3）：隐藏态 + 无输入会话（会话已结束 /
+        // 无会话）→ trace 留痕 + return super 透传宿主，且该分支先于唤起链执行——
+        // 整个确认键族（含长按重复 DOWN）一并透传，不得先消费再判会话。
+        val confirmIdx = service.indexOf("if (keyCode.isConfirmKey())")
+        assertTrue("确认键分支存在", confirmIdx >= 0)
+        val gateIdx = service.indexOf("if (!isInputViewShown() && !confirmWakeSessionActive())", confirmIdx)
+        assertTrue("确认键分支须含隐藏态无会话门控（T88）", gateIdx > confirmIdx)
+        val passIdx = service.indexOf("确认键隐藏态无输入会话 -> 透传宿主", gateIdx)
+        val superIdx = service.indexOf("return super.onKeyDown(keyCode, ev)", gateIdx)
+        val wakeTraceIdx = service.indexOf("swallowed（输入窗隐藏态）", gateIdx)
+        val actionIdx = service.indexOf("if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0)", gateIdx)
+        assertTrue(
+            "无会话须 trace 留痕 + 透传宿主（return super），且先于唤起分支与显示态逻辑执行",
+            passIdx > gateIdx && superIdx > passIdx && superIdx < wakeTraceIdx && actionIdx > superIdx,
+        )
+    }
+
+    @Test
+    fun `确认键无会话UP对称透传宿主`() {
+        // T88（户主拍板 2026-11-19）：UP 对称——DOWN 已透传（无会话隐藏态）时 UP 同样透传，
+        // 宿主完整按键语义（遥控 OK 点击 = DOWN+UP）；其余情形 UP 维持 T44 既有消费。
+        val keyUpIdx = service.indexOf("override fun onKeyUp")
+        assertTrue("onKeyUp 存在", keyUpIdx >= 0)
+        val confirmUpIdx = service.indexOf("keyCode.isConfirmKey()", keyUpIdx)
+        val gateUpIdx = service.indexOf("if (!isInputViewShown() && !confirmWakeSessionActive())", confirmUpIdx)
+        val traceUpIdx = service.indexOf("透传宿主（UP 对称）", gateUpIdx)
+        val superUpIdx = service.indexOf("return super.onKeyUp(keyCode, event)", gateUpIdx)
+        assertTrue(
+            "onKeyUp 确认键分支须含无会话门控 + trace + UP 透传宿主（T88 对称）",
+            confirmUpIdx > keyUpIdx && gateUpIdx > confirmUpIdx && traceUpIdx > gateUpIdx && superUpIdx > traceUpIdx,
         )
     }
 

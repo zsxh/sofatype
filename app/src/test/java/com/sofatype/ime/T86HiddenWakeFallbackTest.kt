@@ -164,6 +164,23 @@ class T86HiddenWakeFallbackTest {
     }
 
     @Test
+    fun `隐藏态确认分支先核无会话透传再接线分层兜底`() {
+        // T88（户主拍板 2026-11-19，修订 T59 口径 3）：隐藏态 + 无输入会话 → 透传宿主，
+        // 分层兜底唤起仅在会话活跃（confirmWakeSessionActive 门控已过）时接线执行——
+        // 透传分支须先于 HiddenConfirmWake。
+        val service = mainSource("SofatypeImeService.kt")
+        val gateIdx = service.indexOf("if (!isInputViewShown() && !confirmWakeSessionActive())")
+        assertTrue("确认键隐藏态分支须含无会话门控（T88）", gateIdx >= 0)
+        val passIdx = service.indexOf("确认键隐藏态无输入会话 -> 透传宿主", gateIdx)
+        val wakeIdx = service.indexOf("HiddenConfirmWake(", gateIdx)
+        assertTrue("无会话须 trace 留痕透传宿主", passIdx > gateIdx)
+        assertTrue(
+            "分层兜底接线须在透传分支之后（会话活跃才唤起，无会话不触碰唤起链）",
+            wakeIdx > passIdx,
+        )
+    }
+
+    @Test
     fun `策略类窄捕获不外扩到宽泛异常族`() {
         val source = mainSource("HiddenConfirmWake.kt")
         assertTrue("策略类存在于 main 源", source.contains("class HiddenConfirmWake"))
