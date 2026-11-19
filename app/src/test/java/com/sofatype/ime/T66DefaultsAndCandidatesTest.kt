@@ -1,16 +1,3 @@
-// T66 · 键盘默认态与候选交互修订单测（docs/issues/open/T66.md · PRD 决策 51~54，2026-11-13）。
-// 锁定五件事：
-// ① 决策 52 符号键盘入口角态随入口模式：中文态 → 全角（画板 3/10）、英文态 → 半角（画板 4/11）；
-//    手动 [全/半] 仅本次停留生效（返回字母键盘后再进入重新跟随，不记忆手动选择）；
-// ② 决策 53 候选栏单行行内翻页（服务层接线）：「更多⌄」展开机制废止、翻页箭头固定候选框两侧
-//    （装饰件：不进焦点链、无障碍不标注、明暗表可翻页性）、翻页落点分向随 T67 · 决策 55
-//   （下翻落新页首、上翻落回翻页尾）、空格 = 当前页第一候选；
-// ③ 决策 54 焦点键底色 .28：Token 色值锁定（rgba(56,189,248,.28) → #4738BDF8）；
-// ④ 决策 51-①/② 补充锁定：分词键模型（无组合态忽略 / 组合态插符 / 上屏剥离）在模型测试与
-//    服务层扫描两侧覆盖（详见 ChineseComposerTest / T65KeyFaceDefaultsTest / KeyboardLayoutTest）；
-// ⑤ 决策 53 页容量按候选栏宽度自适应（CandidatePager.paginate 可用宽度入口，箭头占位扣除）。
-// SofatypeImeService 为 Android 服务层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
-// 接线以源码扫描锁定——先例：T55ModeSwitchCompositionResetTest、CandidatesBarOccupancyTest。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
@@ -21,7 +8,6 @@ import java.io.File
 
 class T66DefaultsAndCandidatesTest {
 
-    /** 路径口径 = app/ 模块目录（T55ModeSwitchCompositionResetTest 同口径）。 */
     private fun mainSource(path: String): String =
         File("src/main/$path").readText()
 
@@ -30,11 +16,8 @@ class T66DefaultsAndCandidatesTest {
     private val colors: String get() = mainSource("res/values/colors.xml")
     private val keyboardLayoutXml: String get() = mainSource("res/layout/ime_keyboard.xml")
 
-    /** 取函数体：从签名行起、到下一个成员级 KDoc 边界行止（T55 同口径）。 */
     private fun serviceBody(signature: String): String =
-        service.substringAfter(signature).substringBefore("\n    /**")
-
-    // ── ① 决策 52 符号键盘入口角态随入口模式 ──
+        service.substringAfter(signature).substringBefore("\n    }")
 
     @Test
     fun `进入符号键盘角态随入口模式`() {
@@ -51,18 +34,16 @@ class T66DefaultsAndCandidatesTest {
         val offsetIdx = switch.indexOf("symbolsWindowOffset = 0")
         val rebuildIdx = switch.indexOf("rebuildKeys(")
         assertTrue("角态赋值须先于窗口复位与键区重建", widthAssignIdx >= 0 && offsetIdx > widthAssignIdx && rebuildIdx > offsetIdx)
-        // 手动 [全/半] 仅本次停留生效：入口赋值语义 = 返回后再进入重新跟随（不读任何记忆字段）
+
         assertFalse(
             "角态入口赋值不得依赖记忆（决策 52：不记忆手动 [全/半] 选择）",
             switch.contains("moreExpanded") || switch.contains("manualWidth"),
         )
     }
 
-    // ── ② 决策 53 候选栏单行行内翻页（服务层接线） ──
-
     @Test
     fun `候选栏为单行行内翻页模型且更多入口废止`() {
-        // 「更多⌄」展开机制废止（FR-A15）：入口 tag / 标注常量 / 展开行容器 / 展开态高度切换全部移除
+
         assertFalse("「更多⌄」入口 tag 须移除（决策 53）", service.contains("MORE_TOGGLE_ID"))
         assertFalse("「更多⌄」标注常量须移除（决策 53）", service.contains("MORE_DESC_COLLAPSED"))
         assertFalse("展开行容器须移除（决策 53）", service.contains("moreBar"))
@@ -70,7 +51,7 @@ class T66DefaultsAndCandidatesTest {
         assertFalse("展开行刷新链须移除（决策 53）", service.contains("refreshMoreRow"))
         assertFalse("布局文件展开行容器须移除（决策 53）", keyboardLayoutXml.contains("@+id/more_bar"))
         assertFalse("展开态高度 Token 须移除（决策 53）", dimens.contains("ime_card_height_expanded"))
-        // 单行翻页模型接线
+
         assertTrue(
             "候选分页须走 CandidatePager（页区间 = 全局下标，坑 10 相对坐标系消除）",
             service.contains("CandidatePager.paginate("),
@@ -124,7 +105,7 @@ class T66DefaultsAndCandidatesTest {
             "可翻页判定随当前页号（回翻 = 页号 > 0、后翻 = 页号 < 末页）",
             refresh.contains("candPage > 0") && refresh.contains("candPage < candPages.size - 1"),
         )
-        // 箭头规格 Token（决策 53：约 30px 加粗、宽 28px；1080p ÷ 2 = sp/dp）
+
         assertTrue(dimens.contains("<dimen name=\"ime_cand_arrow_text\">15sp</dimen>"))
         assertTrue(dimens.contains("<dimen name=\"ime_cand_arrow_width\">14dp</dimen>"))
         assertTrue(dimens.contains("<dimen name=\"ime_cand_arrow_gap\">5dp</dimen>"))
@@ -132,8 +113,8 @@ class T66DefaultsAndCandidatesTest {
 
     @Test
     fun `空格选中当前页第一候选`() {
-        // 决策 8 × 决策 53：「有候选选首候选」修订为「选当前页第一候选」；无候选输入空格不变
-        val space = serviceBody("KeyAction.Space -> {").substringBefore("\n    /**")
+
+        val space = serviceBody("KeyAction.Space -> {").substringBefore("\n    }")
         assertTrue(
             "空格选词须取当前页页首候选（candPages[candPage].first）",
             space.contains("candPages.getOrNull(candPage)?.first") &&
@@ -163,11 +144,9 @@ class T66DefaultsAndCandidatesTest {
         )
     }
 
-    // ── ③ 决策 54 焦点键底色 .28 ──
-
     @Test
     fun `焦点底色Token加深为028`() {
-        // rgba(56,189,248,.28)：alpha 0.28 × 255 = 71.4 → 71 = 0x47（colors.xml 换算口径）
+
         assertTrue(
             "accent_wash_strong 须为 #4738BDF8（决策 54：焦点键底 .16 → .28）",
             colors.contains("<color name=\"accent_wash_strong\">#4738BDF8</color>"),
@@ -176,7 +155,7 @@ class T66DefaultsAndCandidatesTest {
             "不得残留 .16 旧值 #2938BDF8（决策 54 返工 T65 已实现部分）",
             colors.contains("#2938BDF8"),
         )
-        // 承载件引用不变：焦点底仍统一走 accent_wash_strong Token（bg_key / chip / done / 按钮）
+
         for (drawable in listOf("bg_key", "bg_chip_highlight", "bg_key_done", "bg_btn_accent", "bg_side_button")) {
             assertTrue(
                 "$drawable 焦点底须引用 accent_wash_strong Token",

@@ -1,6 +1,3 @@
-// T35 · 已配对会话登记表单元测试（决策 35：滚动 token / 自动顶替 / 断连回退的纯逻辑）：
-// 锁定 attach 交出旧连接（顶替源）、同身份重复登记不算顶替、detachIfCurrent 仅清当前登记
-//（被顶替旧连接的迟到关闭不清新登记）、clear 语义。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -17,7 +14,7 @@ class PairedSessionRegistryTest {
 
     @Test
     fun attachReturnsPreviousConnectionForReplacement() {
-        // 新设备配对：登记新连接并交出旧连接（供 Manager 回发 replaced 后关闭，FR-B11）
+
         val registry = PairedSessionRegistry()
         val old = connection()
         val new = connection()
@@ -29,7 +26,7 @@ class PairedSessionRegistryTest {
 
     @Test
     fun reattachingSameIdentityIsNotTreatedAsReplacement() {
-        // 防御：同一身份重复登记（理论不可达）只更新句柄，不视为顶替
+
         val registry = PairedSessionRegistry()
         val session = "session-a"
         registry.attach(session, connection())
@@ -38,7 +35,7 @@ class PairedSessionRegistryTest {
 
     @Test
     fun detachOnlyClearsCurrentRegistration() {
-        // 被顶替旧连接的迟到关闭不清新登记；当前会话断开才清除（断连回退依据）
+
         val registry = PairedSessionRegistry()
         val oldSession = "session-a"
         val newSession = "session-b"
@@ -59,7 +56,7 @@ class PairedSessionRegistryTest {
 
     @Test
     fun clearReportsWhetherSessionExisted() {
-        // 服务停止清空登记：返回清空前是否存在已配对会话（决定是否需要 UI 通知）
+
         val registry = PairedSessionRegistry()
         assertFalse(registry.clear())
         registry.attach("session-a", connection())
@@ -69,8 +66,7 @@ class PairedSessionRegistryTest {
 
     @Test
     fun currentConnectionReturnsLatestRegistrationHandle() {
-        // T18 · FR-B7：TV 退出远程经 currentConnection 取当前连接句柄（回发 disconnect 后关闭）；
-        // 无登记 / 断连清除后返回 null，顶替后返回新连接句柄
+
         val registry = PairedSessionRegistry()
         assertNull("无登记时返回 null", registry.currentConnection())
         val handle = connection()

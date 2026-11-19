@@ -1,4 +1,3 @@
-// T21 · 检查编排三态单元测试（FR-D4，JUnit 4，纯 JVM，fetch 注入假实现）。
 package com.sofatype.ime.update
 
 import com.sofatype.ime.update.UpdateCheckResult.Failed

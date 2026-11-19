@@ -1,88 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  星夜青规格 Token · 尺寸（PRD 第 6.3 节，基准 1080p）。
-  换算口径：tv_1080p 模拟器密度 320dpi（xhdpi），1080p 基准 px ÷ 2 = dp/sp；
-  4K 屏等比 2x，由系统密度缩放承担。禁止在此文件外散落尺寸值。
--->
+
 <resources>
-    <!-- 面包屑区（设计稿 ime-settings：top 56px / left 96px / 字 20px / 间距 14px / 竖线 1×16px） -->
+
     <dimen name="page_padding_top">28dp</dimen>
     <dimen name="page_padding_start">48dp</dimen>
     <dimen name="breadcrumb_text_size">10sp</dimen>
     <dimen name="breadcrumb_gap">7dp</dimen>
     <dimen name="breadcrumb_divider_w">0.5dp</dimen>
     <dimen name="breadcrumb_divider_h">8dp</dimen>
-    <!-- 测试输入三件套（T63 起承载于测试打字页，画板 9；门控决策 21 仅 debug 显示）：
-         输入框宽 616px（沿用既有 Token 310dp=620px，4px 容差内）、高 96px、圆角 20px、字 30px -->
+
     <dimen name="test_area_width">310dp</dimen>
     <dimen name="test_input_height">48dp</dimen>
     <dimen name="test_input_corner">10dp</dimen>
     <dimen name="test_input_text">15sp</dimen>
     <dimen name="test_input_padding">12dp</dimen>
-    <!-- 测试打字页定位（T63 · 画板 9；1080p px ÷ 2 = dp/sp）：
-         输入框顶 300px；按钮行距输入框底 32px；底部提示顶 830px。
-         旧「test_area_top_margin」面包屑下方锚点随调试区迁出设置页移除。 -->
+
     <dimen name="test_page_input_top_margin">150dp</dimen>
     <dimen name="test_page_buttons_margin_top">16dp</dimen>
     <dimen name="test_page_hint_margin_top">415dp</dimen>
-    <!-- T77 · 双框表单：第二输入框 test_input_2 上边距（无画板批次，沿按钮行同 32px 纵向节奏；
-         高/圆角/字/内边距复用 test_input_* 既有 Token） -->
+
     <dimen name="test_page_input2_margin_top">16dp</dimen>
-    <!-- 辅助按钮（对齐 PRD 6.3「检查更新按钮」196×64 / 圆角 14 / 字 19px；间距 14px） -->
+
     <dimen name="btn_width">98dp</dimen>
     <dimen name="btn_height">32dp</dimen>
     <dimen name="btn_corner">7dp</dimen>
     <dimen name="btn_text">9.5sp</dimen>
     <dimen name="btn_gap">7dp</dimen>
-    <!-- 描边宽：PRD 6.1 卡片描边 1~1.5px，取 1.5px -->
+
     <dimen name="stroke_width">0.75dp</dimen>
-    <!-- 设置/测试页卡片圆角（PRD 6.3 平滑大圆角 38px；bg_card 承载。
-         T68 起键盘单板直出不再使用卡片圆角，本 Token 归设置页卡片口径） -->
+
     <dimen name="ime_card_corner">19dp</dimen>
 
-    <!-- ═══ 键盘单板直出（T68 · 决策 58，视觉基准 designs/20261114 画板；1080p px ÷ 2 = dp/sp） ═══
-         单板铺满屏幕底部全宽直出（左右双悬浮卡片废止）：板高随内容排版，4 行键盘板高 392px；
-         板 = card 底 + 顶缘 1px 描边（bg_panel），板上缘另有向上柔影带（bg_panel_shadow）。
-         窗口覆盖高 = 板高 + 柔影带（柔影带画在板外上方、透出宿主内容，T5 悬浮层同口径）。 -->
     <dimen name="ime_panel_height">196dp</dimen>
     <dimen name="ime_panel_shadow_height">10dp</dimen>
     <dimen name="ime_panel_border_h">0.5dp</dimen>
-    <!-- 板内锚点：键区列（候选栏 + 键区共用）距板左 48px、距板顶 20px -->
+
     <dimen name="ime_panel_padding_h">24dp</dimen>
     <dimen name="ime_panel_padding_top">10dp</dimen>
-    <!-- 候选词栏：高 52px（占位恒定，决策 42；chips 内容属 T10） -->
+
     <dimen name="ime_candidates_height">26dp</dimen>
-    <!-- 候选 chip（T10 · PRD 6.3：高 52px=候选栏高、圆角 12、文字 28px、水平内边距 22px；
-         chips 间距 16px（画板① 候选行 flex gap）） -->
+
     <dimen name="ime_chip_corner">6dp</dimen>
     <dimen name="ime_chip_text">14sp</dimen>
     <dimen name="ime_chip_padding_h">11dp</dimen>
     <dimen name="ime_chip_gap">8dp</dimen>
-    <!-- 候选栏行内翻页箭头（T66 · 决策 53，画板 2）：< > 字符样式、约 30px 加粗、宽 28px、
-         与 chips 间距 10px；固定于候选框两侧，装饰暗示不进焦点链（无障碍不标注） -->
+
     <dimen name="ime_cand_arrow_width">14dp</dimen>
     <dimen name="ime_cand_arrow_text">15sp</dimen>
     <dimen name="ime_cand_arrow_gap">5dp</dimen>
-    <!-- 键盘区：宽 1378px（键区列宽，与候选栏同宽同锚）、距板顶 86px（候选栏 20+52 + 间距 14，
-         画板 Main margin-top:14px；键区顶全模式恒定，决策 42） -->
+
     <dimen name="ime_key_zone_width">689dp</dimen>
     <dimen name="ime_key_area_margin_top">43dp</dimen>
-    <!-- 键帽：96×64（宽>高，T68 · 决策 58）、圆角 12、字符 24px；功能键文字 18px（画板 .bkey/.bkey-fn） -->
+
     <dimen name="ime_key_width">48dp</dimen>
     <dimen name="ime_key_height">32dp</dimen>
     <dimen name="ime_key_corner">6dp</dimen>
     <dimen name="ime_key_text">12sp</dimen>
     <dimen name="ime_key_fn_text">9sp</dimen>
-    <!-- 键间 10px、行距 10px、列间隔本体 48px（画板 .krow gap:10 / .kspacer 48px，T68 · 决策 58）。
-         列间隔实宽 = 键距 10 + spacer 48 + 键距 10 = 68px：.krow 的 flex gap 对 spacer 两侧均生效，
-         20px 键距由代码侧键 margin 与 spacer margin 合成，此处只存 spacer 本体宽 -->
+
     <dimen name="ime_key_spacing">5dp</dimen>
     <dimen name="ime_row_spacing">5dp</dimen>
     <dimen name="ime_column_spacer">24dp</dimen>
-    <!-- 浮层键（跨行 3/4，高 138px、顶 148px = 行 3 顶，画板 absolute top:148px）：
-         字母键盘完成键 100×138 @1278px（画板 Main/English* 键区 absolute 定位，右缘贴键区列 1378px）；
-         符号键盘空格 96×138 @1178px、完成键 96×138 @1282px（画板 Symbols* absolute，col11/12）。
-         键高/顶距两板一致共用浮层键 Token；键宽/横向偏移分列（字母完成键 100px、符号两键 96px） -->
+
     <dimen name="ime_done_key_width">50dp</dimen>
     <dimen name="ime_done_key_text">11sp</dimen>
     <dimen name="ime_done_key_start">639dp</dimen>
@@ -92,15 +71,12 @@
     <dimen name="ime_space_key_width">48dp</dimen>
     <dimen name="ime_symbols_done_key_start">641dp</dimen>
     <dimen name="ime_symbols_done_key_width">48dp</dimen>
-    <!-- 键帽图标尺寸（T68 · 决策 58 视觉基准 designs/20261114 画板 SVG 尺寸）：
-         上档 26px / 下屏 24px / 删除 26px / 光标 22px -->
+
     <dimen name="ime_icon_shift">13dp</dimen>
     <dimen name="ime_icon_hide">12dp</dimen>
     <dimen name="ime_icon_backspace">13dp</dimen>
     <dimen name="ime_icon_cursor">11dp</dimen>
-    <!-- 键面下划线条（T65 · 决策 47-① 触发态统一，尺寸随 T68 画板 20261114）：
-         状态键当前态下划线 2px、偏移 4px（画板 .st-on thickness:2px / offset:4px）；
-         上档触发态短条 30×3px（trig-bar）、与图标间距 5px（.bkey-trig gap:5px） -->
+
     <dimen name="ime_state_underline_height">1.5dp</dimen>
     <dimen name="ime_state_char_underline_height">1dp</dimen>
     <dimen name="ime_underline_corner">1dp</dimen>
@@ -108,37 +84,23 @@
     <dimen name="ime_shift_underline_gap">2.5dp</dimen>
     <dimen name="ime_state_underline_offset">2dp</dimen>
     <dimen name="ime_state_sep_margin">1dp</dimen>
-    <!-- 符号键盘行步进窗口边界暗示箭头（T64 · 画板 3/10；28×14px，色 text_faint）：
-          下箭头挂显示第 4 行底部居中（行区高 = 4×64+3×10 = 286px，svg top 294px）、
-          上箭头挂显示第 1 行上方（svg top -16px）；margin 相对键区（行区高 143dp），溢出键区显示 -->
+
     <dimen name="ime_row_arrow_width">14dp</dimen>
     <dimen name="ime_row_arrow_height">7dp</dimen>
     <dimen name="ime_row_arrow_down_top">147dp</dimen>
     <dimen name="ime_row_arrow_up_top">-8dp</dimen>
-    <!-- 半角多字符符号键面（T64 · 画板 4 省略号与双短横线两键，T68 画板 19px） -->
+
     <dimen name="ime_key_dense_text">9.5sp</dimen>
 
-    <!-- ═══ 二维码分区（T14 · FR-B4 / T68 · 决策 58，画板 RemotePairing/RemoteConnected 20261114；
-         1080p px ÷ 2 = dp/sp） ═══
-         二维码 316×316（随板高 392 自适应，原 376 废止）、圆角 32；容器无 padding（分区宽 = 二维码宽）、
-         二维码与地址行间距 10px（画板 flex gap）；地址一行字 12px（原 22px 废止，色 accent_text，
-         PRD 6.1 URL 色）。二维码下方不显示其他文案（决策 4）。 -->
     <dimen name="ime_qr_size">158dp</dimen>
     <dimen name="ime_qr_corner">16dp</dimen>
     <dimen name="ime_pairing_padding">0dp</dimen>
     <dimen name="ime_pairing_gap">5dp</dimen>
     <dimen name="ime_pairing_url_text">6sp</dimen>
-    <!-- 已连接态二维码与下方状态行间距（画板 RemoteConnected flex gap 10px）；
-         状态行内部点与文字间距 8px（画板 status 行 flex gap 8px） -->
+
     <dimen name="ime_pairing_status_gap">5dp</dimen>
     <dimen name="ime_pairing_status_text_gap">4dp</dimen>
 
-    <!-- ═══ 远程模式区（T15/T17 · FR-B3，画板 RemotePairing/RemoteConnected 20261114；1080p px ÷ 2 = dp/sp） ═══
-         分区几何：距板左 48px、顶 28px、右距板右缘 432px（区宽 1444px）、距板底 24px；
-         大字 40px → 20sp（text_primary，letter-spacing 1px@40px ≈ 0.025em 走布局属性）；
-         文本区顶距 96px（画板 margin-top:96px）；光标 3×44px 圆角 2 → 1.5×22dp/1dp，与文字间隙 1dp。
-         状态行：点 8px、间隙 10px、「等待手机扫码/实时接收中」20px 500、「来自 · 设备名」18px、
-         退出远程按钮 120×52px 字 18px（画板 bkey-fn）；底部提示 18px、距板底 28px（分区底 24px + 行内 4px）。 -->
     <dimen name="ime_remote_zone_margin_top">14dp</dimen>
     <dimen name="ime_remote_zone_margin_end">216dp</dimen>
     <dimen name="ime_remote_zone_margin_bottom">12dp</dimen>
@@ -156,12 +118,6 @@
     <dimen name="ime_remote_exit_text">9sp</dimen>
     <dimen name="ime_remote_hint_text">9sp</dimen>
 
-    <!-- ═══ 板内右分区（T17/T68 · 决策 58，画板 Main/RemotePairing 20261114；1080p px ÷ 2 = dp/sp） ═══
-         右分区并入单板（无分隔线、非独立卡片）：引导分区宽 366px（跨屏输入引导，上下距板缘 24px）、
-         二维码分区宽 316px（= 二维码宽，顶距板顶 24px、高度随内容）；分区距板右缘 48px（= 板左锚点对称）。
-         引导卡（FR-B1，说明文字放大 2026-11-14 户主）：无内边距；标题 24px 700 + 图标 24px；
-         状态行距标题 10px、点 8px、文字 17px；三步指引距状态行 14px、行距 12px、序号圆 26px、
-         序号字 14px、指引文字 17px；主按钮高 52px、字 20px；按钮下提示 14px、与按钮间距 10px。 -->
     <dimen name="ime_guide_zone_width">183dp</dimen>
     <dimen name="ime_qr_zone_width">158dp</dimen>
     <dimen name="ime_side_zone_margin_v">12dp</dimen>
@@ -184,18 +140,6 @@
     <dimen name="ime_guide_button_gap">5dp</dimen>
     <dimen name="ime_guide_hint_text">7sp</dimen>
 
-    <!-- ═══ 设置页补全（T20 · FR-D2/D3/D5，画板「设置页 · 方案 A 品牌暗夜」仅视觉参考，
-         规格以 PRD 第 6 章为准；1080p px ÷ 2 = dp/sp） ═══
-         品牌区：logo 行顶 300px、logo 88×88（圆角 24px）、「S」44px、字标 72px（间距 26px）、
-         副标题顶 424px（距 logo 行 36px）、字 18px；
-         版本卡：顶 488px、内边距 12px/36px、行 1 高 96px（标签 19px / 版本 20px）、
-         分隔线 1px、行 2 高 118px（状态点 8px = PRD 6.3 状态点直径、间隙 8px、文字 16px；
-         按钮走 PRD 6.3「检查更新按钮」既有 btn_* Token）；
-         T63 · 画板 7：行 2 下新增分隔线 1px 与行 3「测试打字」按钮行高 96px（按钮同款 btn_* Token）；
-         底部提示：T20 顶 812px → T63 随行 3 加入后卡底推至 412dp，
-         按既有「卡底 → 提示 42.5dp 间距」顺推 454.5dp（画板 7 提示顶 850px 仅视觉参考）。
-         T21 起版本卡高度改 wrap_content（更新说明/进度条按三态展开，行结构不变），
-         原 version_card_height Token 移除。 -->
     <dimen name="brand_block_margin_top">150dp</dimen>
     <dimen name="brand_logo_size">44dp</dimen>
     <dimen name="brand_logo_corner">12dp</dimen>
@@ -220,18 +164,11 @@
     <dimen name="bottom_hint_margin_top">454.5dp</dimen>
     <dimen name="bottom_hint_text">7.5sp</dimen>
 
-    <!-- ═══ 检查更新三态（T21 · FR-D4；1080p px ÷ 2 = dp/sp） ═══
-         更新说明文字 16px、距按钮行 10px；下载进度条高 6px、距说明 12px（进度条宽随卡内边距内满宽）。 -->
     <dimen name="update_notes_text">8sp</dimen>
     <dimen name="update_notes_margin_top">5dp</dimen>
     <dimen name="update_progress_height">3dp</dimen>
     <dimen name="update_progress_margin_top">6dp</dimen>
 
-    <!-- ═══ 日志功能（T71 · 决策 60，画板 14/15；1080p px ÷ 2 = dp/sp） ═══
-         日志子页卡片：620×326px、顶 360px；行高 100px、行内边距 22px、行圆角 14px；
-         开关 64×32（轨道圆角 16、旋钮 24）；档位字 17px、间距 26px、选中下划线 3px；
-         查看入口行右侧提示 16px。查看页：操作行顶 168px、浏览卡 1728×620px 顶 280px
-         （圆角 28、内边距 24px 30px）、日志字 17px 行距 9px、统计字 16px；底部提示两页同 15px。 -->
     <dimen name="log_card_margin_top">180dp</dimen>
     <dimen name="log_card_width">310dp</dimen>
     <dimen name="log_row_height">50dp</dimen>
@@ -249,7 +186,7 @@
     <dimen name="log_actions_padding_h">48dp</dimen>
     <dimen name="log_stats_text">8sp</dimen>
     <dimen name="log_view_card_width">864dp</dimen>
-    <!-- 浏览卡顶 280px（画板 15；Round 1 误写 56dp 造成浏览卡盖住操作行，qa B1 修正） -->
+
     <dimen name="log_view_card_margin_top">140dp</dimen>
     <dimen name="log_view_card_height">310dp</dimen>
     <dimen name="log_view_card_corner">14dp</dimen>
@@ -260,19 +197,11 @@
     <dimen name="log_hint_margin_top">415dp</dimen>
     <dimen name="log_viewer_hint_margin_top">474dp</dimen>
 
-    <!-- ═══ T82 · 决策 66 · 设置页夺回检测横幅（夺回态可见；默认态 GONE 零位移） ═══
-         横幅 = bg_card 卡片单行：错误态红点 + 提示文字 + 「一键选回」按钮（btn_* 既有 Token 复用）。
-         位置在面包屑下方空带：设置页 / 日志子页 64dp（下方内容 150dp / 180dp 起）；
-         查看日志页 42dp（操作行 84dp 起，带内唯一容位）。 -->
     <dimen name="takeover_margin_top">64dp</dimen>
     <dimen name="takeover_viewer_margin_top">42dp</dimen>
     <dimen name="takeover_padding_v">4dp</dimen>
     <dimen name="takeover_text_size">9.5sp</dimen>
 
-    <!-- ═══ 连接代号胶囊（T72 · 决策 61，画板 RemoteConnected/PhoneRemote 20261114；1080p px ÷ 2 = dp/sp） ═══
-         胶囊 = 官方标 icon + 「[类型]设备」+ 两位序号（两端同显，画板示例「微信设备 01」）：
-         icon TV 22px / H5 18px（决策 61 户主两次加大）；胶囊内边距 1px 10px、圆角 8px、
-         icon-文字间隙 6px；类型文字 16px w600、序号 17px w700（icon 外文字纯白 #F2F6FB）。 -->
     <dimen name="client_code_icon_size">11dp</dimen>
     <dimen name="client_code_padding_h">5dp</dimen>
     <dimen name="client_code_padding_v">0.5dp</dimen>

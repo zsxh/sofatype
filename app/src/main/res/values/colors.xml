@@ -1,79 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  星夜青（Aurora Cyan）设计 Token · 色彩（PRD 第 6.1 节，唯一色值来源）。
-  禁止在此文件外硬编码色值；后续任务（T5 键盘、T20 设置页补全）复用本文件。
-  rgba → ARGB 的 alpha 换算：alpha × 255 四舍五入取十六进制（如 .5 → 80）。
--->
+
 <resources>
-    <!-- 三端页面背景 -->
+
     <color name="bg">#06080C</color>
-    <!-- 卡片/悬浮面板底色（描边见 card_stroke，PRD 6.1） -->
+
     <color name="card">#12161E</color>
-    <!-- 键帽底色 -->
+
     <color name="key">#1D242F</color>
-    <!-- 键帽 hover/按压提亮 -->
+
     <color name="key_hover">#242C39</color>
-    <!-- 主色：强调键底色、品牌块、光标、上屏主按钮 -->
+
     <color name="accent">#38BDF8</color>
-    <!-- 主色 hover -->
+
     <color name="accent_hover">#5BC9FA</color>
-    <!-- 主色上的文字/描边文字、焦点描边文字、URL -->
+
     <color name="accent_text">#7DD3FC</color>
-    <!-- 主色底上的深青文字 -->
+
     <color name="on_accent">#052330</color>
-    <!-- 连接成功/最新版本状态点 -->
+
     <color name="success">#34D399</color>
-    <!-- 主文字（标题、大字内容、品牌字标） -->
+
     <color name="text_primary">#F2F6FB</color>
-    <!-- 键帽字符正文 -->
+
     <color name="text_body">#E8EEF5</color>
-    <!-- 功能键文字 -->
+
     <color name="text_secondary">#C9D4E2</color>
-    <!-- 次级文字、说明文案 -->
+
     <color name="text_muted">#7F848D</color>
-    <!-- 「更多⌄」入口文字（T11 · 画板① 候选行：text_body 50% 透明度） -->
+
     <color name="text_faint">#80E8EEF5</color>
-    <!-- 引导卡状态行文字（T17 · 画板①「未连接」：text_body 55% 透明度） -->
+
     <color name="text_dim">#8CE8EEF5</color>
-    <!-- 引导卡三步指引文字（T17 · 画板①：text_body 75% 透明度） -->
+
     <color name="text_step">#BFE8EEF5</color>
-    <!-- 提示文案（T17 · 画板① 按钮下提示 / 画板⑤ 来自·设备名与底部提示：text_body 45% 透明度） -->
+
     <color name="text_hint">#73E8EEF5</color>
-    <!-- 版本卡「当前版本」标签（T20 · 画板设置页 rgba(232,239,246,.6)：text_body 60% 透明度） -->
+
     <color name="text_card_label">#99E8EEF5</color>
-    <!-- 底部操作提示（T20 · 画板设置页 rgba(232,239,246,.35)：text_body 35% 透明度） -->
+
     <color name="text_hint_faint">#59E8EEF5</color>
-    <!-- 状态点未连接色（T17 · PRD 6.3「未连接 rgba(232,239,246,.35)」：text_body 35% 透明度） -->
+
     <color name="dot_idle">#59E8EEF5</color>
-    <!-- 检查更新失败态红点（T21 · FR-D4「检查失败 → 红点」；与 accent/success 同 400 梯度色族） -->
+
     <color name="dot_error">#F87171</color>
-    <!-- 主色描边（按钮/焦点/高亮 chip），rgba(56,189,248,.5) -->
+
     <color name="border_accent">#8038BDF8</color>
-    <!-- 主色描边文字态，rgba(56,189,248,.45) -->
+
     <color name="border_accent_text">#7338BDF8</color>
-    <!-- 编辑卡描边（PRD 6.3 手机编辑卡），rgba(56,189,248,.4) -->
+
     <color name="border_accent_edit">#6638BDF8</color>
-    <!-- 主色淡底（副卡按钮、候选高亮 chip、完成键），rgba(56,189,248,.14) -->
+
     <color name="accent_wash">#2438BDF8</color>
-    <!-- 主色淡底上限 = 焦点键底色，rgba(56,189,248,.28)（T66 · 决策 54 加深，原 .16 废止；
-         border-accent 描边与焦点文字 #E8EEF5 适用范围不变，决策 50） -->
+
     <color name="accent_wash_strong">#4738BDF8</color>
-    <!-- 分隔线上限，rgba(255,255,255,.15) -->
+
     <color name="divider">#26FFFFFF</color>
-    <!-- 分隔线下限，rgba(255,255,255,.07) -->
+
     <color name="divider_soft">#12FFFFFF</color>
-    <!-- 卡片描边，rgba(255,255,255,.08) -->
+
     <color name="card_stroke">#14FFFFFF</color>
-    <!-- 悬浮卡片底部柔影（PRD 6.3「黑 55% 模糊 30」）：画板① 为 rgba(0,0,0,.55)+blur(30px)，
-         垫层近似取 blur 扩散后边缘的可见强度（黑 40%） -->
+
     <color name="card_shadow">#66000000</color>
 
-    <!-- 连接代号胶囊（T72 · 决策 61：四类型官方标固定色 + 胶囊底，画板 6/8；
-         品牌标固定色为决策 61 锁定值，非主题配色方案） -->
     <color name="device_code_android">#3DDC84</color>
     <color name="device_code_apple">#94A3B8</color>
     <color name="device_code_wechat">#07C160</color>
     <color name="device_code_browser">#A78BFA</color>
-    <!-- 胶囊底 rgba(232,239,246,.10)：text_body 10% 透明度（画板 pill background） -->
+
     <color name="client_code_pill_bg">#1AE8EEF6</color>
 </resources>

@@ -1,17 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T71 · 决策 60 画板 15 · 查看日志页（面包屑 ｜ 查看日志）。
-  操作行 [刷新] [清空日志] + 右侧统计（共 N 行 · X MB / Y MB）；日志浏览卡只读展示
-  （旧→新，进入定位最新即底部，滚动/刷新/清空确认在 LogViewerActivity）；无导出。
-  根视图 SettingsRootView：pre-IME 键分路（T54/T59/T67 口径）由 Activity 接线。
--->
+
 <com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/log_viewer_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
 
-    <!-- 顶部页签：sofatype 输入法 ｜ 设置 ｜ 日志 ｜ 查看日志（末段高亮，画板 15） -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -70,10 +64,6 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
-    <!-- T82 · 决策 66：默认输入法夺回检测横幅（与设置页同构，夺回态可见；默认态 GONE 零新增）。
-         本页顶部空带较窄（操作行 84dp 起），横幅顶距取查看页专用 Token（42dp）。
-         显隐刷新接线在 LogViewerActivity（onResume / 窗口焦点回归，ImeTakeoverPrompt 共用件）；
-         「一键选回」调 InputMethodManager.showInputMethodPicker()（公开 API 零权限）。 -->
     <LinearLayout
         android:id="@+id/ime_takeover_banner"
         android:layout_width="wrap_content"
@@ -119,7 +109,6 @@
             android:textStyle="normal" />
     </LinearLayout>
 
-    <!-- 操作行：刷新（画板 15 初始焦点态）· 清空日志 · 右侧统计 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -170,7 +159,6 @@
             android:textSize="@dimen/log_stats_text" />
     </LinearLayout>
 
-    <!-- 日志浏览卡（只读；进入定位最新 = 底部，画板 15） -->
     <ScrollView
         android:id="@+id/log_scroll"
         android:layout_width="@dimen/log_view_card_width"
@@ -194,7 +182,6 @@
             android:textSize="@dimen/log_view_text" />
     </ScrollView>
 
-    <!-- 底部操作提示（画板 15） -->
     <TextView
         android:id="@+id/log_viewer_hint"
         android:layout_width="wrap_content"

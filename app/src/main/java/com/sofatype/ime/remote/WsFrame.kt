@@ -1,13 +1,9 @@
-// T13 · WebSocket 帧编解码（RFC 6455）。纯 Kotlin/JVM，可被单元测试覆盖。
-// 客户端→服务端帧必须掩码（RFC 6455 5.3），服务端→客户端帧不掩码；
-// 负载上限 1 MiB，防恶意大帧耗尽内存（PRD 第 8 章可靠性）。
 package com.sofatype.ime.remote
 
 import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 
-/** WebSocket 操作码（RFC 6455 5.2）。 */
 enum class WsOpcode(val code: Int) {
     CONTINUATION(0x0),
     TEXT(0x1),
@@ -22,24 +18,17 @@ enum class WsOpcode(val code: Int) {
     }
 }
 
-/** 协议错误：携带应回发的 WebSocket 关闭码（RFC 6455 第 7 节）。 */
 class WsProtocolException(val closeCode: Int, message: String) : IOException(message)
 
-/** 一帧解码结果。 */
 class WsFrameData(val opcode: WsOpcode, val payload: ByteArray, val isFinal: Boolean)
 
-/** 一条完整消息（分片聚合后）。 */
 class WsMessage(val opcode: WsOpcode, val payload: ByteArray)
 
 object WsFrameCodec {
-    const val MAX_PAYLOAD_BYTES: Int = 1 shl 20 // 1 MiB
+    const val MAX_PAYLOAD_BYTES: Int = 1 shl 20
 
     private val controlOpcodes = setOf(WsOpcode.CLOSE, WsOpcode.PING, WsOpcode.PONG)
 
-    /**
-     * 编码一帧。[mask] 为 true 时必须提供 4 字节 [maskKey]（客户端方向）；
-     * 服务端方向不掩码（RFC 6455 5.1：服务端不得掩码）。
-     */
     fun encode(opcode: WsOpcode, payload: ByteArray, mask: Boolean = false, maskKey: ByteArray? = null): ByteArray {
         require(!mask || (maskKey != null && maskKey.size == 4)) { "掩码帧必须提供 4 字节掩码键" }
         val key: ByteArray? = if (mask) maskKey else null
@@ -74,11 +63,6 @@ object WsFrameCodec {
         return header.toByteArray() + body
     }
 
-    /**
-     * 从流中读取一帧；干净地读到流结尾返回 null。
-     * [requireMask] 为 true 时要求客户端掩码位（RFC 6455，未掩码按协议错误关闭 1002）。
-     * 帧头截断抛 EOFException；协议违规抛 [WsProtocolException]。
-     */
     fun readFrom(input: InputStream, requireMask: Boolean = true): WsFrameData? {
         val b0 = input.read()
         if (b0 < 0) return null
@@ -143,15 +127,10 @@ object WsFrameCodec {
     }
 }
 
-/**
- * 数据帧 → 消息聚合器（RFC 6455 5.4 分片）。
- * 控制帧（CLOSE/PING/PONG）不进入消息流，由连接层直接处理，不打断分片中的消息。
- */
 class WsMessageAssembler(private val maxMessageBytes: Int = WsFrameCodec.MAX_PAYLOAD_BYTES) {
     private var messageOpcode: WsOpcode? = null
     private val buffer = java.io.ByteArrayOutputStream()
 
-    /** 输入一帧；聚合完成时返回完整消息，否则返回 null；协议违规抛 [WsProtocolException]。 */
     fun feed(frame: WsFrameData): WsMessage? {
         when (frame.opcode) {
             WsOpcode.TEXT, WsOpcode.BINARY -> {
@@ -165,7 +144,7 @@ class WsMessageAssembler(private val maxMessageBytes: Int = WsFrameCodec.MAX_PAY
                 write(frame.payload)
                 return if (frame.isFinal) complete() else null
             }
-            else -> return null // 控制帧不进消息流
+            else -> return null
         }
     }
 

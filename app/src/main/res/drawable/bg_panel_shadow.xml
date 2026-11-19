@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 键盘单板向上柔影（T68 · 决策 58，画板 box-shadow:0 -16px 40px rgba(0,0,0,.45)）：
-     画在板体上缘外侧的渐变带（顶部透明 → 底部黑晕，与板体衔接处最深），
-     沿用悬浮卡柔影的「垫层近似 blur」口径（色值见 colors.xml card_shadow 注释） -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <gradient
         android:angle="270"

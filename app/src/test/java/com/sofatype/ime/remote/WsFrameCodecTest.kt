@@ -1,5 +1,3 @@
-// T13 · WebSocket 帧编解码与消息聚合单元测试（RFC 6455 5.2/5.4/5.5）：
-// 编码字节面（含 126/127 长度扩展）、掩码解码、协议错误关闭码、分片聚合、消息上限。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -23,8 +21,6 @@ class WsFrameCodecTest {
         }
         throw AssertionError("应抛出 WsProtocolException")
     }
-
-    // ---- 编码字节面 ----
 
     @Test
     fun encodesSmallTextFrameUnmasked() {
@@ -69,7 +65,7 @@ class WsFrameCodecTest {
     fun encodesEightByteLengthForPayloadAbove65535() {
         val bytes = WsFrameCodec.encode(WsOpcode.BINARY, ByteArray(65_536))
         assertEquals(0x7F, bytes[1].toInt() and 0xFF)
-        // 长度 = 0x0000000000010000（8 字节大端，位置 2..9）
+
         assertEquals(0x01, bytes[7].toInt() and 0xFF)
         for (i in intArrayOf(2, 3, 4, 5, 6, 8, 9)) {
             assertEquals("bytes[$i]", 0, bytes[i].toInt() and 0xFF)
@@ -85,11 +81,9 @@ class WsFrameCodecTest {
         assertTrue(bytes.copyOfRange(2, 6).contentEquals(key))
     }
 
-    // ---- 解码 ----
-
     @Test
     fun decodesMaskedClientFrameWithHandComputedBytes() {
-        // key 01020304，"AB" 掩码后 = 0x40 0x40
+
         val frame = decode(byteArrayOf(0x81.toByte(), 0x82.toByte(), 0x01, 0x02, 0x03, 0x04, 0x40, 0x40))
         assertEquals(WsOpcode.TEXT, frame?.opcode)
         assertTrue(frame?.isFinal == true)
@@ -124,7 +118,7 @@ class WsFrameCodecTest {
     @Test
     fun truncatedPayloadThrowsEof() {
         try {
-            // FIN TEXT + 掩码位 + 长度 5，掩码键 4 字节后负载仅 1 字节
+
             decode(byteArrayOf(0x81.toByte(), 0x85.toByte(), 0x01, 0x02, 0x03, 0x04, 0x41))
         } catch (e: EOFException) {
             return
@@ -160,7 +154,7 @@ class WsFrameCodecTest {
     fun fragmentedControlFrameIsProtocolError() {
         val key = byteArrayOf(0, 0, 0, 0)
         val encoded = WsFrameCodec.encode(WsOpcode.PING, ByteArray(0), mask = true, maskKey = key)
-        encoded[0] = 0x09 // 清掉 FIN 位
+        encoded[0] = 0x09
         assertEquals(1002, failCode { decode(encoded) })
     }
 
@@ -172,8 +166,6 @@ class WsFrameCodecTest {
             failCode { decode(WsFrameCodec.encode(WsOpcode.PING, ByteArray(126), mask = true, maskKey = key)) },
         )
     }
-
-    // ---- 消息聚合 ----
 
     @Test
     fun singleFinalTextFrameCompletesImmediately() {

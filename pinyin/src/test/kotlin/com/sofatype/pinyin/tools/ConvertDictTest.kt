@@ -5,10 +5,8 @@ import org.junit.Test
 import java.io.File
 import java.nio.charset.Charset
 
-/** AOSP 谷歌拼音词库源文本解析单测（合成小样本覆盖正常行与异常行） */
 class ConvertDictTest {
 
-    /** 构造 UTF-16 编码的临时源文件（与真实源文件同编码） */
     private fun writeSource(lines: List<String>): File {
         val file = File.createTempFile("rawdict_test", ".txt")
         file.deleteOnExit()
@@ -26,7 +24,7 @@ class ConvertDictTest {
                 "欧美国家 141.29744947 0 ou mei guo jia",
                 "鼥 0.750684002197 1 ba",
                 "钯 47.7250412134 0 ba",
-                "钯 5.97806362819 0 pa", // 多音字：同词两行
+                "钯 5.97806362819 0 pa",
             ),
         )
         val (data, stats) = DictBuilder.build(readSource(source).asSequence())
@@ -34,10 +32,9 @@ class ConvertDictTest {
         assertEquals(4, stats.lineCount)
         assertEquals(4, stats.entryCount)
         assertEquals(0, stats.skippedLineCount)
-        assertEquals(6, stats.syllableCount) // ou mei guo jia ba pa
-        assertEquals(3, stats.wordCount) // 欧美国家 鼥 钯（钯去重）
+        assertEquals(6, stats.syllableCount)
+        assertEquals(3, stats.wordCount)
 
-        // 多音字词条两条都保留，词 id 相同
         val ba = data.entries[2]
         val pa = data.entries[3]
         assertEquals(ba.wordId, pa.wordId)
@@ -51,7 +48,7 @@ class ConvertDictTest {
         val source = writeSource(
             listOf(
                 "客厅 100.0 0 ke ting",
-                "坏行 100.0 0 ke", // 2 字只给 1 音节
+                "坏行 100.0 0 ke",
             ),
         )
         val (data, stats) = DictBuilder.build(readSource(source).asSequence())
@@ -96,8 +93,8 @@ class ConvertDictTest {
             ),
         )
         val (data, _) = DictBuilder.build(readSource(source).asSequence())
-        assertEquals(listOf("an", "cai", "zhi"), data.syllables) // 排序后 an < cai < zhi
-        assertEquals("丙词", data.words[data.entries[0].wordId]) // 源行序保持
+        assertEquals(listOf("an", "cai", "zhi"), data.syllables)
+        assertEquals("丙词", data.words[data.entries[0].wordId])
         assertEquals("甲", data.words[data.entries[1].wordId])
         assertEquals(listOf("zhi", "cai"), data.entries[0].syllableIds.map { data.syllables[it] })
     }

@@ -1,4 +1,3 @@
-// T13 · HTTP 请求解析单元测试：请求行/头部解析、大小写归一、query 剥离、非法输入拒绝、头部上限。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -91,7 +90,7 @@ class HttpRequestParserTest {
 
     @Test
     fun headAtExactlyLimitStillAccepted() {
-        // 头块远小于上限：正常解析
+
         val request = parse("GET / HTTP/1.1\r\nX-A: hi\r\n\r\n")
         assertEquals("hi", request?.headers?.get("x-a"))
     }

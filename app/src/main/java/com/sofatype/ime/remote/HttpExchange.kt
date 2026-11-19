@@ -1,24 +1,14 @@
-// T13 · HTTP 请求解析与路由。纯 Kotlin/JVM，可被单元测试覆盖。
-// T13 骨架口径：GET / 下发占位页（T14 改配对验证页）；GET /ws 升级 WebSocket
-//（token/hello/state 握手随 T14）；其余 404/405/400。
-// T15 增量：GET / 页面字节改由注入的 mainPageProvider 提供（决策 20：正式 H5 打进 APK
-// assets 下发；默认仍 = 配对占位页，JVM 测试与缺省回退口径）。
 package com.sofatype.ime.remote
 
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
-/** 解析后的 HTTP 请求。headers 键统一小写；path 已去掉 query。 */
 class HttpRequest(val method: String, val path: String, val headers: Map<String, String>)
 
 object HttpRequestParser {
-    /** 请求头总量上限，防恶意超大头部占用内存。 */
+
     const val MAX_HEAD_BYTES = 8 * 1024
 
-    /**
-     * 从流中解析一个请求头块（读到 CRLFCRLF 为止）。
-     * 格式非法 / 超限 / 流在头块结束前断开，返回 null（连接层回 400 并断开）。
-     */
     fun parse(input: InputStream): HttpRequest? {
         val head = readHead(input) ?: return null
         val lines = String(head, StandardCharsets.US_ASCII).split("\r\n")
@@ -40,7 +30,6 @@ object HttpRequestParser {
         return HttpRequest(method.uppercase(), target.substringBefore("?"), headers)
     }
 
-    /** 读到 CRLFCRLF；超限或提前 EOF 返回 null。 */
     private fun readHead(input: InputStream): ByteArray? {
         val out = java.io.ByteArrayOutputStream()
         var b3 = -1
@@ -51,7 +40,7 @@ object HttpRequestParser {
             if (b < 0) return null
             if (out.size() >= MAX_HEAD_BYTES) return null
             out.write(b)
-            // 先判定（b3,b2,b1,b = 末四字节），再移位
+
             if (b3 == 0x0D && b2 == 0x0A && b1 == 0x0D && b == 0x0A) return out.toByteArray()
             b3 = b2
             b2 = b1
@@ -61,21 +50,15 @@ object HttpRequestParser {
 }
 
 sealed class RouteResult {
-    /** 直接回 HTTP 响应（含完整字节，Connection: close）。 */
+
     class Respond(val bytes: ByteArray) : RouteResult()
 
-    /** 升级为 WebSocket（请求已通过 [WsHandshake.isUpgradeRequest]）。 */
     object UpgradeWebSocket : RouteResult()
 }
 
 object HttpRouter {
     const val WS_PATH = "/ws"
 
-    /**
-     * 路由（T15）：GET / 下发的页面字节由 [mainPageProvider] 提供——
-     * 生产为 APK assets 内 H5 页（决策 20，由服务装配方注入），默认 = T14 配对占位页
-     * （JVM 测试与缺省回退口径，既有路由测试基线不变）。
-     */
     fun route(
         request: HttpRequest,
         mainPageProvider: () -> ByteArray = { PlaceholderPage.HTML.toByteArray(StandardCharsets.UTF_8) },
@@ -101,7 +84,7 @@ object HttpRouter {
 }
 
 object HttpResponses {
-    /** 组装 HTTP/1.1 响应字节；固定 Connection: close（一连接一请求，简化骨架生命周期）。 */
+
     fun build(statusText: String, contentType: String, body: ByteArray): ByteArray {
         val head = "HTTP/1.1 $statusText\r\n" +
             "Content-Type: $contentType\r\n" +
@@ -112,12 +95,6 @@ object HttpResponses {
     }
 }
 
-/**
- * T14 配对占位页（验收标准：浏览器带 token 打开显示「已连接 · TV名」；无 token / 过期 token 显示配对失败）。
- * 页面从 URL query 取 token → WS 连接 /ws → 发 hello { token, deviceName } → 收 state 后展示。
- * 决策 20：纯原生 HTML/CSS/JS，无第三方框架与 CDN；正式手机端 H5 随 T15 下发（H5 打包进 APK assets）。
- * deviceName 发固定占位值（T14 不涉及设备名展示）；深色样式取星夜青 Token 值。
- */
 object PlaceholderPage {
     val HTML: String = """
         <!doctype html>

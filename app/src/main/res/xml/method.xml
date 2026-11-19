@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T2：IME 声明设置入口（FR-D1 / PRD 决策 21）。
-  settingsActivity 指向设置页 Activity；系统输入法设置据此展示设置入口。
-  生效前提：T3 声明 InputMethodService 时，在 service 上引用本文件：
-    <meta-data android:name="android.view.im" android:resource="@xml/method" />
--->
+
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:settingsActivity="com.sofatype.ime.SettingsActivity" />

@@ -1,7 +1,3 @@
-// T14 · 配对握手回环集成测试（JVM 真实套接字，127.0.0.1）：
-// RemoteInputServer + PairingSession 全链路——有效 token 握手成功连接保持、
-// 重放 / 错误 token 回 state connected:false 后按 4001 关闭、被拒后连接关闭、
-// 配对成功后 PING/PONG 保持可用（T15 业务连接的前置口径）。
 package com.sofatype.ime.remote
 
 import org.junit.After
@@ -35,7 +31,6 @@ class PairingHandshakeLoopbackTest {
         return server to port
     }
 
-    /** 最小 WS 客户端（RFC 6455）：握手 + 掩码文本 + 读服务端帧。 */
     private class WsClient(private val socket: Socket) {
         private val input = BufferedInputStream(socket.getInputStream())
         private val output = BufferedOutputStream(socket.getOutputStream())
@@ -62,7 +57,7 @@ class PairingHandshakeLoopbackTest {
             val bytes = payload.toByteArray(StandardCharsets.UTF_8)
             val masked = ByteArray(bytes.size) { i -> (bytes[i].toInt() xor maskKey[i % 4].toInt()).toByte() }
             output.write(0x81)
-            output.write(0x80 or bytes.size) // 测试负载 ≤125
+            output.write(0x80 or bytes.size)
             output.write(maskKey, 0, 4)
             output.write(masked)
             output.flush()
@@ -119,7 +114,7 @@ class PairingHandshakeLoopbackTest {
             assertTrue(state, state.contains(""""connected":true"""))
             assertTrue(state, state.contains(""""tvName":"回环电视""""))
             assertTrue(state, state.contains(""""charLimit":200"""))
-            // 连接保持：PING/PONG 继续可用（T15 业务通道前置口径）
+
             client.sendPing("keep-alive")
             val pong = client.readFrame()
             assertEquals(WsOpcode.PONG, pong.opcode)
@@ -133,12 +128,12 @@ class PairingHandshakeLoopbackTest {
         val store = PairingTokenStore()
         val token = store.issue()
         val (_, port) = newServer(store)
-        // 第一台手机配对成功
+
         val first = openWs(port)
         first.sendText("""{"type":"hello","token":"$token"}""")
         assertTrue(first.readText().contains(""""connected":true"""))
         first.closeSocket()
-        // 第二个连接重放同 token：state connected:false 后 4001 关闭
+
         val second = openWs(port)
         second.sendText("""{"type":"hello","token":"$token"}""")
         assertTrue(second.readText().contains(""""connected":false"""))
@@ -155,7 +150,7 @@ class PairingHandshakeLoopbackTest {
         client.sendText("""{"type":"hello","token":"guess-me"}""")
         assertTrue(client.readText().contains(""""connected":false"""))
         assertEquals(4001, client.closeCode())
-        // 服务端随后关闭连接
+
         val deadline = System.currentTimeMillis() + 5_000
         var eof = false
         while (System.currentTimeMillis() < deadline) {
@@ -168,12 +163,9 @@ class PairingHandshakeLoopbackTest {
         client.closeSocket()
     }
 
-    // ---- T24 · FR-C9 未连接引导页触发链路（直接访问 URL 无有效 token） ----
-
     @Test
     fun directUrlAccessWithoutTokenGetsRejectedStateThenClose4001() {
-        // FR-C9 验收路径的服务端全链路：页面可正常下发（GET / 无 token 校验），WS hello
-        // 携空 token → state connected:false（H5 引导页触发源）→ 4001 关闭
+
         val store = PairingTokenStore()
         store.issue()
         val (_, port) = newServer(store)

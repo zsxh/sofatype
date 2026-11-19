@@ -1,9 +1,3 @@
-// T15 · 业务链路回环集成测试（JVM 真实套接字，127.0.0.1）：
-// 会话工厂按连接装配配对会话——hello 成功后 input 全量文本 / clear 送达业务回调、
-// 未配对连接的业务消息不下发、主页字节由注入 Provider 提供（决策 20 assets 下发口径）、
-// 关闭等待截止保护（T14 评审建议：对端半帧停滞不越过 1s 截止）。
-// T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知连接保持
-//（PRD 第 7 章 disconnect 双向）。
 package com.sofatype.ime.remote
 
 import org.junit.After
@@ -29,11 +23,10 @@ class RemoteInputLoopbackTest {
         servers.forEach { it.stop() }
     }
 
-    /** T15 装配：会话工厂（每连接独立 PairingSession，业务回调收集）+ 注入主页 Provider。 */
     private class Biz(
         private val bindAddress: InetAddress,
         private val registry: MutableList<RemoteInputServer>,
-        /** T18：state.url 提供值（null = 不带 url 字段，既有基线不变）。 */
+
         private val pairingUrl: String? = null,
     ) {
         val inputs = CopyOnWriteArrayList<String>()
@@ -42,7 +35,6 @@ class RemoteInputLoopbackTest {
         val commitResults = CopyOnWriteArrayList<Boolean>()
         val mainPageHits = AtomicInteger(0)
 
-        /** 启动服务；返回 (server, port, token)。 */
         fun newServer(): Triple<RemoteInputServer, Int, String> {
             val store = PairingTokenStore()
             val token = store.issue()
@@ -73,7 +65,6 @@ class RemoteInputLoopbackTest {
         }
     }
 
-    /** 最小 WS 客户端（RFC 6455）：握手 + 掩码文本 + 读服务端帧（同 T14 回环测试口径）。 */
     private class WsClient(private val socket: Socket) {
         private val input = BufferedInputStream(socket.getInputStream())
         private val output = BufferedOutputStream(socket.getOutputStream())
@@ -106,9 +97,8 @@ class RemoteInputLoopbackTest {
             output.flush()
         }
 
-        /** 发送半帧（只有帧头首字节）后停滞：验证服务端关闭等待不被无限阻塞。 */
         fun sendHalfFrameByte() {
-            output.write(0x88) // CLOSE 操作码 + FIN，无后续长度字节
+            output.write(0x88)
             output.flush()
         }
 
@@ -118,11 +108,10 @@ class RemoteInputLoopbackTest {
             return String(frame.payload, StandardCharsets.UTF_8)
         }
 
-        /** 阻塞读到流结束（服务端关 TCP）；带毫秒级耗时返回。 */
         fun readUntilEof(): Long {
             val start = System.currentTimeMillis()
             while (input.read() != -1) {
-                // 消费到 EOF
+
             }
             return System.currentTimeMillis() - start
         }
@@ -149,12 +138,12 @@ class RemoteInputLoopbackTest {
         openWs(port).use { client ->
             client.sendText(hello(token))
             assertTrue(client.readText().contains(""""connected":true"""))
-            // 连续 input（每次编辑全量文本）→ 回调按序全收
+
             client.sendText("""{"type":"input","text":"客厅"}""")
             client.sendText("""{"type":"input","text":"客厅的小米盒子"}""")
             client.sendText("""{"type":"clear"}""")
             client.sendText("""{"type":"input","text":"重新来"}""")
-            // 连接保持（下一轮交互可正常收发 = None 路径未断连）：PING/PONG 探活
+
             val deadline = System.currentTimeMillis() + 3_000
             while (biz.inputs.size < 3 || biz.clears.get() < 1) {
                 if (System.currentTimeMillis() > deadline) break
@@ -170,7 +159,7 @@ class RemoteInputLoopbackTest {
     fun unpairedConnectionBusinessMessagesAreNotDelivered() {
         val biz = Biz(loopback, servers)
         val (_, port, token) = biz.newServer()
-        // 连接 A：先发业务消息（未配对）再配对——早到的业务消息不回调
+
         val a = openWs(port)
         a.sendText("""{"type":"input","text":"早到的注入"}""")
         a.sendText(hello(token))
@@ -192,7 +181,7 @@ class RemoteInputLoopbackTest {
         val first = openWs(port)
         first.sendText(hello(token))
         assertTrue(first.readText().contains(""""connected":true"""))
-        // 第二连接：token 已消费 → connected:false + 4001；其业务消息不回调
+
         val second = openWs(port)
         second.sendText("""{"type":"input","text":"第二连接"}""")
         second.sendText(hello(token))
@@ -229,7 +218,7 @@ class RemoteInputLoopbackTest {
 
     @Test
     fun closeAwaitDeadlineSurvivesHalfFrameStall() {
-        // T14 评审建议落实验证：对端发半帧后停滞，服务端关闭等待按截止结束（~1s + 超时容忍）
+
         val store = PairingTokenStore()
         store.issue()
         val server = RemoteInputServer(
@@ -239,15 +228,13 @@ class RemoteInputLoopbackTest {
         ).also { servers.add(it) }
         val port = (server.start() as RemoteInputServer.StartResult.Started).port
         val client = openWs(port)
-        client.sendText("""{"type":"hello","token":"wrong"}""") // 被拒 → TextThenClose 路径
+        client.sendText("""{"type":"hello","token":"wrong"}""")
         assertTrue(client.readText().contains(""""connected":false"""))
-        client.sendHalfFrameByte() // 半帧停滞（旧实现此处无限阻塞）
+        client.sendHalfFrameByte()
         val elapsed = client.readUntilEof()
         assertTrue("关闭等待应在截止附近结束（实测 ${elapsed}ms）", elapsed < 3_000)
         client.closeSocket()
     }
-
-    // ---- T16 · commit 上屏指令与 committed 回执（FR-B6/C6，真实套接字全链路） ----
 
     @Test
     fun commitReachesCallbackAndAckRoundTripsCommitted() {
@@ -258,7 +245,7 @@ class RemoteInputLoopbackTest {
             client.sendText(hello(token))
             assertTrue(client.readText().contains(""""connected":true"""))
             client.sendText("""{"type":"commit","text":"客厅"}""")
-            // 处理方 ack(true) → 服务经连接级回发器写 committed 帧（主动回发通道实证）
+
             val ack = client.readText()
             assertTrue(ack, ack.contains(""""type":"committed""""))
             assertTrue(ack, ack.contains(""""ok":true"""))
@@ -287,7 +274,7 @@ class RemoteInputLoopbackTest {
         biz.commitResults.add(true)
         val (_, port, token) = biz.newServer()
         openWs(port).use { client ->
-            // 未配对先发 commit：忽略不回调、不回执；随后配对正常、commit 正常分发
+
             client.sendText("""{"type":"commit","text":"早到的上屏"}""")
             client.sendText(hello(token))
             assertTrue(client.readText().contains(""""connected":true"""))
@@ -302,11 +289,9 @@ class RemoteInputLoopbackTest {
         }
     }
 
-    // ---- T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知 ----
-
     @Test
     fun stateCarriesRollingPairingUrlEndToEnd() {
-        // 真实套接字：hello 成功后的 state 含 url 字段（手机页据此刷新重连，FR-B8）
+
         val biz = Biz(loopback, servers, pairingUrl = "http://10.0.2.15:40000/?token=rolled")
         val (_, port, token) = biz.newServer()
         openWs(port).use { client ->
@@ -319,8 +304,7 @@ class RemoteInputLoopbackTest {
 
     @Test
     fun disconnectMessageIsAcceptedAndConnectionStaysUsable() {
-        // 手机端 disconnect（页面关闭 / 刷新前 best-effort，PRD 第 7 章 disconnect 双向）：
-        // 服务端接受不回发、连接保持——随后业务消息仍正常送达回调（刷新重连的前置口径）
+
         val biz = Biz(loopback, servers)
         val (_, port, token) = biz.newServer()
         openWs(port).use { client ->

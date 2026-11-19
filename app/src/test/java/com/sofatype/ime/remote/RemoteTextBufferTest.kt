@@ -1,5 +1,3 @@
-// T15 · 远程输入缓冲模型单元测试（FR-C7 字数上限 + 第 8 章隐私）：
-// 200 码点上限、超限截断不拆代理对（emoji 完整）、clear、防御性兜底限长。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -45,7 +43,7 @@ class RemoteTextBufferTest {
 
     @Test
     fun clampCountsSupplementaryPairAsOneCodePoint() {
-        // 😀 = 1 个码点（2 个 UTF-16 单元）
+
         val emoji = "😀"
         assertEquals(2, emoji.length)
         assertEquals(1, codePoints(emoji))
@@ -56,7 +54,7 @@ class RemoteTextBufferTest {
 
     @Test
     fun clampNeverSplitsSurrogatePairAtBoundary() {
-        // "a😀"（3 单元）限 2 单元宽的码点数：边界落在代理对中间时整对排除
+
         val clamped = RemoteTextBuffer.clamp("a😀b", 1)
         assertEquals("a", clamped)
         val clamped2 = RemoteTextBuffer.clamp("a😀b", 2)
@@ -71,7 +69,7 @@ class RemoteTextBufferTest {
 
     @Test
     fun setClampsOverLimitInputDefensively() {
-        // 手机端 H5 已限流（FR-C7）；服务端兜底：缓冲永不超上限
+
         val buffer = RemoteTextBuffer(charLimit = 5)
         val stored = buffer.set("abcdefgh")
         assertEquals("abcde", stored)
@@ -93,7 +91,6 @@ class RemoteTextBufferTest {
         assertEquals(PairingSession.DEFAULT_CHAR_LIMIT, RemoteTextBuffer().charLimit)
     }
 
-    /** 按 Unicode 码点计数（代理对计 1）。 */
     private fun codePoints(text: String): Int {
         var count = 0
         var i = 0

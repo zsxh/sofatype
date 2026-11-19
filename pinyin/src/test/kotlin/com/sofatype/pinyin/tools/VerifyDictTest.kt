@@ -5,13 +5,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** 词库源文件校验门禁单测（T30，PRD 决策 29） */
 class VerifyDictTest {
 
-    /** 入库源文件路径（随仓库入库，相对模块目录） */
     private fun sourceFile(): File = File("dictsrc/rawdict_utf16_65105_freq.txt")
 
-    /** 执行校验并捕获异常；不抛异常时返回 null */
     private fun runVerify(path: String): IllegalStateException? = try {
         verifySourceFile(path)
         null
@@ -26,7 +23,7 @@ class VerifyDictTest {
             "入库源文件不存在：${f.absolutePath}（T30 起源文件随仓库入库，不应缺失）",
             f.exists(),
         )
-        // 正常路径：不抛异常即通过（缺失 / 不一致场景见下方用例）
+
         val e = runVerify(f.absolutePath)
         assertTrue("入库源文件应校验通过，实际报错：${e?.message}", e == null)
     }

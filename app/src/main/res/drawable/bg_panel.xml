@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 键盘单板背景（T68 · 决策 58，画板 designs/20261114）：card 底铺满 + 顶缘 1px 描边
-     （画板 border-top:1px solid rgba(255,255,255,.08) = card_stroke），直角无圆角（区别于悬浮卡片） -->
+
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">

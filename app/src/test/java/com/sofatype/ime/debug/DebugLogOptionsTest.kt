@@ -1,4 +1,3 @@
-// T71 · 决策 60 · 日志档位模型锁定：四档 1/2/5/10 MB、默认 2 MB、字节换算、越界钳制、档位文案。
 package com.sofatype.ime.debug
 
 import org.junit.Assert.assertEquals
@@ -32,7 +31,7 @@ class DebugLogOptionsTest {
         assertEquals(5, DebugLogOptions.clampMb(4))
         assertEquals(10, DebugLogOptions.clampMb(9))
         assertEquals(10, DebugLogOptions.clampMb(100))
-        // 低于下限（含负值）钳回最小合法档位
+
         assertEquals(1, DebugLogOptions.clampMb(-3))
     }
 

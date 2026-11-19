@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 查看日志页浏览卡背景（T71 · 决策 60 画板 15）：card 底 + 卡片描边（PRD 6.1），
-     圆角 28px（画板 15 浏览卡口径，独立于设置页 38px 大圆角 Token）。 -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/card" />
     <stroke android:width="@dimen/stroke_width" android:color="@color/card_stroke" />

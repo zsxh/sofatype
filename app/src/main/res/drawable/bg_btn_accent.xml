@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 辅助按钮背景（设置页[检查更新] + debug [填入样例][全选]，决策 44 修订）：
-     常态收敛为键帽同款 key 底、无描边（非焦点不常亮，PRD 6.3 修订）；
-     焦点态保留 accent-wash 上界底 + border-accent 描边（PRD 6.4） -->
+
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">

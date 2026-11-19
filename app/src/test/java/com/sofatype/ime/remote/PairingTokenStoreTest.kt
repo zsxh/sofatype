@@ -1,5 +1,3 @@
-// T14 · 一次性配对 token 单元测试（FR-B10）：签发格式、一次性消费、错误 token 不影响有效值、
-// 重签发作废旧值、清空生命周期。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals

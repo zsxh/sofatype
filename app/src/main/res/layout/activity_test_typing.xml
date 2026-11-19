@@ -1,25 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T63 · FR-D1 本批次（docs/PRD_20261112.md）：独立测试打字页，画板 9（TestTyping.dc.html）
-  视觉参考，色值/规格走 Token（PRD 第 6 章）。自设置页顶部调试区整体迁入的三件套
-  （测试输入框 + 填入示例文本 + 全选）由 test_typing_content 承载，~~门控沿用决策 21
-  （visibility 由 TestTypingActivity 按 BuildConfig.DEBUG 置定，release 仅面包屑与底部提示）~~
-  （→ 被 T79 · 决策 65 取代：debug / release 一致显示，visibility 仍由 TestTypingActivity
-  经 TestTypingGate 置定）；
-  BACK 返回设置页；无 LAUNCHER 入口（清单未配 intent-filter）。
-  根视图沿用 SettingsRootView（pre-IME 键分路根视图，T54 R2 机制，与设置页同构）。
-  纵向坐标按画板 9 1080p 基准（px ÷ 2 = dp）自屏幕顶部定位。
-  T77：test_typing_content 内新增第二输入框 test_input_2（双框表单，规格与 test_input
-  同 Token 体系，hint/contentDescription 走 strings 资源；~~门控同容器，release 整体 GONE~~
-  → 同容器，T79 · 决策 65 起 debug / release 一致显示）。
--->
+
 <com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/test_typing_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
 
-    <!-- 面包屑「sofatype 输入法 ｜ 测试打字」（画板 9，与设置页同构） -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -50,7 +36,6 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
-    <!-- 测试三件套（决策 21 门控：仅 debug 构建显示，release 整体 GONE） -->
     <LinearLayout
         android:id="@+id/test_typing_content"
         android:layout_width="@dimen/test_area_width"
@@ -76,7 +61,6 @@
             android:textCursorDrawable="@null"
             android:textSize="@dimen/test_input_text" />
 
-        <!-- T77 · 第二输入框（双框表单）：规格与 test_input 同 Token 体系，无障碍标注走 strings 资源 -->
         <EditText
             android:id="@+id/test_input_2"
             android:layout_width="match_parent"
@@ -129,7 +113,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 底部提示（画板 9：「调试走查页 · 由设置页「测试打字」进入」） -->
     <TextView
         android:id="@+id/test_hint"
         android:layout_width="wrap_content"

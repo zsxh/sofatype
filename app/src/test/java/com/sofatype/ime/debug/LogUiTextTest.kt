@@ -1,4 +1,3 @@
-// T71 · 决策 60 · 查看页动态文案锁定：用量提示 / 统计行 / 用量数字格式（画板 14/15 文案口径）。
 package com.sofatype.ime.debug
 
 import org.junit.Assert.assertEquals

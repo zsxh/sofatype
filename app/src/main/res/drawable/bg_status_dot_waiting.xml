@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 状态点 · 等待扫码（T17 · FR-B9 / PRD 6.4 连接状态色）：青点 = 主色 accent -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="@color/accent" />
     <size android:width="@dimen/ime_status_dot_size" android:height="@dimen/ime_status_dot_size" />

@@ -1,5 +1,3 @@
-// T14 · 协议最小 JSON 解析/序列化单元测试：标量字段解析、转义处理、字面量、非法输入拒绝、
-// 序列化转义回环。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -63,26 +61,26 @@ class MinimalJsonTest {
     @Test
     fun rejectsMalformedInputs() {
         val malformed = listOf(
-            "",                       // 空
-            "not json",               // 非对象
-            "[1,2]",                  // 数组不支持
-            """{"a"[]}""",            // 缺冒号
-            """{"a":}""",             // 缺值
-            """{"a":"unclosed}""",    // 字符串未闭合
-            """{"a":1,}""",           // 尾逗号后无键（解析到非字符串键失败）
-            """{"a":trux}""",         // 非法字面量
-            """{"a":{"b":1}}""",      // 嵌套对象不支持
-            """{"a":[1]}""",          // 数组值不支持
-            """{"a":1} tail""",       // 对象后多余内容
-            """{"a":"b\q"}""",        // 非法转义
-            """{"a":"\u12"}""",       // \u 截断
+            "",
+            "not json",
+            "[1,2]",
+            """{"a"[]}""",
+            """{"a":}""",
+            """{"a":"unclosed}""",
+            """{"a":1,}""",
+            """{"a":trux}""",
+            """{"a":{"b":1}}""",
+            """{"a":[1]}""",
+            """{"a":1} tail""",
+            """{"a":"b\q"}""",
+            """{"a":"\u12"}""",
         )
         for (text in malformed) {
             try {
                 parse(text)
                 throw AssertionError("应解析失败：$text")
             } catch (_: MinimalJson.JsonParseException) {
-                // 预期
+
             }
         }
     }
@@ -122,8 +120,6 @@ class MinimalJsonTest {
         assertNull(parse("""{"charLimit":200}""")["missing"])
     }
 
-    // ---- T15 · 数字文法收紧（T14 评审建议：RFC 8259） ----
-
     @Test
     fun numberGrammarAcceptsRfc8259Forms() {
         val accepted = mapOf(
@@ -143,27 +139,25 @@ class MinimalJsonTest {
     @Test
     fun numberGrammarRejectsLenientForms() {
         val rejected = listOf(
-            """{"n":1.2.3}""",   // 多小数点（T14 评审点：原宽松文法被当数字接受）
-            """{"n":01}""",      // 前导零
-            """{"n":-}""",       // 只有负号
-            """{"n":+1}""",      // 正号开头
-            """{"n":1.}""",      // 小数点后无数字
-            """{"n":.5}""",      // 整数部分缺失
-            """{"n":1e}""",      // 指数缺数字
-            """{"n":1e+}""",     // 指数只有符号
-            """{"n":--1}""",     // 双负号
+            """{"n":1.2.3}""",
+            """{"n":01}""",
+            """{"n":-}""",
+            """{"n":+1}""",
+            """{"n":1.}""",
+            """{"n":.5}""",
+            """{"n":1e}""",
+            """{"n":1e+}""",
+            """{"n":--1}""",
         )
         for (text in rejected) {
             try {
                 parse(text)
                 throw AssertionError("应按非法数字拒绝：$text")
             } catch (_: MinimalJson.JsonParseException) {
-                // 预期
+
             }
         }
     }
-
-    // ---- T15 · 类型化解析：字符串 vs 标量字面量（业务消息字段类型校验用） ----
 
     @Test
     fun typedParseDistinguishesStringFromRawScalar() {
@@ -186,7 +180,7 @@ class MinimalJsonTest {
                 MinimalJson.parseTopLevelObjectTyped(text)
                 throw AssertionError("应解析失败：$text")
             } catch (_: MinimalJson.JsonParseException) {
-                // 预期
+
             }
         }
     }

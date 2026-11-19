@@ -1,12 +1,3 @@
-// T55 · 模式切换键候选态残留守卫单元测试（docs/issues/closed/T55.md · 户主拍板 2026-11-11）：
-// 模式切换键必须同时复位组合与候选——[中/英] 切换：取消组合态（原「组合串以字母形式上屏」
-// 口径废止），落零候选词态。
-// T66 · 决策 51 返工：中文态无[⇧]键位（该键位 = 分词键），原「中文态按[大写]切英文」路径
-// 废止删除；中文 → 英文切换唯一路径 = [中/英] 键（决策 43-② 复位口径不变），
-// 切英文固定落小写（决策 51-③）。
-// SofatypeImeService 为 Android 服务层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
-// 接线以源码扫描锁定回归——先例：T59HiddenKeySemanticsTest（T59）、CandidatesBarOccupancyTest（T53）、
-// CursorComposerSyncTest（T49）。行为级取证走模拟器走查。
 package com.sofatype.ime
 
 import org.junit.Assert.assertFalse
@@ -16,28 +7,23 @@ import java.io.File
 
 class T55ModeSwitchCompositionResetTest {
 
-    /** 全文口径 = app/ 模块目录（CandidatesBarOccupancyTest 同口径）。 */
     private val serviceSource: String =
         File("src/main/java/com/sofatype/ime/SofatypeImeService.kt").readText()
 
-    /** 取函数体：从签名行起、到下一个成员级 KDoc 边界行止（CandidatesBarOccupancyTest 同口径）。 */
     private fun serviceBody(signature: String): String =
-        serviceSource.substringAfter(signature).substringBefore("\n    /**")
+        serviceSource.substringAfter(signature).substringBefore("\n    }")
 
-    /** execute 内 ToggleCase 分支体（下一分支 OpenSymbols 为稳定边界；T66 · 决策 51-② 分词键在其前）。 */
     private val toggleCaseBody: String =
         serviceSource.substringAfter("KeyAction.ToggleCase -> {")
             .substringBefore("KeyAction.OpenSymbols")
 
-    /** execute 内 ToggleLanguage 分支体（以其后 switchKeyboardMode 函数为稳定边界）。 */
     private val toggleLanguageBody: String =
         serviceSource.substringAfter("KeyAction.ToggleLanguage -> {")
             .substringBefore("private fun switchKeyboardMode")
 
     @Test
     fun `大小写键不再承载语言切换`() {
-        // T66 · 决策 51-②（决策 49 废止）：[⇧] 键位仅存在于英文模式，纯大小写切换——
-        // 分支内不得再有语言切换 / 组合取消（中文 → 英文唯一路径 = [中/英] 键）
+
         assertFalse(
             "ToggleCase 分支不得再切语言（决策 51-②：决策 49 中文态[⇧]路径废止删除）",
             toggleCaseBody.contains("languageMode"),

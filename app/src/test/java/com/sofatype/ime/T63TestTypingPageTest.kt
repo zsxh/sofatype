@@ -1,13 +1,3 @@
-// T63 · 测试打字独立页守卫单测（docs/PRD_20261112.md FR-D1）：
-// ① 门控纯决策（TestTypingGate）：~~决策 21「仅 debug 构建显示」沿用口径锁定~~（→ 被 T79 ·
-//    决策 65 取代：「debug / release 均显示」口径锁定，核对记录见 TestTypingGate）；
-// ② 布局扫描：设置页调试区移除 + 第三行「测试打字」入口（样式与检查更新同款 + 无障碍标注）；
-//    测试打字页三件套与底部提示落位、全部可交互元素标注齐全；
-// ③ 清单扫描：测试打字页无 intent-filter（无 LAUNCHER 入口，不从桌面可达）+ adjustResize 检测通道；
-// ④ 接线扫描（Activity 为 Android 交互层，纯 JVM 无法实例化，源码扫描先例：
-//    SettingsFocusTakeoverTest / T54DefectFixTest）：设置页入口跳转接线、调试区接线迁出、
-//    测试打字页门控与 T54/T62 机制随迁、BACK 返回设置页。
-// 纯 JVM，不依赖 Android UI 与模拟器（仓库口径）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertFalse
@@ -17,7 +7,6 @@ import java.io.File
 
 class T63TestTypingPageTest {
 
-    /** 路径口径 = app/ 模块目录（SettingsFocusTakeoverTest 同口径）。 */
     private fun mainSource(name: String): String =
         File("src/main/java/com/sofatype/ime/$name").readText()
 
@@ -25,7 +14,6 @@ class T63TestTypingPageTest {
     private val testTypingLayout: String get() = File("src/main/res/layout/activity_test_typing.xml").readText()
     private val manifest: String get() = File("src/main/AndroidManifest.xml").readText()
 
-    /** 提取清单中指定 Activity 的声明块（自 `<activity` 起至 `/>` 止）。 */
     private fun activityBlock(manifestText: String, nameAttr: String): String {
         val marker = "android:name=\"$nameAttr\""
         val at = manifestText.indexOf(marker)
@@ -36,7 +24,6 @@ class T63TestTypingPageTest {
         return manifestText.substring(start, end + 2)
     }
 
-    /** 提取布局中指定 id 控件的声明块（自节点标签起至开标签结束 `>` 止，容器/自闭合通用）。 */
     private fun viewBlock(layoutText: String, idName: String): String {
         val marker = "@+id/$idName"
         val at = layoutText.indexOf(marker)
@@ -47,8 +34,6 @@ class T63TestTypingPageTest {
         return layoutText.substring(start, end + 1)
     }
 
-    // ── ① 门控纯决策（T79 · 决策 65：debug / release 均显示；原决策 21 仅 debug 口径废止）──
-
     @Test
     fun `门控纯决策为debug与release均显示三件套`() {
         assertTrue("debug 构建须显示测试三件套", TestTypingGate.contentVisible(true))
@@ -57,8 +42,6 @@ class T63TestTypingPageTest {
             TestTypingGate.contentVisible(false),
         )
     }
-
-    // ── ② 布局扫描：设置页 ──
 
     @Test
     fun `设置页布局移除调试区并新增测试打字入口行`() {
@@ -71,8 +54,7 @@ class T63TestTypingPageTest {
             settingsLayout.contains("@+id/test_input\""),
         )
         val entry = viewBlock(settingsLayout, "btn_test_typing")
-        // 画板 7 第三行：样式与检查更新同款（bg_btn_accent = 常态 key 底无描边、焦点态 wash+描边）；
-        // T65 · 决策 47-② 非选中键样式一致：文字 #E8EEF5 字重 400（青字与 600 字重废止）
+
         val checkUpdate = viewBlock(settingsLayout, "btn_check_update")
         for (attr in listOf(
             "android:background=\"@drawable/bg_btn_accent\"",
@@ -116,13 +98,10 @@ class T63TestTypingPageTest {
             "测试打字页底部提示须落位（画板 9：调试走查页 · 由设置页「测试打字」进入）",
             testTypingLayout.contains("@string/test_hint"),
         )
-        // 门控缺省态：三件套默认 GONE，由 Activity 经 TestTypingGate 置 VISIBLE
-        //（T79 · 决策 65 起 debug / release 一致置 VISIBLE）
+
         val content = viewBlock(testTypingLayout, "test_typing_content")
         assertTrue("三件套容器须默认 gone（门控基线，由 Activity 置 VISIBLE）", content.contains("android:visibility=\"gone\""))
     }
-
-    // ── ③ 清单扫描：无 LAUNCHER 入口 ──
 
     @Test
     fun `测试打字页无intent_filter不从桌面可达`() {
@@ -135,14 +114,12 @@ class T63TestTypingPageTest {
             "测试打字页须声明 adjustResize（T54 焦点接管收起检测前提）",
             block.contains("android:windowSoftInputMode=\"adjustResize\""),
         )
-        // 设置页桌面入口（T60）不回归：既有 LAUNCHER filter 保留
+
         assertTrue(
             "设置页 LAUNCHER 入口不得回归（T60 既有）",
             activityBlock(manifest, ".SettingsActivity").contains("intent-filter"),
         )
     }
-
-    // ── ④ 接线扫描 ──
 
     @Test
     fun `设置页入口接线且调试区接线迁出`() {
@@ -202,8 +179,7 @@ class T63TestTypingPageTest {
 
     @Test
     fun `preIME动作仅在DOWN执行防双触发`() {
-        // T63 模拟器实测：遥控 OK 单击在 DOWN/UP 各执行一次 performClick，startActivity 双发
-        // 堆叠两个测试打字页实例（BACK 语义被副本实例破坏）；两个承载页同修同锁。
+
         for (name in listOf("SettingsActivity.kt", "TestTypingActivity.kt")) {
             val text = mainSource(name)
             assertTrue(

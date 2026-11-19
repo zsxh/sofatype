@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- T72 · 决策 61 · 连接代号胶囊底（画板 RemoteConnected/PhoneRemote）：
-     rgba(232,239,246,.10) 中性浅灰底 + 圆角 8px（Token client_code_pill_bg / client_code_pill_corner）。 -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/client_code_pill_bg" />

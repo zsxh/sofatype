@@ -6,15 +6,14 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
-/** SPD1 精简格式读写单测 */
 class DictFormatTest {
 
     private fun sampleData(): DictData {
-        // 音节表：ke=0, ting=1, bei=2
+
         val entries = listOf(
-            DictData.Entry(intArrayOf(0, 1), 0, 141.29744947),  // 客厅 = ke ting
-            DictData.Entry(intArrayOf(0), 1, 523.526794166),    // 客 = ke
-            DictData.Entry(intArrayOf(2), 2, 309.4219738),      // 呗 = bei
+            DictData.Entry(intArrayOf(0, 1), 0, 141.29744947),
+            DictData.Entry(intArrayOf(0), 1, 523.526794166),
+            DictData.Entry(intArrayOf(2), 2, 309.4219738),
         )
         return DictData(listOf("ke", "ting", "bei"), listOf("客厅", "客", "呗"), entries)
     }
@@ -32,7 +31,7 @@ class DictFormatTest {
         for (i in data.entries.indices) {
             assertArrayEquals(data.entries[i].syllableIds, round.entries[i].syllableIds)
             assertEquals(data.entries[i].wordId, round.entries[i].wordId)
-            assertEquals(data.entries[i].freq, round.entries[i].freq, 0.0) // 频次位级一致
+            assertEquals(data.entries[i].freq, round.entries[i].freq, 0.0)
         }
     }
 
@@ -54,7 +53,7 @@ class DictFormatTest {
     @Test(expected = IllegalArgumentException::class)
     fun `版本不符拒绝读取`() {
         val bytes = ByteArrayOutputStream().also { DictFormat.write(sampleData(), it) }.toByteArray()
-        // int32 版本位于偏移 4..8，翻转其低位使版本 != 1
+
         bytes[7] = (bytes[7].toInt() xor 0x01).toByte()
         DictFormat.read(ByteArrayInputStream(bytes))
     }

@@ -1,5 +1,3 @@
-// T13 · 监听地址选择单元测试：锁定决策 16 选取规则（默认路由优先、回环不选、
-// 接口必须 up、必须持有 IPv4、站点本地优先、同组按名稳定序）。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -17,8 +15,6 @@ class BindAddressSelectorTest {
         loopback: Boolean = false,
         defaultRoute: Boolean = false,
     ) = NicCandidate(name, ipv4, up, loopback, defaultRoute)
-
-    // ---- select：过滤与优先级 ----
 
     @Test
     fun prefersDefaultRouteInterface() {
@@ -68,7 +64,7 @@ class BindAddressSelectorTest {
     fun fallsBackToSiteLocalWhenNoDefaultRoute() {
         val chosen = BindAddressSelector.select(
             listOf(
-                nic("rmnet0", "100.100.20.5"), // 非 RFC1918 全局地址
+                nic("rmnet0", "100.100.20.5"),
                 nic("eth0", "10.0.2.15"),
             ),
         )
@@ -90,14 +86,12 @@ class BindAddressSelectorTest {
     fun defaultRouteBeatsSiteLocalOnAnotherInterface() {
         val chosen = BindAddressSelector.select(
             listOf(
-                nic("eth0", "192.168.1.136"), // 站点本地但非默认路由
+                nic("eth0", "192.168.1.136"),
                 nic("usb0", "172.20.10.2", defaultRoute = true),
             ),
         )
         assertEquals("usb0", chosen?.name)
     }
-
-    // ---- pickIpv4：同接口多地址 ----
 
     @Test
     fun pickIpv4PrefersSiteLocalOverLinkLocal() {
@@ -121,8 +115,6 @@ class BindAddressSelectorTest {
     fun pickIpv4StableOrderWithinSameClass() {
         assertEquals("10.0.0.2", BindAddressSelector.pickIpv4(listOf("10.0.0.9", "10.0.0.2")))
     }
-
-    // ---- IPv4 语义判定 ----
 
     @Test
     fun siteLocalRecognition() {

@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- T72 · 决策 61 · 苹果官方标（决策 61：苹果 = 银灰 #94A3B8 官方苹果标，不手描）。
-     矢量素材来源：Apple 官网（www.apple.com 全局导航官方 SVG 素材 globalnav_apple_image，
-     原样 pathData 转换，未手工描形）。
-     视口换算：素材路径实测包围盒 (0.51,12.09)-(13.49,28.02)（宽 12.98 × 高 15.93），
-     按 24/15.93 ≈ 1.5066 等比缩放进 24×24 视口水平居中（translateX = (24−12.98×1.5066)/2 − 0.51×1.5066）。 -->
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="@dimen/client_code_icon_size"
     android:height="@dimen/client_code_icon_size"

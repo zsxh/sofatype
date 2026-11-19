@@ -1,5 +1,3 @@
-// T14 · 二维码编码单元测试（FR-B4；ZXing core）：编码 → 解码回环（core 自带解码器）、
-// 矩阵尺寸、内容差异可见性、非法边长拒绝。
 package com.sofatype.ime.remote
 
 import com.google.zxing.BinaryBitmap
@@ -46,10 +44,10 @@ class QrCodeEncoderTest {
     @Test
     fun matrixHasQuietZoneAndDarkModules() {
         val matrix = QrCodeEncoder.encode("http://10.0.2.15:1/?token=t", 376)
-        // 静区：四角默认 4 模块留白
+
         assertFalse(matrix.get(0, 0))
         assertFalse(matrix.get(matrix.width - 1, matrix.height - 1))
-        // 存在深色模块（非全白）
+
         var dark = 0
         for (y in 0 until matrix.height) {
             for (x in 0 until matrix.width) {

@@ -1,11 +1,3 @@
-// T14 · hello/state 配对会话单元测试（PRD 第 7 章、FR-B10）：
-// 有效 token → state connected:true 且 token 失效；重放 / 错误 / 缺失 token → state connected:false + 4001；
-// 非 hello 消息忽略；state 载荷转义正确。
-// T15 · input / clear 业务分发；T16 · commit 分发、码点兜底截断、committed 回执（ack → sender）。
-// T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A：仅 connected:true 携带，被拒不带）+
-// disconnect 断连通知分发（记事件、连接保持，PRD 第 7 章 disconnect 双向）。
-// T72 · 决策 61：hello 增 deviceType / deviceKey（配对回调上送；缺失 / 空白 / 超长按匿名）+
-// state 增 clientCode（仅 connected:true 携带，被拒不带，转义回环锁定）。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -157,7 +149,7 @@ class PairingSessionTest {
 
     @Test
     fun eventsDoNotContainTokenOrDeviceName() {
-        // 事件日志注入：只记事件，不包含 token 或 deviceName 内容
+
         val store = PairingTokenStore()
         val token = store.issue()
         val events = mutableListOf<String>()
@@ -167,8 +159,6 @@ class PairingSessionTest {
         assertTrue(events.none { it.contains(token) })
         assertTrue(events.none { it.contains("browser") })
     }
-
-    // ---- T15 · 配对后业务消息分发（input / clear，PRD 第 7 章） ----
 
     @Test
     fun pairedConnectionDispatchesInputToCallback() {
@@ -195,7 +185,7 @@ class PairingSessionTest {
 
     @Test
     fun unpairedConnectionInputIsNotDispatched() {
-        // 防未配对连接注入内容：input/clear 在 hello 成功前一律忽略且不回调
+
         val store = PairingTokenStore()
         store.issue()
         var callbackCount = 0
@@ -203,7 +193,7 @@ class PairingSessionTest {
         assertEquals(WsReply.None, session.onTextMessage("""{"type":"input","text":"早到"}"""))
         assertEquals(WsReply.None, session.onTextMessage("""{"type":"clear"}"""))
         assertEquals(0, callbackCount)
-        // 连接保持：随后仍可完成配对
+
         val token = store.peek()
         assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
     }
@@ -221,19 +211,19 @@ class PairingSessionTest {
             onClear = { callbackCount++ },
         )
         session.onTextMessage(helloJson(token))
-        // 非法 JSON / 未知类型 / 字段缺失：忽略、连接保持、不回调
+
         for (bad in listOf("not json", """{"type":"commit"}""", """{"type":"input"}""")) {
             assertEquals(WsReply.None, session.onTextMessage(bad))
         }
         assertEquals(0, callbackCount)
-        // 连接仍可承载业务消息
+
         session.onTextMessage("""{"type":"input","text":"仍在线"}""")
         assertEquals(1, callbackCount)
     }
 
     @Test
     fun pairedConnectionReplayedHelloIsRejectedWithClose4001() {
-        // T14 基线口径：token 一次性，配对后同连接重放 hello → state connected:false + 4001
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store)
@@ -246,7 +236,7 @@ class PairingSessionTest {
 
     @Test
     fun helloTokenMustBeJsonString() {
-        // token 为数字 / null 字面量：类型不符，按缺失拒绝（4001），不消费正确 token
+
         val store = PairingTokenStore()
         store.issue()
         val session = newSession(store)
@@ -258,7 +248,7 @@ class PairingSessionTest {
 
     @Test
     fun businessMessagesNeverAppearInEventLog() {
-        // 隐私红线：input / commit 文本属用户输入内容，事件日志不得包含
+
         val store = PairingTokenStore()
         val token = store.issue()
         val events = mutableListOf<String>()
@@ -271,8 +261,6 @@ class PairingSessionTest {
         assertTrue(events.none { it.contains("绝密上屏ABC") })
     }
 
-    // ---- T16 · commit 上屏指令分发与 committed 回执（FR-B6/C6 · 决策 9/10） ----
-
     @Test
     fun pairedConnectionDispatchesCommitToCallback() {
         val store = PairingTokenStore()
@@ -281,21 +269,21 @@ class PairingSessionTest {
         val session = newSession(store, onCommit = { text, _ -> received.add(text) })
         session.onTextMessage(helloJson(token))
         val reply = session.onTextMessage("""{"type":"commit","text":"客厅"}""")
-        // 异步处理口径：指令消息本身不回发（回执由 ack 触发），连接保持
+
         assertEquals(WsReply.None, reply)
         assertEquals(listOf("客厅"), received)
     }
 
     @Test
     fun unpairedConnectionCommitIsNotDispatched() {
-        // 防未配对连接触发上屏：commit 在 hello 成功前一律忽略且不回调
+
         val store = PairingTokenStore()
         store.issue()
         var callbackCount = 0
         val session = newSession(store, onCommit = { _, _ -> callbackCount++ })
         assertEquals(WsReply.None, session.onTextMessage("""{"type":"commit","text":"早到的上屏"}"""))
         assertEquals(0, callbackCount)
-        // 连接保持：随后仍可完成配对并正常分发
+
         val token = store.peek()
         assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
         session.onTextMessage("""{"type":"commit","text":"配对后合法"}""")
@@ -304,7 +292,7 @@ class PairingSessionTest {
 
     @Test
     fun commitPayloadIsClampedToCharLimit() {
-        // 超限载荷按码点兜底截断（与显示缓冲同口径），不把超限文本直写宿主
+
         val store = PairingTokenStore()
         val token = store.issue()
         val received = mutableListOf<String>()
@@ -314,7 +302,6 @@ class PairingSessionTest {
         assertEquals(listOf("一二三四五"), received)
     }
 
-    /** 记录 send 调用的假回发器（committed 回执断言用）。 */
     private class RecordingSender : WsMessageSender {
         val sent = mutableListOf<String>()
         override fun send(text: String): Boolean {
@@ -342,7 +329,7 @@ class PairingSessionTest {
 
     @Test
     fun commitAckFalseSendsCommittedOkFalse() {
-        // 上屏写入失败（如无焦点输入框）：回执 ok:false，手机端提示失败、草稿保留
+
         val store = PairingTokenStore()
         val token = store.issue()
         val sender = RecordingSender()
@@ -359,7 +346,7 @@ class PairingSessionTest {
 
     @Test
     fun commitAckWithoutSenderDoesNotThrow() {
-        // 回发器未注入（WS 升级前 / 共享委托场景）：ack 静默丢弃，不抛异常、不影响处理方
+
         val store = PairingTokenStore()
         val token = store.issue()
         var handled = false
@@ -377,7 +364,7 @@ class PairingSessionTest {
 
     @Test
     fun commitAckFailureReturnIsIgnoredBySession() {
-        // 连接已断（send 返回 false）：ack 路径不抛异常，会话状态不受影响
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store, onCommit = { _, ack -> ack(true) })
@@ -386,8 +373,6 @@ class PairingSessionTest {
         val reply = session.onTextMessage("""{"type":"commit","text":"客厅"}""")
         assertEquals(WsReply.None, reply)
     }
-
-    // ---- T17 · 配对成功回调（FR-B9 / 决策 34：deviceName 上送供状态行展示） ----
 
     @Test
     fun pairedCallbackInvokedWithDeviceNameOnSuccessfulHello() {
@@ -401,16 +386,16 @@ class PairingSessionTest {
 
     @Test
     fun pairedCallbackNotInvokedOnRejectedHello() {
-        // 被拒（缺失 / 错误 / 重放）不触发配对成功回调
+
         val store = PairingTokenStore()
         val token = store.issue()
         var callbackCount = 0
         val session = newSession(store, onPaired = { _, _, _ -> callbackCount++ })
-        session.onTextMessage(helloJson(null)) // 缺失 token
-        session.onTextMessage(helloJson("wrong-guess")) // 错误 token
+        session.onTextMessage(helloJson(null))
+        session.onTextMessage(helloJson("wrong-guess"))
         session.onTextMessage(helloJson(token))
-        session.onTextMessage(helloJson(token)) // 重放已消费 token
-        assertEquals(1, callbackCount) // 仅第三次（合法首次）触发
+        session.onTextMessage(helloJson(token))
+        assertEquals(1, callbackCount)
     }
 
     @Test
@@ -423,11 +408,9 @@ class PairingSessionTest {
         assertEquals(listOf<String?>(null), names)
     }
 
-    // ---- T72 · 决策 61 · hello 增 deviceType / deviceKey（连接代号签发数据源） ----
-
     @Test
     fun pairedCallbackCarriesDeviceTypeAndDeviceKey() {
-        // hello 携带 deviceType / deviceKey：原样上送（类型判定在手机端，TV 不解析 UA）
+
         val store = PairingTokenStore()
         val paired = mutableListOf<Triple<String?, DeviceType, String?>>()
         val session = newSession(
@@ -445,7 +428,7 @@ class PairingSessionTest {
 
     @Test
     fun missingOrUnknownDeviceTypeFallsBackToBrowser() {
-        // deviceType 缺失 / 非法取值：按浏览器兜底（命中即停链终点，决策 61）
+
         val store = PairingTokenStore()
         val types = mutableListOf<DeviceType>()
         var session = newSession(store, onPaired = { _, type, _ -> types.add(type) })
@@ -457,7 +440,7 @@ class PairingSessionTest {
 
     @Test
     fun deviceTypeMustBeJsonStringFallsBackToBrowser() {
-        // deviceType 为数字 / 字面量：类型不符按缺失处理（浏览器兜底），不影响配对
+
         val store = PairingTokenStore()
         val token = store.issue()
         val types = mutableListOf<DeviceType>()
@@ -469,7 +452,7 @@ class PairingSessionTest {
 
     @Test
     fun blankOrOversizedDeviceKeyTreatedAsAnonymous() {
-        // deviceKey 空白 / 超长（>128）：一律按匿名处理（回调 null，决策 61）
+
         val store = PairingTokenStore()
         val oversized = "x".repeat(129)
         val paired = mutableListOf<Pair<DeviceType, String?>>()
@@ -486,7 +469,7 @@ class PairingSessionTest {
 
     @Test
     fun deviceKeyWithinLimitIsAcceptedVerbatim() {
-        // 恰好 128 长度的 deviceKey 合法（上限边界），原样上送
+
         val store = PairingTokenStore()
         val key = "y".repeat(128)
         var received: String? = null
@@ -495,11 +478,9 @@ class PairingSessionTest {
         assertEquals(key, received)
     }
 
-    // ---- T72 · 决策 61 · state 增 clientCode（代号唯一事实源） ----
-
     @Test
     fun connectedStateCarriesClientCode() {
-        // hello 校验通过 → state 附连接代号（Manager 在 onPaired 内签发后提供，此处以固定值模拟）
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store, clientCode = { "微信设备 01" })
@@ -512,7 +493,7 @@ class PairingSessionTest {
 
     @Test
     fun stateOmitsClientCodeWhenProviderReturnsNull() {
-        // 未提供代号（缺省 / 防御分支）：state 不带该字段，既有基线不受影响
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store)
@@ -523,7 +504,7 @@ class PairingSessionTest {
 
     @Test
     fun rejectedStateDoesNotCarryClientCode() {
-        // FR-B10 防套取延伸：被拒连接未通过配对校验，不得获得连接代号
+
         val store = PairingTokenStore()
         store.issue()
         val session = newSession(store, clientCode = { "微信设备 01" })
@@ -534,7 +515,7 @@ class PairingSessionTest {
 
     @Test
     fun connectedStateEscapesClientCode() {
-        // clientCode 含需转义字符时按 JSON 转义下发，解析回环一致
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store, clientCode = { """带"引号"代号""" })
@@ -543,11 +524,9 @@ class PairingSessionTest {
         assertEquals("""带"引号"代号""", fields["clientCode"])
     }
 
-    // ---- T35 · 连接控制与断连回调（决策 35：滚动 token / 自动顶替 / 断连回退） ----
-
     @Test
     fun connectionAttachedCallbackReceivesSenderAndCloseHandle() {
-        // WS 升级完成后 attachConnection 触发控制句柄上抛（Manager 登记供顶替编排）
+
         val store = PairingTokenStore()
         var attachedSender: WsMessageSender? = null
         var closeCode = 0
@@ -562,13 +541,12 @@ class PairingSessionTest {
 
     @Test
     fun sessionClosedCallbackFiresOnlyAfterPaired() {
-        // 未配对连接的会话结束不触发（不回退等待态）；配对成功后的断开才触发（T35 决策 35）。
-        // 服务契约：onSessionClosed 由服务在会话结束时调用一次（finally），无重复通知路径。
+
         val store = PairingTokenStore()
         val token = store.issue()
         var closedCount = 0
         val session = newSession(store, onPairedSessionClosed = { closedCount++ })
-        session.onTextMessage(helloJson("wrong-guess")) // 未配对即被拒
+        session.onTextMessage(helloJson("wrong-guess"))
         session.onSessionClosed()
         assertEquals("被拒连接断开不触发已配对关闭回调", 0, closedCount)
         session.onTextMessage(helloJson(token))
@@ -576,12 +554,9 @@ class PairingSessionTest {
         assertEquals("已配对连接断开触发一次", 1, closedCount)
     }
 
-    // ---- T18 · state 增配对地址 url（FR-B8 刷新重连，lead 拍板 A）+ disconnect 断连通知分发 ----
-
     @Test
     fun connectedStateCarriesRollingPairingUrl() {
-        // hello 校验通过 → state 附当前配对地址 url（Manager 在 onPaired 内滚动签发后提供，此处以固定值模拟）：
-        // 手机页据此 history.replaceState 更新地址栏，刷新页面即持有效新码重新配对（FR-B8）
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
@@ -592,7 +567,7 @@ class PairingSessionTest {
 
     @Test
     fun rejectedStateDoesNotCarryPairingUrl() {
-        // FR-B10 防套取：被拒连接未通过配对校验，不得获得有效配对地址
+
         val store = PairingTokenStore()
         store.issue()
         val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
@@ -603,7 +578,7 @@ class PairingSessionTest {
 
     @Test
     fun stateOmitsUrlFieldWhenProviderReturnsNull() {
-        // 未提供 url（缺省 / 防御分支）：state 不带该字段，既有测试与占位页基线不受影响
+
         val store = PairingTokenStore()
         val token = store.issue()
         val session = newSession(store)
@@ -614,7 +589,7 @@ class PairingSessionTest {
 
     @Test
     fun connectedStateEscapesPairingUrl() {
-        // url 含需转义字符（引号 / &）时按 JSON 转义下发，解析回环一致
+
         val store = PairingTokenStore()
         val token = store.issue()
         val rawUrl = """http://10.0.2.15:40000/?a="x"&b=y"""
@@ -626,8 +601,7 @@ class PairingSessionTest {
 
     @Test
     fun pairedConnectionDispatchesDisconnectAndKeepsSession() {
-        // 手机端页面关闭 / 刷新前发 disconnect（PRD 第 7 章 disconnect 双向）：
-        // 记事件、不回发、连接保持（后续业务消息仍分发；实际断开由 TCP 关闭驱动）
+
         val store = PairingTokenStore()
         val token = store.issue()
         val events = mutableListOf<String>()
@@ -642,7 +616,7 @@ class PairingSessionTest {
 
     @Test
     fun unpairedConnectionDisconnectIsSilentlyIgnored() {
-        // 未配对连接的 disconnect 不触发事件、连接保持（仍可完成配对）
+
         val store = PairingTokenStore()
         store.issue()
         val events = mutableListOf<String>()
@@ -653,16 +627,9 @@ class PairingSessionTest {
         assertTrue(session.onTextMessage(helloJson(token!!)) is WsReply.Text)
     }
 
-    // ---- T24 · FR-C9 未连接引导页触发契约（token 失效/超时 → H5 引导页数据源） ----
-    // H5 未连接引导页（FR-C9）唯一触发源：hello 被拒 → state { connected:false } + 4001 关闭。
-    // 本节锁定 H5 消费的 rejected 载荷契约。「超时/失效」在本工程 token 模型下的服务端路径：
-    // token 无独立 TTL（决策 35 滚动签发、逐 token 一次性，服务停止即清空），服务会话结束后
-    // 遗留的旧 token 与「已消费 / 错误」token 同走校验失败 → rejected 路径。
-
     @Test
     fun directUrlAccessWithoutTokenReturnsGuidePageTriggerState() {
-        // 验收口径「直接访问 URL（不带有效 token）」：state connected:false 是 H5 引导页触发源；
-        // 被拒连接不携带配对地址 url（FR-B10 防套取，T18 既有口径）；charLimit/tvName 字段不缺
+
         val store = PairingTokenStore()
         store.issue()
         val session = newSession(store, pairingUrl = { "http://10.0.2.15:40000/?token=rolled" })
@@ -680,11 +647,10 @@ class PairingSessionTest {
 
     @Test
     fun tokenLeftOverFromEndedSessionIsRejectedLikeExpired() {
-        // 「超时/失效」语义：token 与服务会话同生命周期，会话结束（clear）后旧 token 校验失败；
-        // 不误伤当前会话新 token（同 wrongTokenIsRejectedWithoutConsumingValidToken 口径）
+
         val store = PairingTokenStore()
         val staleToken = store.issue()
-        store.clear() // 服务会话结束（stopNow 同款清理路径）
+        store.clear()
         val fresh = store.issue()
         val session = newSession(store)
         val reply = session.onTextMessage(helloJson(staleToken))
@@ -697,14 +663,13 @@ class PairingSessionTest {
 
     @Test
     fun consumedTokenIsRejectedWhileRolledTokenStillPairs() {
-        // 已消费 token（配对成功后的重放 / 滚动替换后的旧码）→ rejected（FR-B10 逐 token 一次性）；
-        // 决策 35 滚动新签发 token 不受影响，新连接持新码仍可配对（引导页只拦旧码，不拦正常扫码）
+
         val store = PairingTokenStore()
         val first = store.issue()
         val session = newSession(store)
-        assertTrue(session.onTextMessage(helloJson(first)) is WsReply.Text) // 配对成功，token 已消费
+        assertTrue(session.onTextMessage(helloJson(first)) is WsReply.Text)
         assertFalse(store.isActive)
-        val rolled = store.issue() // 决策 35：配对成功即滚动签发新 token
+        val rolled = store.issue()
         val replay = session.onTextMessage(helloJson(first))
         assertTrue(replay is WsReply.TextThenClose)
         assertEquals(PairingSession.CLOSE_POLICY_REJECTED, (replay as WsReply.TextThenClose).closeCode)

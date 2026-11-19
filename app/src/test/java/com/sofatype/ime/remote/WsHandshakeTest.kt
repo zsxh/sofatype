@@ -1,5 +1,3 @@
-// T13 · WebSocket 握手单元测试：Sec-WebSocket-Accept 计算（RFC 6455 示例向量）、
-// 升级请求判定、101 响应字节。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -12,7 +10,7 @@ class WsHandshakeTest {
 
     @Test
     fun acceptKeyMatchesRfc6455Example() {
-        // RFC 6455 4.2.2 第 10 步示例
+
         assertEquals("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", WsHandshake.acceptKey("dGhlIHNhbXBsZSBub25jZQ=="))
     }
 

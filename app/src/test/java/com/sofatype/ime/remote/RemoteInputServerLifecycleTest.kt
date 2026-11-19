@@ -1,6 +1,3 @@
-// T13 · 服务生命周期集成单元测试（JVM 真实套接字，127.0.0.1 回环）：
-// 启停端口生命周期、HTTP 回环、WS 握手+回显+ping/pong+分片+关闭握手、
-// 协议错误关闭码、端口随机、重复启动、绑定失败路径。
 package com.sofatype.ime.remote
 
 import org.junit.After
@@ -51,7 +48,7 @@ class RemoteInputServerLifecycleTest {
             output.flush()
             val input = BufferedInputStream(socket.getInputStream())
             val status = readLine(input)
-            // 响应体按字节读到连接关闭（服务端 Connection: close），整体按 UTF-8 解码
+
             val body = java.io.ByteArrayOutputStream()
             val chunk = ByteArray(4 * 1024)
             while (true) {
@@ -61,8 +58,6 @@ class RemoteInputServerLifecycleTest {
             }
             "$status\n" + body.toString("UTF-8")
         }
-
-    // ---- 生命周期 ----
 
     @Test
     fun startBindsEphemeralPortAndReportsIt() {
@@ -79,7 +74,7 @@ class RemoteInputServerLifecycleTest {
     fun consecutiveStartsPickDifferentEphemeralPorts() {
         val firstServer = newServer()
         val first = firstServer.start() as RemoteInputServer.StartResult.Started
-        firstServer.stop() // 先停再测第二个，互不干扰
+        firstServer.stop()
         val second = newServer().start() as RemoteInputServer.StartResult.Started
         assertTrue(first.port > 0)
         assertTrue(second.port > 0)
@@ -90,7 +85,7 @@ class RemoteInputServerLifecycleTest {
     fun stopClosesListenerSoPortIsFree() {
         val server = newServer()
         val port = (server.start() as RemoteInputServer.StartResult.Started).port
-        // 先跑一次请求，确保 accept 线程已实际阻塞在 accept() 上，再停（覆盖阻塞态 stop 路径）
+
         assertEquals("HTTP/1.1 200 OK", httpGet(port).lineSequence().first())
         server.stop()
         assertFalse(server.isRunning)
@@ -99,17 +94,17 @@ class RemoteInputServerLifecycleTest {
             Socket(loopback, port).use { it.getOutputStream().write(1) }
             throw AssertionError("停止后端口应拒绝连接")
         } catch (_: Exception) {
-            // 连接被拒 = 无端口残留
+
         }
     }
 
     @Test
     fun stopIsIdempotentAndSafeWithoutStart() {
         val server = newServer()
-        server.stop() // 未启动时 stop
+        server.stop()
         server.start()
         server.stop()
-        server.stop() // 重复 stop
+        server.stop()
         assertFalse(server.isRunning)
     }
 
@@ -124,7 +119,7 @@ class RemoteInputServerLifecycleTest {
 
     @Test
     fun bindingTakenPortReportsFailure() {
-        // 先占住一个回环端口，再让服务绑定同一端口 → 应报失败且不抛异常
+
         val blocker = ServerSocket()
         blocker.bind(java.net.InetSocketAddress(loopback, 0))
         val taken = blocker.localPort
@@ -138,8 +133,7 @@ class RemoteInputServerLifecycleTest {
 
     @Test
     fun bindingTakenPortFlagsPortInUse() {
-        // T75 · 决策 63：被占绑定（BindException）结论须带 portInUse 标记，
-        // 供 Manager 端口策略（RemotePortPolicy）判定「换新随机端口重试」
+
         val blocker = ServerSocket()
         blocker.bind(java.net.InetSocketAddress(loopback, 0))
         val taken = blocker.localPort
@@ -155,9 +149,7 @@ class RemoteInputServerLifecycleTest {
 
     @Test
     fun immediateRebindOfSamePortSucceedsAfterConnectionTeardown() {
-        // T75 · 决策 63「退出立即重开」：先跑一轮真实 HTTP 连接（服务端 Connection: close
-        // 主动关 + 客户端随后关，服务侧同端口留下 TIME_WAIT 形态），停服后立刻同端口重绑，
-        // setReuseAddress(true) 下重绑必须成功且端口一致。
+
         val firstServer = newServer()
         val port = (firstServer.start() as RemoteInputServer.StartResult.Started).port
         assertEquals("HTTP/1.1 200 OK", httpGet(port).lineSequence().first())
@@ -167,8 +159,6 @@ class RemoteInputServerLifecycleTest {
         assertTrue("停服后立刻同端口重绑应成功：$second", rebound != null)
         assertEquals("重绑端口应与上一轮一致", port, rebound?.port)
     }
-
-    // ---- HTTP 回环 ----
 
     @Test
     fun httpGetRootServesPlaceholderPageAndCloses() {
@@ -185,8 +175,6 @@ class RemoteInputServerLifecycleTest {
         val port = (server.start() as RemoteInputServer.StartResult.Started).port
         assertTrue(httpGet(port, "/missing").startsWith("HTTP/1.1 404 Not Found\n"))
     }
-
-    // ---- WS 回环 ----
 
     private fun openWs(port: Int): Pair<Socket, WsClient> {
         val socket = Socket(loopback, port)
@@ -256,10 +244,10 @@ class RemoteInputServerLifecycleTest {
         val port = (server.start() as RemoteInputServer.StartResult.Started).port
         val (_, client) = openWs(port)
         client.sendText("sofa-".toByteArray(StandardCharsets.US_ASCII), fin = false)
-        client.sendControl(WsOpcode.PING, ByteArray(0)) // 分片间插入控制帧
+        client.sendControl(WsOpcode.PING, ByteArray(0))
         client.sendContinuation("type".toByteArray(StandardCharsets.US_ASCII), fin = false)
         client.sendContinuation("-t13".toByteArray(StandardCharsets.US_ASCII), fin = true)
-        val pong = client.readFrame() // PING 的 PONG 先回
+        val pong = client.readFrame()
         assertEquals(WsOpcode.PONG, pong.opcode)
         val echo = client.readFrame()
         assertEquals("sofa-type-t13", String(echo.payload, StandardCharsets.US_ASCII))
@@ -274,11 +262,11 @@ class RemoteInputServerLifecycleTest {
         val (_, client) = openWs(port)
         client.sendText("x".toByteArray(StandardCharsets.US_ASCII))
         client.readFrame()
-        client.sendControl(WsOpcode.CLOSE, byteArrayOf(0x03, 0xE8.toByte())) // 1000
+        client.sendControl(WsOpcode.CLOSE, byteArrayOf(0x03, 0xE8.toByte()))
         val reply = client.readFrame()
         assertEquals(WsOpcode.CLOSE, reply.opcode)
         assertEquals(1000, ((reply.payload[0].toInt() and 0xFF) shl 8) or (reply.payload[1].toInt() and 0xFF))
-        // 服务端随后关闭连接
+
         await { assertEquals(-1, client.rawRead()) }
         client.closeSocket()
     }
@@ -288,7 +276,7 @@ class RemoteInputServerLifecycleTest {
         val server = newServer()
         val port = (server.start() as RemoteInputServer.StartResult.Started).port
         val (_, client) = openWs(port)
-        client.sendText(byteArrayOf(0xC3.toByte(), 0x28.toByte())) // 非法 UTF-8
+        client.sendText(byteArrayOf(0xC3.toByte(), 0x28.toByte()))
         val frame = client.readFrame()
         assertEquals(WsOpcode.CLOSE, frame.opcode)
         assertEquals(1007, ((frame.payload[0].toInt() and 0xFF) shl 8) or (frame.payload[1].toInt() and 0xFF))
@@ -307,11 +295,10 @@ class RemoteInputServerLifecycleTest {
         client.closeSocket()
     }
 
-    /** 测试内嵌最小 WS 客户端（RFC 6455）：握手 + 掩码发送 + 读服务端帧。 */
     private class WsClient(private val socket: Socket) {
         private val input = BufferedInputStream(socket.getInputStream())
         private val output = BufferedOutputStream(socket.getOutputStream())
-        private val key = "dGhlIHNhbXBsZSBub25jZQ==" // RFC 示例键
+        private val key = "dGhlIHNhbXBsZSBub25jZQ=="
         private val maskKey = byteArrayOf(0x11, 0x22, 0x33, 0x44)
 
         fun handshake(): String {
@@ -346,13 +333,12 @@ class RemoteInputServerLifecycleTest {
             }
             val b0 = (if (fin) 0x80 else 0) or opcode.code
             output.write(b0)
-            output.write(0x80 or payload.size) // 测试负载 ≤125
+            output.write(0x80 or payload.size)
             output.write(maskKey, 0, 4)
             output.write(masked)
             output.flush()
         }
 
-        /** 发送未掩码文本帧（用于验证服务端按协议错误关闭）。 */
         fun sendUnmaskedText(payload: ByteArray) {
             output.write(0x81)
             output.write(payload.size)

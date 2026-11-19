@@ -1,24 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T20 · 设置页补全：面包屑 + 品牌区 + 版本信息卡 + 底部操作提示（FR-D1~D3、D5，决策 19/21）。
-  版本值由 SettingsActivity 读真实 PackageInfo 写入（FR-D3）。
-  T21 · FR-D4：状态点 / 状态文字接成真实三态（初始隐藏），新增更新说明与下载进度条
-  （发现新版与下载态显示）；三态切换逻辑在 SettingsActivity。纵向坐标按画板设置页 1080p 基准
-  （px ÷ 2 = dp）自屏幕顶部定位；色值/规格走 Token。
-  T63 · FR-D1 本批次（docs/PRD_20261112.md）：顶部 test_input_area 调试区整体迁入独立
-  测试打字页（activity_test_typing.xml / TestTypingActivity，门控沿用决策 21 debug 构建可见性）；
-  版本卡「检查更新」行下按画板 7 新增分隔线与第三行「测试打字」按钮（样式与检查更新同款）。
--->
-<!-- T54 Round 2：根视图换 SettingsRootView——pre-IME 键分路（ViewRootImpl 在派发 IME 前先
-     到根视图），键盘隐藏态由 SettingsActivity 按宿主语义路由、显示态透传 IME（打字态零改动）。
-     元素与属性除根节点类名外零变化。 -->
+
 <com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/settings_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
 
-    <!-- 面包屑「sofatype 输入法 ｜ 设置」（FR-D1，T2 既有） -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -49,9 +36,6 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
-    <!-- T82 · 决策 66：默认输入法夺回检测横幅（夺回态可见；默认态 GONE 零新增零位移）。
-         显隐刷新接线在 SettingsActivity（onResume / 窗口焦点回归，ImeTakeoverPrompt 共用件）；
-         「一键选回」调 InputMethodManager.showInputMethodPicker()（公开 API 零权限）。 -->
     <LinearLayout
         android:id="@+id/ime_takeover_banner"
         android:layout_width="wrap_content"
@@ -97,10 +81,6 @@
             android:textStyle="normal" />
     </LinearLayout>
 
-    <!-- T63：原顶部 test_input_area 调试区（测试输入框 + 填入示例文本 + 全选）整体迁入
-         activity_test_typing.xml，设置页不再承载调试区（FR-D1 本批次细项 2）。 -->
-
-    <!-- 品牌区（FR-D2）：Logo 88×88 圆角方块（accent 底 + on_accent「S」）+ 字标，下方副标题 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -148,8 +128,6 @@
             android:textSize="@dimen/brand_subtitle_text" />
     </LinearLayout>
 
-    <!-- 版本信息卡（FR-D3 / 决策 19）：版本行 + 分隔线 + 检查更新按钮与检查结果状态位。
-         T21 · FR-D4：状态位接真实三态（初始隐藏），下方按态展开更新说明与下载进度条。 -->
     <LinearLayout
         android:id="@+id/version_card"
         android:layout_width="@dimen/version_card_width"
@@ -243,9 +221,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- T63 · 画板 7 第三行：「测试打字」入口（样式与检查更新同款：bg_btn_accent 常态 key 底
-             无描边、焦点态 accent-wash 上界底 + border-accent 描边，决策 44 / PRD 6.4；
-             点击跳转 TestTypingActivity，接线在 SettingsActivity） -->
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/version_divider_h"
@@ -271,9 +246,6 @@
                 android:textStyle="normal" />
         </LinearLayout>
 
-        <!-- T71 · 决策 60 画板 7 第四行：「日志」入口（样式与检查更新/测试打字同款） +
-             行右侧状态点 + 状态文字（默认灰点「调试日志已关闭」；开启绿点「调试日志已开启」，
-             状态刷新在 SettingsActivity.onResume）。点击跳转 LogSettingsActivity（BACK 逐级返回）。 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/version_divider_h"
@@ -327,7 +299,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 更新说明（T21 · FR-D4 发现新版态：release notes；默认隐藏） -->
         <TextView
             android:id="@+id/update_notes"
             android:layout_width="match_parent"
@@ -339,7 +310,6 @@
             android:textSize="@dimen/update_notes_text"
             android:visibility="gone" />
 
-        <!-- 下载进度条（T21 · FR-D4 下载态；默认隐藏，accent 色） -->
         <ProgressBar
             android:id="@+id/download_progress"
             style="@android:style/Widget.Material.ProgressBar.Horizontal"
@@ -352,7 +322,6 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 底部操作提示（FR-D5 P0：静态文案；焦点动态切换属 P1，不在本轮） -->
     <TextView
         android:id="@+id/bottom_hint"
         android:layout_width="wrap_content"

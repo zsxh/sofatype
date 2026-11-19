@@ -6,18 +6,8 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
-/** 查询引擎单测：词组候选、单字兜底、组合态前缀、排序、多音去重（小词库） */
 class EngineTest {
 
-    /**
-     * 小词库（频次为构造值）：
-     * - ke ting：客厅 141.29 / 客厅里 3.0（三字词组）
-     * - ke：客 523.5、课 88.8、柯 1.2（单字兜底）
-     * - ting：听 300.0、厅 66.6
-     * - ti：提 120.0、题 90.0
-     * - xian：先 800.0；xi+an：西安 350.0（同输入两读音来源）
-     * - bai/bei：呗 8019.99 / 309.42（同词多读音，候选去重取最高）
-     */
     private fun engine(): PinyinEngine {
         val syllables = listOf("an", "bai", "bei", "ke", "li", "ti", "ting", "xi", "xian")
         val words = listOf("西安", "呗", "厅", "先", "客", "客厅", "客厅里", "柯", "课", "题", "提", "听")
@@ -57,7 +47,7 @@ class EngineTest {
 
     @Test
     fun `组合态前缀增量命中`() {
-        // "keti" 是「客厅」全拼 keting 的前缀
+
         val ws = wordsOf(engine(), "keti")
         assertTrue("输入 keti 应增量命中「客厅」，实际：$ws", "客厅" in ws)
     }
@@ -78,39 +68,37 @@ class EngineTest {
                 .sortedByDescending { it.second }.map { it.first },
             result.map { it.word },
         )
-        // 频次值随候选返回，取词库内建频次
+
         assertEquals(523.526794166, result.first { it.word == "客" }.freq, 0.0)
     }
 
     @Test
     fun `歧义输入命中两种读音来源`() {
-        // xian：整体音节「先」+ 切分 xi+an「西安」
+
         val ws = wordsOf(engine(), "xian")
         assertTrue("应含「先」（xian），实际：$ws", "先" in ws)
         assertTrue("应含「西安」（xi an），实际：$ws", "西安" in ws)
-        assertEquals("先", ws.first()) // 频次更高（800 > 350）
+        assertEquals("先", ws.first())
     }
 
     @Test
     fun `同词多读音去重且取最高频次`() {
         val result = engine().query("bei")
         assertEquals(listOf("呗"), result.map { it.word })
-        // bei 读 309.42；同词 bai 读频次 8019.99 不参与 bei 输入的候选排序
+
         assertEquals(309.4219738, result[0].freq, 1e-9)
     }
 
     @Test
     fun `同词双读音桶同现时一次查询内去重取最高频次`() {
-        // T9 评审建议补充的合成双桶用例：同一词在首音节倒排的两个桶（xiang 桶 / xi 桶）
-        // 各有一条词条，且两条全拼均以输入 "xiang" 为前缀——一次查询内双桶同现，
-        // 去重路径（bestFreq 已有词 id）必须走通并取最高频次 500
+
         val syllables = listOf("xi", "xiang", "ang")
         val data = DictData(
             syllables,
             listOf("想"),
             listOf(
-                DictData.Entry(intArrayOf(1), 0, 200.0),        // 想 = xiang（xiang 桶）
-                DictData.Entry(intArrayOf(0, 2), 0, 500.0),     // 想 = xi ang（xi 桶）
+                DictData.Entry(intArrayOf(1), 0, 200.0),
+                DictData.Entry(intArrayOf(0, 2), 0, 500.0),
             ),
         )
         val result = PinyinEngine.fromData(data).query("xiang")
@@ -131,12 +119,12 @@ class EngineTest {
             syllables,
             listOf("乙", "甲"),
             listOf(
-                DictData.Entry(intArrayOf(0), 0, 100.0), // 乙，词条序 0
-                DictData.Entry(intArrayOf(0), 1, 100.0), // 甲，词条序 1
+                DictData.Entry(intArrayOf(0), 0, 100.0),
+                DictData.Entry(intArrayOf(0), 1, 100.0),
             ),
         )
         val result = PinyinEngine.fromData(data).query("a")
-        assertEquals(listOf("乙", "甲"), result.map { it.word }) // 同频按源行序
+        assertEquals(listOf("乙", "甲"), result.map { it.word })
     }
 
     @Test

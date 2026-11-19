@@ -1,7 +1,3 @@
-// T13 · RFC 4648 标准 Base64 编码（含 padding）。
-// WebSocket 握手计算 Sec-WebSocket-Accept 需要 Base64；java.util.Base64 需 API 26，
-// minSdk 23 不可用（PRD 第 12 章决策 13），android.util.Base64 又不可被 JVM 单元测试引用，
-// 故自实现纯 Kotlin 版本，不引第三方依赖（工具链拍板：跨屏 HTTP/WS 自研）。
 package com.sofatype.ime.remote
 
 object Base64Codec {

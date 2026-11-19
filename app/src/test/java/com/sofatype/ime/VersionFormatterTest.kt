@@ -1,5 +1,3 @@
-// T20 · 版本展示文本单元测试（FR-D3 / 决策 19；2026-11-11 户主拍板 PRD 决策 40：版本行
-// 只显示 v<versionName>，不得含 versionCode 段。JUnit 4，纯 JVM）。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals

@@ -1,24 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T68 · 键盘单板直出布局（决策 58，视觉基准 designs/20261114 画板；T5 双悬浮卡片形态废止）。
-  根容器 = 窗口覆盖区（板高 392px + 上方柔影带）：板体（bg_panel：card 底 + 顶缘 1px 描边）
-  铺满屏幕底部全宽直出，柔影带画在板外上方透出宿主内容。
-  板内容三区并排（无分隔线，非独立卡片）：
-  ① 键区列（左锚 48px/顶 20px，宽 1378px）= 候选栏占位 + 4 行键区；键帽由 KeyboardLayout /
-     SymbolsLayout 模型驱动程序化生成（SofatypeImeService），跨两行浮层键（完成/空格）也在代码中挂载；
-  ② 远程模式区（左锚 48px/顶 28px，宽 1444px）：状态行 + 大字折行区 + 底部提示 +「退出远程」
-     （T17 · FR-B3 / 决策 33，默认 GONE），进入远程模式时替代键区列显示；
-  ③ 右分区（右锚 48px）：跨屏引导分区（宽 366px，FR-B1）/ 配对二维码分区（宽 316px，FR-B4 ·
-     决策 32，二维码随板高自适应），卡面内容由服务层装配并按卡面切换分区几何。
-  全部色值/规格走 Token（colors.xml / dimens.xml），本文件不出现字面值。
--->
+
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="@dimen/ime_panel_height"
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- 板体（含柔影垫层包装：柔影带在板体外上方，靠外层 clipChildren=false 放行） -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -26,14 +13,12 @@
         android:clipChildren="false"
         android:clipToPadding="false">
 
-        <!-- 向上柔影带（画板 box-shadow 0 -16px 40px 的垫层近似，bg_panel_shadow 渐变） -->
         <View
             android:layout_width="match_parent"
             android:layout_height="@dimen/ime_panel_shadow_height"
             android:layout_gravity="top"
             android:background="@drawable/bg_panel_shadow" />
 
-        <!-- 单板：card 底 + 顶缘 1px 描边，全宽 392px 铺底直出 -->
         <FrameLayout
             android:id="@+id/ime_panel"
             android:layout_width="match_parent"
@@ -43,13 +28,6 @@
             android:clipChildren="false"
             android:clipToPadding="false">
 
-            <!-- 候选词栏（T10 · FR-A7；T66 · 决策 53 单行行内翻页：chips + 两端 < > 翻页箭头
-                 （装饰件，服务层程序化生成），「更多⌄」展开行机制废止（FR-A15 删除，more_bar 移除）。
-                 无常亮高亮（决策 30，高亮仅随遥控器焦点态）；
-                 chips 由服务层依组合态候选程序化生成；空态几何占位无条件保留——中/英模式 ×
-                 字母/符号键盘全组合键区顶恒定（PRD 决策 42，FR-A7「英文模式候选栏隐藏、
-                 键盘区上移」条款废止），键区上边距恒为本布局静态值；
-                 远程模式候选栏显隐由服务层 renderRemoteUi 驱动（T17） -->
             <LinearLayout
                 android:id="@+id/candidates_bar"
                 android:layout_width="@dimen/ime_key_zone_width"
@@ -58,11 +36,6 @@
                 android:layout_marginTop="@dimen/ime_panel_padding_top"
                 android:orientation="horizontal" />
 
-            <!-- 远程模式区（T17 · FR-B3 / 决策 33，画板 RemotePairing/RemoteConnected）：
-                 状态行（点 + 状态文字 + 来自·设备名 + 「退出远程」按钮）+ 40px 大字自动折行区
-                 （T33 决策 31 口径不变）+ 底部提示。进入远程模式时显示（候选栏/键区隐藏），
-                 退出（上屏成功自动收起 / 「退出远程」/ 服务停止）回键盘态；
-                 状态行三态（未连接灰 / 等待扫码青 / 已连接绿，FR-B9）由服务层依状态机刷新。默认 GONE。 -->
             <LinearLayout
                 android:id="@+id/remote_mode_area"
                 android:layout_width="match_parent"
@@ -75,7 +48,6 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <!-- 状态行（FR-B3 / FR-B9）：点随状态切灰/青/绿，等待态无「来自·设备名」，右侧「退出远程」 -->
                 <LinearLayout
                     android:id="@+id/remote_status_row"
                     android:layout_width="match_parent"
@@ -107,8 +79,6 @@
                         android:textSize="@dimen/ime_remote_from_text"
                         android:visibility="gone" />
 
-                    <!-- T72 · 决策 61 连接代号胶囊占位（已连接态由服务层 ClientCodePill 装配，
-                         文字「来自 ·」紧随其后同显；等待 / 未连接态保持 GONE） -->
                     <LinearLayout
                         android:id="@+id/remote_status_pill"
                         android:layout_width="wrap_content"
@@ -134,7 +104,6 @@
                         android:textSize="@dimen/ime_remote_exit_text" />
                 </LinearLayout>
 
-                <!-- 纵向滚动（决策 31「超出显示区高度纵向滚动保持末尾」）：TV 无触控故不显滚动条 -->
                 <ScrollView
                     android:id="@+id/remote_text_scroll"
                     android:layout_width="match_parent"
@@ -143,7 +112,6 @@
                     android:layout_weight="1"
                     android:scrollbars="none">
 
-                    <!-- 折行文本（宽度 = 分区内容宽，无 maxLines 自动折行；末尾光标为文本尾 Span） -->
                     <TextView
                         android:id="@+id/remote_text"
                         android:layout_width="match_parent"
@@ -153,7 +121,6 @@
                         android:letterSpacing="0.025" />
                 </ScrollView>
 
-                <!-- 远程模式底部提示（T17 · FR-B3 原文，文案由服务层装载；画板提示距分区底 4px） -->
                 <TextView
                     android:id="@+id/remote_bottom_hint"
                     android:layout_width="match_parent"
@@ -164,8 +131,6 @@
                     android:visibility="gone" />
             </LinearLayout>
 
-            <!-- 键盘区：4 行键（模型驱动）+ 跨两行浮层键（代码挂载）+ T64 行步进暗示箭头；
-                 顶距板顶 86px 恒定（候选栏占位恒在 + 静态边距，决策 42） -->
             <FrameLayout
                 android:id="@+id/key_area"
                 android:layout_width="@dimen/ime_key_zone_width"
@@ -180,9 +145,6 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                    <!-- 键区 4 行容器一律关基线对齐（baselineAligned 默认 true 会把小字号功能键
-                         文字键按基线对齐 30px 键文字下推 ~4px，行容器按自身边界裁剪溢出部分，
-                         焦点态下边框被裁掉——T56 根因）；关掉后全部键帽按行顶对齐，行几何不变 -->
                     <LinearLayout
                         android:id="@+id/key_row_1"
                         android:layout_width="wrap_content"
@@ -216,9 +178,6 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- 板内右分区（T68 · 决策 58：跨屏引导 / 配对二维码并入单板，无分隔线非独立卡片）：
-                 默认几何 = 引导分区（宽 366px、上下距板缘 24px）；配对/已连接卡面由服务层
-                 renderSideCard 切换为二维码分区几何（宽 316px、顶距板顶 24px、高度随内容）。 -->
             <FrameLayout
                 android:id="@+id/side_card"
                 android:layout_width="@dimen/ime_guide_zone_width"

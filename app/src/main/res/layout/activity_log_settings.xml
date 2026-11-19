@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  T71 · 决策 60 画板 14 · 日志子页（面包屑 ｜ 日志）。
-  日志设置卡（与设置页同款卡片）：行 1 开启调试日志（开关行）+ 行 2 日志大小限制（四档）+
-  行 3 查看日志入口；行间分隔线。行容器聚焦态 = accent-wash 上界底 + border-accent 描边
-  （bg_log_row，决策 50）；开关关闭时行 2/3 置灰不可调（置灰刷新在 LogSettingsActivity）。
-  根视图 SettingsRootView：pre-IME 键分路（T54/T59/T67 口径）由 Activity 接线。
--->
+
 <com.sofatype.ime.SettingsRootView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/log_settings_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg">
 
-    <!-- 顶部页签：sofatype 输入法 ｜ 设置 ｜ 日志（末段高亮，画板 14） -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -57,9 +50,6 @@
             android:textSize="@dimen/breadcrumb_text_size" />
     </LinearLayout>
 
-    <!-- T82 · 决策 66：默认输入法夺回检测横幅（与设置页同构，夺回态可见；默认态 GONE 零新增）。
-         显隐刷新接线在 LogSettingsActivity（onResume / 窗口焦点回归，ImeTakeoverPrompt 共用件）；
-         「一键选回」调 InputMethodManager.showInputMethodPicker()（公开 API 零权限）。 -->
     <LinearLayout
         android:id="@+id/ime_takeover_banner"
         android:layout_width="wrap_content"
@@ -105,7 +95,6 @@
             android:textStyle="normal" />
     </LinearLayout>
 
-    <!-- 日志设置卡（画板 14：620×326px、行高 100px） -->
     <LinearLayout
         android:id="@+id/log_settings_card"
         android:layout_width="@dimen/log_card_width"
@@ -119,7 +108,6 @@
         android:paddingEnd="@dimen/version_card_padding_h"
         android:paddingBottom="@dimen/version_card_padding_v">
 
-        <!-- 行 1 · 开启调试日志（画板 14 焦点态行容器） -->
         <LinearLayout
             android:id="@+id/row_log_switch"
             android:layout_width="match_parent"
@@ -158,7 +146,6 @@
             android:layout_marginEnd="2dp"
             android:background="@color/divider_soft" />
 
-        <!-- 行 2 · 日志大小限制（四档 1/2/5/10 MB；选中档 = 亮青加粗 + 3px 下划线，决策 47） -->
         <LinearLayout
             android:id="@+id/row_log_size"
             android:layout_width="match_parent"
@@ -295,7 +282,6 @@
             android:layout_marginEnd="2dp"
             android:background="@color/divider_soft" />
 
-        <!-- 行 3 · 查看日志入口 + 右侧当前用量提示（画板 14） -->
         <LinearLayout
             android:id="@+id/row_log_view"
             android:layout_width="match_parent"
@@ -337,7 +323,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 底部操作提示（画板 14） -->
     <TextView
         android:id="@+id/log_settings_hint"
         android:layout_width="wrap_content"

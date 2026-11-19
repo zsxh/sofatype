@@ -1,9 +1,3 @@
-// T71 Round 2 修正回归锁定（qa Round 1 反馈，源码扫描口径 = ManualCheckLogTest / UpdateApiCompatTest 先例）：
-// B1：查看页浏览卡顶距 Token = 140dp（画板 15 浏览卡顶 280px ÷ 2；Round 1 误值 56dp 使浏览卡
-//     盖住操作行，[刷新]/[清空日志]/统计行不可见）。
-// B2：查看页左右键 = 按钮间移焦（[刷新]↔[清空日志] 遥控路径恢复）；底部提示还原画板 15 原文
-//    「上下键滚动 · 焦点在按钮时 OK 刷新 / 清空 · 清空需确认 · BACK 返回日志设置」。
-// 观察项 2：轮转日志行追加在本批末尾（落盘时间单调，消除时间倒挂）。
 package com.sofatype.ime.debug
 
 import org.junit.Assert.assertTrue

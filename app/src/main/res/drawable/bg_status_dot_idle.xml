@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 状态点 · 未连接（T17 · FR-B9 / PRD 6.3 状态点直径 8）：灰点 = dot_idle -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="@color/dot_idle" />
     <size android:width="@dimen/ime_status_dot_size" android:height="@dimen/ime_status_dot_size" />

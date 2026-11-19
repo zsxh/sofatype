@@ -1,6 +1,3 @@
-// T21 · GitHub Releases 解析单元测试（决策 17 字段口径，JUnit 4，纯 JVM）。
-// 覆盖：标准数组解析、跳过 draft / prerelease、.apk 资产挑选（大小写 / 多资产）、
-// body 为 null、未知字段跳过、空列表 / 无可用条目 / 格式非法 / 缺 .apk 资产失败路径。
 package com.sofatype.ime.update
 
 import org.junit.Assert.assertEquals

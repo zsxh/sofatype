@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 引导副卡标题图标（T17 · FR-B1「标题跨屏输入 + 图标」，画板① 24×24 描边图标 ÷2 = 12dp；
-     描边色 accent_text（画板① #7DD3FC）、描边宽 1.8@24vp ≈ 0.9dp，形源画板① 内联 SVG：
-     三格键位方块 + 右下手机与点缀） -->
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="@dimen/ime_guide_icon"
     android:height="@dimen/ime_guide_icon"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- 左上 / 右上 / 左下三个圆角方块（画板① rect 7×7 rx1.5）+ 右下小方块 -->
+
     <path
         android:strokeColor="@color/accent_text"
         android:strokeWidth="1.8"
         android:fillColor="@android:color/transparent"
         android:pathData="M5,3.5 H9 A1.5,1.5 0 0 1 10.5,5 V9 A1.5,1.5 0 0 1 9,10.5 H5 A1.5,1.5 0 0 1 3.5,9 V5 A1.5,1.5 0 0 1 5,3.5 Z M15,3.5 H19 A1.5,1.5 0 0 1 20.5,5 V9 A1.5,1.5 0 0 1 19,10.5 H15 A1.5,1.5 0 0 1 13.5,9 V5 A1.5,1.5 0 0 1 15,3.5 Z M5,13.5 H9 A1.5,1.5 0 0 1 10.5,15 V19 A1.5,1.5 0 0 1 9,20.5 H5 A1.5,1.5 0 0 1 3.5,19 V15 A1.5,1.5 0 0 1 5,13.5 Z M14,14 H17 V17 H14 Z" />
-    <!-- 右下点缀（画板① stroke-linecap round 点划） -->
+
     <path
         android:strokeColor="@color/accent_text"
         android:strokeWidth="1.8"

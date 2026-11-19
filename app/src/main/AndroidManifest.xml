@@ -1,18 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  应用组件清单。T1 骨架 → T2 设置页 Activity → T3 输入法服务（IME service），均已声明。
-  allowBackup=false：隐私红线姿态，应用数据不参与系统备份（AGENTS.md 禁止事项 2）。
--->
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- T13：跨屏局域网服务（HTTP + WS）需要创建网络套接字；
-         ACCESS_NETWORK_STATE 用于解析默认路由接口（决策 16）。均为 normal 级权限。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- T21 · FR-D4：自更新走系统安装器（PackageInstaller 会话提交，TASKS 6.2-2）。
-         系统安装器要求调用方清单声明 REQUEST_INSTALL_PACKAGES 才受理安装确认；
-         实际安装仍需用户在系统「未知来源/安装未知应用」授权（TASKS 6.3 真机验收节点），声明本身不触发静默安装。 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
@@ -23,13 +15,6 @@
         android:label="sofatype"
         android:theme="@style/Theme.Sofatype">
 
-        <!-- T2：设置页 Activity（FR-D1 最小集）。
-             exported=true：TASKS T2 验收方式要求 adb `am start` 直达；
-             系统输入法设置的入口由 @xml/method.xml 的 settingsActivity 声明（FR-D1），
-             该 meta-data 在 T3 声明 IME service 时引用生效。
-             T60：补 MAIN + LEANBACK_LAUNCHER / LAUNCHER 入口 intent-filter（FR-D1「应用入口」）——
-             两个 category 同列一个 filter，TV 桌面（LEANBACK_LAUNCHER）与通用应用列表（LAUNCHER）
-             均可解析本 Activity；图标与桌面横幅由 application 级 icon / banner 提供。 -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
@@ -43,41 +28,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- T54 Round 2：adjustResize 供设置页焦点接管做键盘收起检测（可见底部帧还原）
-             ——键盘收起后焦点移出测试输入框，遥控键恢复宿主派发（docs/issues/open/T54.md）。 -->
 
-        <!-- T63 · FR-D1 本批次：独立测试打字页（调试走查区自设置页迁入的承载页）。
-             无 intent-filter（无 MAIN/LAUNCHER category）→ 不从桌面可达（FR-D1「无 LAUNCHER 入口」）；
-             exported=true 沿 T2 设置页先例：走查 adb `am start` 直达（TASKS T2 验收方式同口径）；
-             adjustResize 供测试打字页焦点接管做键盘收起检测（T54 Round 2 机制随调试区迁入本页）。 -->
         <activity
             android:name=".TestTypingActivity"
             android:exported="true"
             android:label="@string/test_typing_label"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- T71 · 决策 60：日志子页（开启调试日志开关 / 日志大小限制 / 查看日志入口）。
-             无 intent-filter（无 MAIN/LAUNCHER category）→ 不从桌面可达；
-             exported=true 沿设置页 / 测试打字页先例：走查 adb `am start` 直达；
-             BACK 返回设置页（决策 60「BACK 逐级返回」）。 -->
         <activity
             android:name=".LogSettingsActivity"
             android:exported="true"
             android:label="@string/log_settings_label" />
 
-        <!-- T71 · 决策 60：查看日志页（只读浏览 / 刷新 / 清空需确认；无导出）。
-             无 intent-filter（不从桌面可达）；exported=true 沿先例供走查直达；
-             BACK 返回日志子页（决策 60「BACK 逐级返回」）。 -->
         <activity
             android:name=".LogViewerActivity"
             android:exported="true"
             android:label="@string/log_viewer_label" />
 
-
-        <!-- T3：最小可用输入法服务（FR-A1 最小闭环）。
-             BIND_INPUT_METHOD 为系统专属权限，第三方应用无法绑定；
-             android.view.im meta-data 引用 @xml/method（T2 预留文件，
-             含系统输入法设置的设置入口声明 FR-D1，自此生效）。 -->
         <service
             android:name=".SofatypeImeService"
             android:exported="true"

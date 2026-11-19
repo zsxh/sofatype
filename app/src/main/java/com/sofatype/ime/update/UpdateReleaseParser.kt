@@ -1,28 +1,21 @@
-// T21 · GitHub Releases 响应解析（决策 17：字段格式与 GitHub Releases 一致——
-// tag = 版本名、assets 内 APK = 下载地址、release notes = 更新说明）。
-// 纯 Kotlin 手写递归下降解析，只覆盖本场景所需子集（顶层数组 → 发布对象 → assets 数组），
-// 未知字段跳过；不引第三方 JSON 库（工具链拍板，同 MinimalJson 先例）。
 package com.sofatype.ime.update
 
-/** 选定的最新可用发布条目。 */
 data class UpdateRelease(
-    /** 发布 tag（= 版本名，如「v0.2.0」）。 */
+
     val tag: String,
-    /** 更新说明（release body），可为空串。 */
+
     val notes: String,
-    /** APK 资产下载地址（首个 .apk 资产的 browser_download_url）。 */
+
     val apkUrl: String,
 )
 
 object UpdateReleaseParser {
 
-    /** 解析失败；[reason] 区分格式非法与缺 APK 资产。 */
     class ParseException(
         val reason: UpdateFailureReason = UpdateFailureReason.PARSE,
         message: String,
     ) : Exception(message)
 
-    /** 解析整份响应：取数组内首个非 draft、非 prerelease 的条目。 */
     fun parse(text: String): UpdateRelease {
         val parser = Parser(text)
         val release = parser.parseDocument()
@@ -52,7 +45,6 @@ object UpdateReleaseParser {
             return text[pos]
         }
 
-        /** 解析「[ {发布对象}, … ]」，返回首个可选发布条目；数组为空视为格式失败。 */
         fun parseDocument(): UpdateRelease {
             skipWhitespace()
             expect('[')
@@ -74,7 +66,7 @@ object UpdateReleaseParser {
                             message = "位置 $pos：期望 ',' 或 ']'，实际 '${peek()}'",
                         )
                 }
-                // 已找到可用条目时，剩余元素只做结构校验后跳过
+
                 if (candidate != null) {
                     skipRemainingArrayElements()
                     return candidate
@@ -82,7 +74,6 @@ object UpdateReleaseParser {
             }
         }
 
-        /** 条目找到后逐个跳过剩余元素（保持严格结构校验）。 */
         private fun skipRemainingArrayElements() {
             while (true) {
                 skipWhitespace()
@@ -106,7 +97,6 @@ object UpdateReleaseParser {
             }
         }
 
-        /** 解析一个发布对象；不可选（draft / prerelease / 空 tag）时返回 null。 */
         private fun parseReleaseObject(): UpdateRelease? {
             expect('{')
             var tag: String? = null
@@ -167,7 +157,6 @@ object UpdateReleaseParser {
             return UpdateRelease(tag = cleanTag, notes = notes.orEmpty(), apkUrl = url)
         }
 
-        /** 解析 assets 数组，返回首个 .apk 资产的 browser_download_url（无则 null）。 */
         private fun parseAssetsAndPickApk(): String? {
             expect('[')
             var picked: String? = null
@@ -195,7 +184,6 @@ object UpdateReleaseParser {
             }
         }
 
-        /** 解析单个资产对象，name 以 .apk 结尾（忽略大小写）时返回其 browser_download_url。 */
         private fun parseAssetObject(): String? {
             expect('{')
             var name: String? = null
@@ -288,14 +276,13 @@ object UpdateReleaseParser {
                     pos += 4
                     val code = hex.toIntOrNull(16)
                         ?: throw ParseException(message = "\\u 转义非十六进制：$hex")
-                    // 按 UTF-16 char 原样保留（与 MinimalJson 同口径）
+
                     code.toChar()
                 }
                 else -> throw ParseException(message = "非法转义字符：\\$c")
             }
         }
 
-        /** 跳过任意一个 JSON 值（对象 / 数组 / 字符串 / 数字 / 字面量），未知字段用。 */
         private fun skipValue() {
             skipWhitespace()
             when (peek()) {
@@ -317,7 +304,7 @@ object UpdateReleaseParser {
             while (pos < text.length) {
                 val c = text[pos++]
                 when {
-                    inString && c == '\\' -> if (pos < text.length) pos++ // 跳过转义对
+                    inString && c == '\\' -> if (pos < text.length) pos++
                     c == '"' -> inString = !inString
                     !inString && c == '{' || !inString && c == '[' -> depth++
                     !inString && (c == '}' || c == ']') -> {

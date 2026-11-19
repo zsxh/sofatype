@@ -1,11 +1,3 @@
-// T86 Round 1 · 隐藏态确认键唤起分层兜底单测（PRD 决策 67 / 68，docs/issues/open/T86.md）：
-// ① 行为锁定：HiddenConfirmWake 三层序列——第一层 requestShowSelf 成功零变化（正常框架）、
-//    第一层固件缺陷型 IllegalAccessError / LinkageError 降级第二层、veto 复检拦下不唤起
-//    （T38 收起抑制窗语义保留）、第二层再失败落第三层不崩；每层降级写 trace。
-// ② 源码扫描守卫：服务隐藏态 OK 分支接线分层兜底，第一层字面调用 requestShowSelf(0)
-//    保留在原分支（T59HiddenKeySemanticsTest 拍板 3 断言同源）。
-// SofatypeImeService 为 Android 服务层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
-// 动作经函数注入（ImeShowGuard 同口径）+ 接线以源码扫描锁定。
 package com.sofatype.ime
 
 import org.junit.Assert.assertEquals
@@ -15,7 +7,6 @@ import java.io.File
 
 class T86HiddenWakeFallbackTest {
 
-    /** 动作注入台架：记录 veto / showWindow 触发次数与 trace 留痕。 */
     private class Harness(
         val layer1: () -> Unit = {},
         val veto: Boolean = false,
@@ -33,8 +24,6 @@ class T86HiddenWakeFallbackTest {
         ).wake()
     }
 
-    // ── ① 正常框架：第一层成功，行为零变化 ──
-
     @Test
     fun `第一层成功走requestShowSelf且不触碰复检与本地通道`() {
         val h = Harness()
@@ -44,8 +33,6 @@ class T86HiddenWakeFallbackTest {
         assertEquals("正常框架不得走第二层 showWindow", 0, h.showWindowCalls)
         assertTrue("第一层成功无降级 trace", h.traces.isEmpty())
     }
-
-    // ── ② 降级序列：第一层固件缺陷型抛错 → veto 复检 → 第二层 showWindow ──
 
     @Test
     fun `第一层IllegalAccessError降级第二层showWindow唤起`() {
@@ -83,8 +70,6 @@ class T86HiddenWakeFallbackTest {
         )
     }
 
-    // ── ③ T38 veto 语义保留：veto 拦下时不唤起 ──
-
     @Test
     fun `veto拦下时不走本地通道不崩`() {
         val h = Harness(
@@ -99,8 +84,6 @@ class T86HiddenWakeFallbackTest {
             h.traces.any { it.contains("veto") },
         )
     }
-
-    // ── ④ 第三层：第二层再失败 = trace 留痕 + 不崩安全降级 ──
 
     @Test
     fun `第二层IllegalAccessError失败落第三层不崩`() {
@@ -127,9 +110,6 @@ class T86HiddenWakeFallbackTest {
         assertEquals(HiddenConfirmWake.Result.DEGRADED, h.wake())
     }
 
-    // ── ⑤ 接线源码扫描守卫：服务分支第一层字面调用保留 + 三动作注入 ──
-
-    /** 路径口径 = app/ 模块目录（T59HiddenKeySemanticsTest 同口径）。 */
     private fun mainSource(name: String): String =
         File("src/main/java/com/sofatype/ime/$name").readText()
 
@@ -165,9 +145,7 @@ class T86HiddenWakeFallbackTest {
 
     @Test
     fun `隐藏态确认分支先核无会话透传再接线分层兜底`() {
-        // T88（户主拍板 2026-11-19，修订 T59 口径 3）：隐藏态 + 无输入会话 → 透传宿主，
-        // 分层兜底唤起仅在会话活跃（confirmWakeSessionActive 门控已过）时接线执行——
-        // 透传分支须先于 HiddenConfirmWake。
+
         val service = mainSource("SofatypeImeService.kt")
         val gateIdx = service.indexOf("if (!isInputViewShown() && !confirmWakeSessionActive())")
         assertTrue("确认键隐藏态分支须含无会话门控（T88）", gateIdx >= 0)

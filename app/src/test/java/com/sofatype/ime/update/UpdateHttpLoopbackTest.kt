@@ -1,6 +1,3 @@
-// T21 · UpdateHttp 回环集成测试（JUnit 4，真实套接字 127.0.0.1）：
-// fetchText 取回正文、非 2xx 抛状态码、连接拒绝归为网络失败；
-// downloadToFile 字节一致 + 进度单调且终值等于总长、非 2xx / 取消 / 本地写失败各自归因并清理半成品。
 package com.sofatype.ime.update
 
 import org.junit.After
@@ -31,8 +28,6 @@ class UpdateHttpLoopbackTest {
         tempDir.deleteRecursively()
     }
 
-    // ═══ fetchText ═══
-
     @Test
     fun fetchTextReturnsBodyFromLoopbackServer() {
         val body = """[{"tag_name": "v0.2.0", "body": "更新说明"}]"""
@@ -56,7 +51,7 @@ class UpdateHttpLoopbackTest {
 
     @Test
     fun fetchConnectionRefusedThrowsCheckNetwork() {
-        // 绑定后立即关闭，得到一个确定无人监听的端口
+
         val socket = ServerSocket().also { it.bind(InetSocketAddress(loopback, 0)) }
         val port = socket.localPort
         socket.close()
@@ -66,8 +61,6 @@ class UpdateHttpLoopbackTest {
         assertEquals(UpdateFailureReason.CHECK_NETWORK, e.reason)
         assertNull(e.httpStatus)
     }
-
-    // ═══ downloadToFile ═══
 
     @Test
     fun downloadWritesExactBytesWithMonotonicProgress() {
@@ -137,8 +130,6 @@ class UpdateHttpLoopbackTest {
         assertEquals(UpdateFailureReason.DOWNLOAD_IO, e.reason)
     }
 
-    // ═══ 回环测试用最小 HTTP 服务（Connection: close，单请求响应） ═══
-
     private class TinyResponse(val statusLine: String, val body: ByteArray, val contentType: String)
 
     private class TinyServer(private val handler: (String) -> TinyResponse) {
@@ -163,7 +154,7 @@ class UpdateHttpLoopbackTest {
                             )
                             val requestLine = reader.readLine() ?: return@use
                             while (reader.readLine()?.isNotEmpty() == true) {
-                                // 读到空行，请求头结束
+
                             }
                             val path = requestLine.split(" ").getOrNull(1) ?: "/"
                             val response = handler(path)
@@ -179,7 +170,7 @@ class UpdateHttpLoopbackTest {
                             output.flush()
                         }
                     } catch (e: IOException) {
-                        // 单连接读写错误忽略，继续接下一个连接
+
                     }
                 }
             }

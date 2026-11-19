@@ -1,5 +1,3 @@
-// T71 · 决策 60 · 日志行格式锁定：logcat 同构行（MM-dd HH:mm:ss.SSS P/TAG: message）与
-// 级别字符映射（V/D/I/W/E/A）。时间戳注入式（纯 JVM 无 Android 依赖）。
 package com.sofatype.ime.debug
 
 import android.util.Log

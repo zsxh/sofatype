@@ -1,6 +1,3 @@
-// T38 · 收起-唤起时序守卫单元测试（JUnit 4，纯 Kotlin）。
-// 锁定 ImeShowGuard 两个抑制窗的边界与吞键语义：收起后显示抑制（Bug A）、
-// 唤起后首个确认键吞键并解除（Bug B）、双窗独立互不影响。
 package com.sofatype.ime
 
 import org.junit.Assert.assertFalse
@@ -9,10 +6,7 @@ import org.junit.Test
 
 class ImeShowGuardTest {
 
-    /** 被测守卫：窗长取服务层同口径值（收起 800ms / 唤起 500ms）。 */
     private fun guard() = ImeShowGuard(showGuardMs = 800L, wakeGuardMs = 500L)
-
-    // ---- 收起抑制窗（Bug A） ----
 
     @Test
     fun `未收起时不拒绝显示请求`() {
@@ -47,8 +41,6 @@ class ImeShowGuardTest {
         assertFalse(g.shouldVetoShowRequest(2_300L))
     }
 
-    // ---- 唤起抑制窗（Bug B） ----
-
     @Test
     fun `窗口显示后吞首个确认键`() {
         val g = guard()
@@ -77,8 +69,6 @@ class ImeShowGuardTest {
         val g = guard()
         assertFalse(g.shouldSwallowConfirmKey(10_000L))
     }
-
-    // ---- 双窗独立 ----
 
     @Test
     fun `唤起吞键解除不影响收起抑制窗`() {

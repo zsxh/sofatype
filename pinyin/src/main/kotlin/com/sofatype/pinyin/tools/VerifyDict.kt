@@ -3,12 +3,6 @@ package com.sofatype.pinyin.tools
 import java.io.File
 import java.security.MessageDigest
 
-/**
- * 仓库内词库源文件校验（T30，PRD 决策 29：源文件入库，构建零网络）。
- *
- * 构建期门禁：源文件存在且 sha256 与锁定值一致才放行转换；
- * 缺失或被改动时报错退出，报错信息含期望 sha256。
- */
 internal fun verifySourceFile(path: String) {
     val source = File(path)
 
@@ -34,13 +28,11 @@ internal fun verifySourceFile(path: String) {
     println("[verifyDict] sha256：$actual（${source.length()} 字节）")
 }
 
-/** JavaExec 任务入口 */
 fun main(args: Array<String>) {
     require(args.isNotEmpty()) { "用法：verifyDict <源文件路径>" }
     verifySourceFile(args[0])
 }
 
-/** 流式计算文件 sha256（3.5 MB 量级，一次读入亦可，流式避免大文件内存峰值） */
 private fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -54,9 +46,7 @@ private fun sha256(file: File): String {
     return digest.digest().joinToString("") { "%02x".format(it) }
 }
 
-/** 入库基线 sha256（PRD 决策 29 锁定） */
 internal const val EXPECTED_SHA256: String =
     "408700f28a56091fa07f3b849a0f134fbfc71e6b2ae9b3f52973a5b076f599ff"
 
-/** 入库基线文件字节数（PRD 决策 29 锁定，与 sha256 一并维护） */
 internal const val EXPECTED_SOURCE_BYTES: Long = 3_570_346L

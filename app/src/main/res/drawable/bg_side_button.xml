@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 引导副卡「远程输入」主按钮（T17 · FR-B1 / PRD 6.3 副卡主按钮，决策 44 修订）：
-     常态收敛为键帽同款 key 底、无描边（非焦点不常亮）；焦点/按压态保留
-     accent-wash 上界底 + border-accent 描边（FR-A10/6.4「聚焦态 = 主色描边」） -->
+
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">

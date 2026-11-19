@@ -1,29 +1,16 @@
-// T14 · 跨屏协议消息的最小 JSON 解析 / 序列化（PRD 第 7 章）。
-// 纯 Kotlin/JVM，不引第三方 JSON 库（工具链拍板：跨屏通道自研）。
-// 只覆盖协议所需子集：顶层对象的标量字段（字符串 / 数字 / true / false / null），
-// 不支持嵌套对象与数组（协议消息无此形态；出现即解析失败，调用方按拒绝处理）。
-// T15 增量：类型化解析（字符串 vs 标量字面量，供 input { text } 字段类型校验）；
-// 数字文法按 RFC 8259 收紧（T14 评审建议：`1.2.3` 等宽松形态不再接受）。
 package com.sofatype.ime.remote
 
 object MinimalJson {
 
-    /** 解析失败（格式非法或含不支持的结构）。 */
     class JsonParseException(message: String) : Exception(message)
 
-    /** 顶层字段的值（T15）：区分字符串与标量字面量，供业务消息按类型校验字段。 */
     sealed class Value {
-        /** JSON 字符串值；[value] 已解转义。 */
+
         class Str(val value: String) : Value()
 
-        /** 数字 / true / false / null 字面量，[literal] 为原文。 */
         class Raw(val literal: String) : Value()
     }
 
-    /**
-     * 解析顶层 JSON 对象的标量字段：键 → 值。
-     * 字符串值已解转义；数字 / true / false / null 以字面量原文返回；重复键后者覆盖。
-     */
     fun parseTopLevelObject(text: String): Map<String, String> {
         val typed = parseTopLevelObjectTyped(text)
         val result = LinkedHashMap<String, String>(typed.size)
@@ -36,7 +23,6 @@ object MinimalJson {
         return result
     }
 
-    /** 同 [parseTopLevelObject]，但保留值类型（字符串 vs 标量字面量），供业务消息字段校验。 */
     fun parseTopLevelObjectTyped(text: String): Map<String, Value> {
         val parser = Parser(text)
         val result = parser.parseObject()
@@ -45,7 +31,6 @@ object MinimalJson {
         return result
     }
 
-    /** 序列化字符串值：转义引号 / 反斜杠 / 控制字符；非 ASCII 字符原样输出（JSON 允许）。 */
     fun escape(value: String): String {
         val out = StringBuilder(value.length + 8)
         for (c in value) {
@@ -128,7 +113,6 @@ object MinimalJson {
             }
         }
 
-        /** 读取一个转义序列（\uXXXX 含代理对时按 UTF-16 char 原样保留）。 */
         private fun readEscape(): Char {
             if (pos >= text.length) throw JsonParseException("转义序列截断")
             val c = text[pos++]
@@ -161,11 +145,6 @@ object MinimalJson {
             return expected
         }
 
-        /**
-         * 数字按字面量原文返回（协议只取字符串字段；此处仅做结构校验）。
-         * 文法按 RFC 8259 收紧（T14 评审建议）：`-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?`——
-         * 不接受 `1.2.3`、`01`、`+1`、`1.`、`.5`、`1e` 等宽松形态。
-         */
         private fun parseNumber(): String {
             val start = pos
             if (peek() == '-') pos++

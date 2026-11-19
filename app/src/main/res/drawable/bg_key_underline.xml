@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 键面下划线条（T65 · 决策 47-① 触发态统一）：上档触发态短条（36×3px）与状态键当前态
-     下划线（3px）共用；色 = 主色描边文字 Token accent_text（#7DD3FC），圆角 2px（画板 trig-bar） -->
+
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/accent_text" />

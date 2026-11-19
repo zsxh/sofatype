@@ -1,9 +1,3 @@
-// T50 Round 2 · 手动检查路径日志点守卫（2026-11-10 户主指令，review-qa Round 1 非阻塞建议 1）：
-// startCheck 发起一条、onCheckResult 落态一条（三态标识 + 失败原因），TAG=UpdateCheck 既有口径。
-// SettingsActivity 为 Android 交互层，纯 JVM 单测无法实例化（无 Robolectric，仓库口径），
-// 日志接线以源码扫描锁定回归——先例：UpdateApiCompatTest（T46）、UiChannelHealFlowTest（T50 R1）。
-// 红线锁定：日志语句仅含 endpoint / tag / reason / http 取值，不含用户输入内容。
-// T71 · 决策 60：日志点机械迁移到 Timber（Timber.tag(UPDATE_LOG_TAG)），文案与守卫口径不变。
 package com.sofatype.ime
 
 import org.junit.Assert.assertTrue
@@ -12,7 +6,6 @@ import java.io.File
 
 class ManualCheckLogTest {
 
-    /** 路径口径 = app/ 模块目录（UpdateApiCompatTest 同口径）。 */
     private fun mainSource(name: String): String =
         File("src/main/java/com/sofatype/ime/$name").readText()
 
@@ -41,8 +34,7 @@ class ManualCheckLogTest {
     @Test
     fun `日志摘要不含用户输入内容`() {
         val text = mainSource("SettingsActivity.kt")
-        // 红线（AGENTS 禁止事项 2）：checkResultLabel 摘要仅允许 release.tag / reason / httpStatus，
-        // 不得引用测试输入框（test_input）等用户输入面
+
         val start = text.indexOf("private fun checkResultLabel(")
         assertTrue("checkResultLabel 定义缺失", start >= 0)
         val body = text.substring(start, text.indexOf("private fun", start + 1).takeIf { it > start } ?: text.length)

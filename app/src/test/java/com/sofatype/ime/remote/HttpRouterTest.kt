@@ -1,4 +1,3 @@
-// T13 · HTTP 路由单元测试：/ 下发占位页、/ws 升级判定、404/405/400 分支、响应字节构造。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -27,7 +26,7 @@ class HttpRouterTest {
         val text = String(bytes, StandardCharsets.UTF_8)
         assertTrue(text.startsWith("HTTP/1.1 200 OK\r\n"))
         assertTrue(text.contains("Content-Type: text/html; charset=utf-8"))
-        // T14 配对占位页：从 URL query 取 token、发 hello、展示「已连接 · TV名」
+
         assertTrue(text.contains("sofatype 跨屏输入"))
         assertTrue(text.contains("'hello'"))
         assertTrue(text.contains("token"))
@@ -44,7 +43,6 @@ class HttpRouterTest {
         assertEquals(bytes.size - headEnd - 4, declared)
     }
 
-    /** 定位头块结束符 CRLFCRLF 的起点。 */
     private fun indexOfEmptyLine(bytes: ByteArray): Int {
         for (i in 0..bytes.size - 4) {
             if (bytes[i] == 0x0D.toByte() && bytes[i + 1] == 0x0A.toByte() &&
@@ -58,7 +56,7 @@ class HttpRouterTest {
 
     @Test
     fun rootGetServesBytesFromInjectedProvider() {
-        // T15 · 决策 20：主页字节由装配方注入（生产 = APK assets 内 H5 页）
+
         val custom = "<html>T15 assets page</html>".toByteArray(StandardCharsets.UTF_8)
         val route = HttpRouter.route(request("GET", "/", "host" to "x")) { custom }
         assertTrue(route is RouteResult.Respond)

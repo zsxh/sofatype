@@ -1,7 +1,3 @@
-// T25 · RemoteIdlePolicy 单元测试（JUnit 4，纯 Kotlin）。
-// 空闲口径按 PRD 第 8 章括注 = 无手机连接。锁定：正式阈值常量 = 30 分钟、
-// 空闲窗口边界判定、手机连接解除空闲、断连后重新起算、重复进入刷新起点、
-// 解除后保持解除、非法阈值拒绝。时间由测试注入，不依赖真实等待。
 package com.sofatype.ime.remote
 
 import org.junit.Assert.assertEquals
@@ -12,18 +8,13 @@ import org.junit.Test
 
 class RemoteIdlePolicyTest {
 
-    /** 被测策略：短阈值便于边界构造（正式 30 分钟常量另专门断言）。 */
     private fun policy(idleTimeoutMs: Long = 1_000L) = RemoteIdlePolicy(idleTimeoutMs = idleTimeoutMs)
-
-    // ---- 正式阈值 ----
 
     @Test
     fun `正式阈值等于30分钟`() {
         assertEquals(1_800_000L, RemoteIdlePolicy.DEFAULT_IDLE_TIMEOUT_MS)
         assertEquals(1_800_000L, RemoteIdlePolicy().idleTimeoutMs)
     }
-
-    // ---- 空闲窗口边界 ----
 
     @Test
     fun `未进入空闲窗口恒不退出`() {
@@ -47,8 +38,6 @@ class RemoteIdlePolicyTest {
         assertTrue(p.shouldExit(8_000L))
     }
 
-    // ---- 手机连接解除空闲 ----
-
     @Test
     fun `手机连接解除空闲-经过再长时间也不退出`() {
         val p = policy()
@@ -64,8 +53,6 @@ class RemoteIdlePolicyTest {
         p.onIdleEnded()
         assertFalse(p.shouldExit(100_000L))
     }
-
-    // ---- 断连后重新起算 ----
 
     @Test
     fun `断连重进空闲从新起点起算`() {
@@ -85,8 +72,6 @@ class RemoteIdlePolicyTest {
         assertFalse(p.shouldExit(1_799L))
         assertTrue(p.shouldExit(1_800L))
     }
-
-    // ---- 参数防御 ----
 
     @Test
     fun `阈值必须为正数`() {

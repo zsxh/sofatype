@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 键帽背景（普通/功能键）：key 底，按压提亮 key-hover（PRD 6.1/6.4），圆角 14px（PRD 6.3）；
-     遥控器焦点态（T65 · 决策 50-②）：accent-wash 淡青底 rgba(56,189,248,.16) + border-accent 主色描边
-     （原 key-hover 灰调焦点底 #242C39 废止，与普通键帽区分度不足） -->
+
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
