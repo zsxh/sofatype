@@ -18,17 +18,15 @@
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
 5. 需求 / 设计变更追加到 PRD 第 12 章，编号顺延、不重排。**开发环境工具链拍板不入 PRD**，记录于本文决策速查与对应 issue。
 
-## 当前快照（截至 2026-11-18）
+## 当前快照（截至 2026-11-19）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.1.0(1)。构建一律 `nix develop` 内 `./gradlew`，命令模板见 `local/DEV-GUIDE.md` 1.5。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一任务上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 任务状态（逐任务以 TASKS 状态行为准）：
-  - 已归档（closed）：T1~T87 全部（T84 / T86 除外），明细见 `docs/issues/closed/` 对应 issue。
-  - 进行中：T84 简拼二期混合缩写（2026-11-18 户主点名 dev-review 开工，PRD_20261118 决策 D6；Round 1 review-qa PASS（模拟器口径，真机未验）；户主拍板暂不归档、实际使用观察后再拍板，真机暂缓；明细见 `docs/issues/open/T84.md`）。
-  - 进行中：T86 隐藏态 OK 崩溃治理（2026-11-18 户主点名 dev-review 流程开工；拍板决策 67 = 方案 A 分层兜底、决策 68 = 真机键盘实际唤起为 PASS 线；Round 1 代码审查与单测独立复验通过，真机批次户主拍板顺延、待电视在线续跑；明细见 `docs/issues/open/T86.md`）。
-  - 装机终态（2026-11-18 户主拍板）：MiTV4 保留 debug 包日用（T85 版；T87 恒记失败日志改动未装机，随下次真机批次一并装；StrictMode 全开为日常态）。电视无线 adb 当晚回连超时自愈中，恢复后例行补核 `default_input_method` 终态。
+  - 已归档（closed）：T1~T87 全部，明细见 `docs/issues/closed/` 对应 issue。
+  - 装机终态（2026-11-19 真机批次更新）：MiTV4 保留 debug 包日用（2026-11-19 HEAD 版，含 T84 / T86 / T87 改动；StrictMode 全开为日常态）。电视无线 adb 已恢复（连接残留旧钥匙时先 `adb kill-server` 再连）。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立任务）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据与处置见 DEV-GUIDE 1.5，2026-11-15 T77 实测）；透传修复属 flake 改动，待户主拍板。
