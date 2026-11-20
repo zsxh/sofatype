@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.sofatype.ime.BuildConfig
+import com.sofatype.ime.PerfTrace
 import timber.log.Timber
 import java.net.Inet4Address
 import java.net.InetAddress
@@ -372,6 +373,7 @@ object RemoteInputServerManager {
     }
 
     private fun onRemoteCommit(text: String, ack: (Boolean) -> Unit) {
+        PerfTrace.markRemoteCommitFrame()
         markRemoteActivity()
         clientCodes.touch(pairedDeviceKey, System.currentTimeMillis())
         mainHandler.post {

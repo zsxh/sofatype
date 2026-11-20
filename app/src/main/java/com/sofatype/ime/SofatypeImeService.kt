@@ -440,18 +440,24 @@ class SofatypeImeService : InputMethodService() {
     }
 
     private fun commitRemoteText(text: String): Boolean {
-        val ic = currentInputConnection ?: return false
+        val ic = currentInputConnection
+        if (ic == null) {
+            PerfTrace.endRemoteCommit(committed = false)
+            return false
+        }
         return try {
             ic.beginBatchEdit()
             try {
                 ic.finishComposingText()
                 composer.reset()
                 ic.commitText(text, 1)
+                PerfTrace.endRemoteCommit(committed = true)
                 true
             } finally {
                 ic.endBatchEdit()
             }
         } catch (t: Throwable) {
+            PerfTrace.endRemoteCommit(committed = false)
             Timber.tag(TRACE_TAG).w("远程上屏写入失败：${t.javaClass.simpleName}")
             false
         }
@@ -531,8 +537,11 @@ class SofatypeImeService : InputMethodService() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val ev = event ?: return super.onKeyDown(keyCode, event)
         candidateLoadStartMs = SystemClock.uptimeMillis()
+        PerfTrace.markKeyDown()
         try {
-            return dispatchKeyDown(keyCode, ev)
+            val handled = dispatchKeyDown(keyCode, ev)
+            if (handled) PerfTrace.endKeyFeedbackOnDraw(keyboardView)
+            return handled
         } finally {
             candidateLoadStartMs = -1L
         }
@@ -1372,6 +1381,7 @@ class SofatypeImeService : InputMethodService() {
         val startMs = candidateLoadStartMs
         candidateLoadStartMs = -1L
         val elapsedMs = if (startMs > 0) SystemClock.uptimeMillis() - startMs else -1L
+        PerfTrace.endCandidate(totalCount, pageCount)
         trace(
             "candidates loaded fromKey=${startMs > 0} elapsedMs=$elapsedMs" +
                 " availablePx=${candidatesAvailablePx()} pages=$pageCount" +
