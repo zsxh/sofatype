@@ -44,5 +44,5 @@
       "p95Composition": "组合 p95 = 手机段逐轮 p95 + TV 段 ws_commit p95（两段独立采样，线性相加为保守上界口径）"
     }
   },
-  "note": "首批真机基线（无先前基线，劣化项以本次为基线）；判定口径：median 与 p95 均不超预算（e2e 为 median 判定），较基线中位数劣化 <=20% 自次轮起生效；三段样本由设备端 T92PerfBudgetTest 断言（p01/p02 results.tsv 行），e2e 手机段为本地 Brave 浏览器真实页面打开 -> 页面 WS 已连接测量（21/21 轮）"
+  "note": "首批真机基线（无先前基线，劣化项以本次为基线）；判定口径：median 与 p95 均不超预算（e2e 为 median 判定），较基线中位数劣化 <=20% 自次轮起生效；三段样本由设备端 PerfBudgetTest 断言（p01/p02 results.tsv 行），e2e 手机段为本地 Brave 浏览器真实页面打开 -> 页面 WS 已连接测量（21/21 轮）"
 }

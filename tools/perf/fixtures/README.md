@@ -1,8 +1,8 @@
-# tools/t92/fixtures · synthetic 判定夹具
+# tools/perf/fixtures · synthetic 判定夹具
 
 本目录全部文件为 **synthetic（合成样例）**：数值为构造值，非任何设备测量产物。
 
-用途：`python3 tools/t92/t92_report.py --selftest` 验证判定脚本六条路径（全过 / 超预算 /
+用途：`python3 tools/perf/perf_report.py --selftest` 验证判定脚本六条路径（全过 / 超预算 /
 劣化超限 / 样本不足 / 零泄漏防线 / 报告总结论）。不放进 `docs/perf/`，不冒充基线
 （真机基线为 `docs/perf/baseline-mitv4.json`，待真机批次，本轮不存在）。
 

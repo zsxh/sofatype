@@ -30,6 +30,9 @@ local.properties
 /.screenshots/
 /screenshots/
 
+# 测试报告与产物（2026-11-20 户主指示：集成测试与性能回归报告迁出 screenshots，输出至 reports/，生成物不入库）
+/reports/
+
 # mock 源测试装载物(本地生成,不入库;T21 挂账重验用,见 docs/issues/open/T46.md)
 tools/mock/github-releases/*.apk
 

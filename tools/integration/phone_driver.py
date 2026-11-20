@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""T91 · 手机端模拟驱动（本地 headless 浏览器优先 + python3 WS 回退，宿主侧）。
+"""集成测试 · 手机端模拟驱动（本地 headless 浏览器优先 + python3 WS 回退，宿主侧）。
 
 与 instrumented 场景 s10_remote_pairing 协作：
-  1. 轮询设备侧 settings system 表 marker t91_remote_url（instrument 写入的本机可达配对地址）；
+  1. 轮询设备侧 settings system 表 marker integration_remote_url（instrument 写入的本机可达配对地址）；
   2. 模拟器经 adb emu redir 把宿主 31000 转发到设备服务端口（真机为 LAN 直连，无隧道）；
   3. 浏览器分支仅真机路径启用：模拟器 slirp 隧道对浏览器式并发连接不兼容（页面资源并发加载
      即触发连接级 reset 并污染隧道，redir 重建不可恢复，实测证据见 T91 报告），模拟器跳过
@@ -11,13 +11,13 @@
      启动 headless 实例的胜出：开 H5 页 + DOM 探针 + 页面自身 WS（H5 UI 全链，
      15 秒短时限，超时快速降级，不做长等待）；
   4. 浏览器未检出、启动失败或页面 WS 超时 → 回退 python3 标准 WS 客户端直连（配对/输入/commit）；
-  5. 配对与上屏闭环完成后把上屏文本写入 settings system 表 marker t91_phone_committed，
-     通道描述写入 t91_phone_channel，instrument 侧据此断言输入框内容，报告如实记录通道。
+  5. 配对与上屏闭环完成后把上屏文本写入 settings system 表 marker integration_phone_committed，
+     通道描述写入 integration_phone_channel，instrument 侧据此断言输入框内容，报告如实记录通道。
 
 浏览器为本场景本地工具、非 flake 工具链（户主拍板放开）；obscura 已从 s10 链路移出。
 
 用法：
-  python3 tools/t91/t91_phone.py --device emulator --text "客厅远程T91" --timeout 240
+  python3 tools/integration/phone_driver.py --device emulator --text "客厅远程集成验证" --timeout 240
 依赖：python3（标准库）、adb；headless 浏览器（可选，缺失即走 python3 回退）。
 退出码 0 = 配对与上屏闭环完成；非 0 = 失败（不轰炸重试）。
 """
@@ -96,7 +96,7 @@ class BrowserInstance(object):
         self.name = name
         self.binary = binary
         self.version = version
-        self.user_data_dir = tempfile.mkdtemp(prefix="t91-phone-browser-")
+        self.user_data_dir = tempfile.mkdtemp(prefix="integration-phone-browser-")
         self.port = BROWSER_PORT
         self.proc = None
 
@@ -400,7 +400,7 @@ def pair_via_python(token, text, ws_port, device="emulator", tunnel=False, retri
                 return data.decode()
 
             send_text({"type": "hello", "token": token, "deviceName": "browser",
-                       "deviceType": "browser", "deviceKey": "t91-emulator-phone"})
+                       "deviceType": "browser", "deviceKey": "integration-emulator-phone"})
             state = json.loads(recv_text())
             if not state.get("connected"):
                 fresh_full = url_getter().strip() if url_getter else ""
@@ -470,10 +470,10 @@ def ensure_tunnel_ready(page_url, budget_s=40):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="T91 手机端模拟驱动（本地 headless 浏览器优先 + python3 WS 回退）")
+    parser = argparse.ArgumentParser(description="集成测试手机端模拟驱动（本地 headless 浏览器优先 + python3 WS 回退）")
     parser.add_argument("--device", default="emulator", choices=["emulator", "mitv4"])
-    parser.add_argument("--marker-prefix", default="t91")
-    parser.add_argument("--text", default="客厅远程T91")
+    parser.add_argument("--marker-prefix", default="integration")
+    parser.add_argument("--text", default="客厅远程集成验证")
     parser.add_argument("--timeout", type=int, default=240)
     args = parser.parse_args()
 

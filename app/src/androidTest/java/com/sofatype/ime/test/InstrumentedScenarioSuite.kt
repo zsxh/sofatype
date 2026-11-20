@@ -13,19 +13,19 @@ import android.os.SystemClock
 
 @RunWith(AndroidJUnit4::class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-class T91InstrumentedScenarioSuite {
+class InstrumentedScenarioSuite {
 
     private val scenarioFilter: Set<String> = androidx.test.platform.app.InstrumentationRegistry
-        .getArguments().getString("t91Scenarios")
+        .getArguments().getString("integrationScenarios")
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
         ?: emptySet()
 
     private val mockBase: String = androidx.test.platform.app.InstrumentationRegistry
-        .getArguments().getString("t91MockBase") ?: "http://10.0.2.2:8000"
+        .getArguments().getString("integrationMockBase") ?: "http://10.0.2.2:8000"
 
-    private fun runScenario(id: String, body: (T91Harness) -> Pair<String, String>) {
+    private fun runScenario(id: String, body: (IntegrationTestHarness) -> Pair<String, String>) {
         if (scenarioFilter.isNotEmpty() && id !in scenarioFilter) return
-        val harness = T91Harness.create()
+        val harness = IntegrationTestHarness.create()
         try {
             val (status, detail) = body(harness)
             harness.report(id, status, detail)
@@ -37,7 +37,7 @@ class T91InstrumentedScenarioSuite {
         }
     }
 
-    private fun hideKeyCenter(harness: T91Harness): android.graphics.Point {
+    private fun hideKeyCenter(harness: IntegrationTestHarness): android.graphics.Point {
         val metrics = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
         val d = metrics.density
         val screenH = harness.device.displayHeight
@@ -91,7 +91,7 @@ class T91InstrumentedScenarioSuite {
         h.showKeyboard()
         h.hideKeyboardViaBack()
         val status = if (tapOutcome.startsWith("PASS_WHITELISTED")) {
-            "PASS_WHITELISTED[${T91Harness.WHITELIST["s03_tap_hide"]}]"
+            "PASS_WHITELISTED[${IntegrationTestHarness.WHITELIST["s03_tap_hide"]}]"
         } else {
             "PASS"
         }
@@ -187,7 +187,7 @@ class T91InstrumentedScenarioSuite {
         SystemClock.sleep(900)
         check(h.traceDump().contains("keyboardMode -> LETTERS")) { "应回到字母键盘" }
         val status = if (goldenOutcome.startsWith("PASS_WHITELISTED")) {
-            "PASS_WHITELISTED[${T91Harness.WHITELIST["s06_symbols_golden"]}]"
+            "PASS_WHITELISTED[${IntegrationTestHarness.WHITELIST["s06_symbols_golden"]}]"
         } else {
             "PASS"
         }
@@ -200,7 +200,7 @@ class T91InstrumentedScenarioSuite {
         h.clearField()
         val fill = h.waitForField(4_000)
         check(fill != null) { "输入框不可见" }
-        h.device.findObject(androidx.test.uiautomator.By.res(T91Harness.PKG, "btn_fill_sample"))?.click()
+        h.device.findObject(androidx.test.uiautomator.By.res(IntegrationTestHarness.PKG, "btn_fill_sample"))?.click()
             ?: throw ScenarioFailure("填入示例文本按钮不可见")
         SystemClock.sleep(500)
         val base = h.fieldText()
@@ -254,7 +254,7 @@ class T91InstrumentedScenarioSuite {
         var retries = 0
         var exited = false
         while (retries < 2 && !exited) {
-            h.shell("am start -n ${T91Harness.PKG}/.SettingsActivity")
+            h.shell("am start -n ${IntegrationTestHarness.PKG}/.SettingsActivity")
             SystemClock.sleep(1_200)
             h.settingsButton("btn_check_update")
             h.logcatClear()
@@ -307,7 +307,7 @@ class T91InstrumentedScenarioSuite {
         h.clearField()
         h.showKeyboard()
         h.shell(
-            "am broadcast -n ${T91Harness.PKG}/.remote.RemoteServerDebugReceiver " +
+            "am broadcast -n ${IntegrationTestHarness.PKG}/.remote.RemoteServerDebugReceiver " +
                 "-a com.sofatype.ime.debug.action.START_REMOTE_SERVER",
         )
         check(h.waitForServerLog("配对地址", 15_000)) { "远程服务应启动并打印配对地址" }
@@ -325,13 +325,13 @@ class T91InstrumentedScenarioSuite {
         h.writeRemoteUrlMarker(localUrl)
         val committed = waitForCommitted(h)
         check(committed.isNotEmpty()) {
-            "手机端未在限时内完成配对与上屏（phone_committed 无内容，remote_url 回读=${h.readMarker("t91_remote_url")}）"
+            "手机端未在限时内完成配对与上屏（phone_committed 无内容，remote_url 回读=${h.readMarker("integration_remote_url")}）"
         }
         check(h.fieldText() == committed) {
             "上屏文本应与手机端一致：期望「$committed」实际「${h.fieldText()}」"
         }
         h.shell(
-            "am broadcast -n ${T91Harness.PKG}/.remote.RemoteServerDebugReceiver " +
+            "am broadcast -n ${IntegrationTestHarness.PKG}/.remote.RemoteServerDebugReceiver " +
                 "-a com.sofatype.ime.debug.action.STOP_REMOTE_SERVER",
         )
         SystemClock.sleep(1_500)
@@ -340,10 +340,10 @@ class T91InstrumentedScenarioSuite {
         "PASS" to "配对→输入→上屏闭环：文本「$committed」"
     }
 
-    private fun waitForCommitted(h: T91Harness): String {
-        val deadline = SystemClock.uptimeMillis() + T91Harness.REMOTE_WAIT_MS
+    private fun waitForCommitted(h: IntegrationTestHarness): String {
+        val deadline = SystemClock.uptimeMillis() + IntegrationTestHarness.REMOTE_WAIT_MS
         while (SystemClock.uptimeMillis() < deadline) {
-            val marker = h.readMarker("t91_phone_committed")
+            val marker = h.readMarker("integration_phone_committed")
             if (marker.isNotEmpty()) return marker
             SystemClock.sleep(1_000)
         }
@@ -354,7 +354,7 @@ class T91InstrumentedScenarioSuite {
     fun s11_update_check_mock() = runScenario("s11_update_check_mock") { h ->
         h.openTypingPage()
         h.setUpdateEndpoint("$mockBase/releases-newer.json")
-        h.shell("am start -n ${T91Harness.PKG}/.SettingsActivity")
+        h.shell("am start -n ${IntegrationTestHarness.PKG}/.SettingsActivity")
         SystemClock.sleep(1_200)
         h.settingsButton("btn_check_update")
         val note = h.assertGolden("s11_settings_page", 94)
@@ -367,7 +367,7 @@ class T91InstrumentedScenarioSuite {
         h.device.pressBack()
         SystemClock.sleep(1_200)
         h.setUpdateEndpoint("$mockBase/releases-up-to-date.json")
-        h.shell("am start -n ${T91Harness.PKG}/.SettingsActivity")
+        h.shell("am start -n ${IntegrationTestHarness.PKG}/.SettingsActivity")
         SystemClock.sleep(1_200)
         h.settingsButton("btn_check_update").click()
         check(h.waitStatusTextContains("已是最新版本", 20_000)) { "同版本应报已是最新（实际：${h.statusText()}）" }

@@ -3,7 +3,7 @@
 与真机基线 baseline-mitv4.json 明确区分；劣化阈值试点后另定，本基线本轮不设判定阈值）。
 
 用法：
-  python3 tools/t92/jmh_to_baseline.py --results pinyin/build/reports/jmh/results.json \
+  python3 tools/perf/jmh_to_baseline.py --results pinyin/build/reports/jmh/results.json \
       --out docs/perf/baseline-pinyin-jmh-host-<os>-<arch>.json
 """
 import argparse

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""T91 · 宿主薄 wrapper（python3 + adb；模拟器全轮编排 + 真机专有环节逻辑）。
+"""集成测试 · 宿主薄 wrapper（python3 + adb；模拟器全轮编排 + 真机专有环节逻辑）。
 
 阶段（--stage，可单步可 full）：
   boot          冷启模拟器（删 default_boot 快照保 userdata → nix run .#tv-emulator → 60 秒就绪判据
@@ -7,10 +7,10 @@
   install       装 app-debug + androidTest 两包（emulator 直装；mitv4 走 push + pm install + 安装许可代点）
   ime-check     ime set 本 IME + default_input_method 核对
   pre           起 serve_mock（:8000；s10 浏览器通道由 phone 驱动按本地检测结果选择）
-  instrument    am instrument 跑 T91InstrumentedScenarioSuite（可 --round 1|2）
-  phone         手机端模拟驱动（调 t91_phone.py；与 instrument 并发）
+  instrument    am instrument 跑 InstrumentedScenarioSuite（可 --round 1|2）
+  phone         手机端模拟驱动（调 phone_driver.py；与 instrument 并发）
   goldens       把 round A 记录的黄金图落位 androidTest assets 并重建 androidTest 包
-  report        拉 results.tsv / screenshots / logcat，生成场景 × PASS/FAIL 报告落 screenshots/T91/
+  report        拉 results.tsv / screenshots / logcat，生成场景 × PASS/FAIL 报告落 reports/integration/
   teardown      显式收尾：adb emu kill + 端口复核 + serve_mock/浏览器残留清场
   mitv4-plan    真机场景映射与前置清单（只打印，不触设备）
   mitv4-preflight   真机前置核对逻辑（只读；本轮不执行——真机操作须户主逐次批准）
@@ -34,12 +34,12 @@ import time
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ADB_HOME_EMU = os.path.join(WORKSPACE, ".emulator-adbhome")
 ADB_HOME_MITV = os.path.join(WORKSPACE, ".MiTV4-adbhome")
-SHOTS = os.path.join(WORKSPACE, "screenshots", "T91")
-TOOLS_T91 = os.path.join(WORKSPACE, "tools", "t91")
+SHOTS = os.path.join(WORKSPACE, "reports", "integration")
+TOOLS_INTEGRATION = os.path.join(WORKSPACE, "tools", "t91")
 APK_DEBUG = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
 APK_ANDROIDTEST = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "androidTest", "debug", "app-debug-androidTest.apk")
 TEST_RUNNER = "com.sofatype.ime.test/androidx.test.runner.AndroidJUnitRunner"
-TEST_CLASS = "com.sofatype.ime.test.T91InstrumentedScenarioSuite"
+TEST_CLASS = "com.sofatype.ime.test.InstrumentedScenarioSuite"
 GOLDEN_ASSET_DIR = os.path.join(WORKSPACE, "app", "src", "androidTest", "assets", "goldens", "emulator-api34")
 MITV4_GOLDEN_DIR_NAME = "mitv4-api23"
 PULLED = os.path.join(SHOTS, "pulled")
@@ -198,12 +198,12 @@ def stage_install(device, host=None, confirm_tap=None):
         if re.search(r"lib/[a-z0-9_-]+/", listing):
             raise RuntimeError("真机只收纯 dex 包：检出 lib/ 目录，中止（设备档案坑：ABI）")
         adb_out(device, "connect", host)
-        adb_out(device, "-s", host, "push", APK_DEBUG, "/data/local/tmp/sofatype-t91.apk")
+        adb_out(device, "-s", host, "push", APK_DEBUG, "/data/local/tmp/sofatype-integration.apk")
         keepalive = KeepAlive(device, host)
         keepalive.start()
         try:
             install_proc = subprocess.Popen(
-                ["adb", "-s", host, "shell", "pm", "install", "-r", "/data/local/tmp/sofatype-t91.apk"],
+                ["adb", "-s", host, "shell", "pm", "install", "-r", "/data/local/tmp/sofatype-integration.apk"],
                 env={**os.environ, "HOME": adb_home(device)},
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             confirm_install_dialog(device, host, confirm_tap, install_proc)
@@ -213,7 +213,7 @@ def stage_install(device, host=None, confirm_tap=None):
                 raise RuntimeError("真机安装未成功：%s%s（不盲试重试，先核弹窗与挂起会话）" % (out, err))
         finally:
             keepalive.stop()
-        adb_out(device, "-s", host, "shell", "rm", "-f", "/data/local/tmp/sofatype-t91.apk")
+        adb_out(device, "-s", host, "shell", "rm", "-f", "/data/local/tmp/sofatype-integration.apk")
     adb(device, "shell", "am", "start", "-n", "com.sofatype.ime/.SettingsActivity")
     time.sleep(2)
     adb(device, "shell", "input", "keyevent", "4")
@@ -288,7 +288,7 @@ class SideServices(object):
 
     def start(self):
         subprocess.run(["pkill", "-f", "serve_mock.py"], capture_output=True)
-        subprocess.run(["pkill", "-f", "t91-phone-browser-"], capture_output=True)
+        subprocess.run(["pkill", "-f", "integration-phone-browser-"], capture_output=True)
         if not wait_port_free(8000, 10):
             raise RuntimeError("8000 端口未清场，先人工核查残留进程")
         self.mock = spawn_bg(
@@ -301,7 +301,7 @@ class SideServices(object):
 
     def stop(self):
         subprocess.run(["pkill", "-f", "serve_mock.py"], capture_output=True)
-        subprocess.run(["pkill", "-f", "t91-phone-browser-"], capture_output=True)
+        subprocess.run(["pkill", "-f", "integration-phone-browser-"], capture_output=True)
         ok = wait_port_free(8000, 15) and wait_port_free(9333, 10)
         log("side services 清场%s（8000 无监听复核；9333 无浏览器调试端口）" % ("通过" if ok else "未通过（需人工复核）"))
 
@@ -311,7 +311,7 @@ def pull_device_output(device, tag):
     target = os.path.join(PULLED, tag)
     if os.path.isdir(target):
         shutil.rmtree(target)
-    adb(device, "pull", "/storage/emulated/0/Android/data/com.sofatype.ime/files/t91", target, timeout=300)
+    adb(device, "pull", "/storage/emulated/0/Android/data/com.sofatype.ime/files/integration", target, timeout=300)
     log("已拉取设备产物 → %s" % target)
     return target
 
@@ -339,7 +339,7 @@ def stage_instrument(device, tag, timeout=1500, scenario=None, scenarios=None):
     log("am instrument 开始（tag=%s target=%s）" % (tag, filter_list or target))
     args = ["am", "instrument", "-w", "-e", "class", target]
     if filter_list:
-        args += ["-e", "t91Scenarios", filter_list]
+        args += ["-e", "integrationScenarios", filter_list]
     args += [TEST_RUNNER]
     proc = adb(device, "shell", *args, timeout=timeout, check=False)
     tail = "\n".join(proc.stdout.strip().splitlines()[-12:])
@@ -375,7 +375,7 @@ def stage_goldens(pulled_dir_a):
 def read_channel(device, tag):
     out = ""
     try:
-        out = adb_out(device, "shell", "settings get system t91_phone_channel")
+        out = adb_out(device, "shell", "settings get system integration_phone_channel")
     except Exception:
         pass
     return out if out and out != "null" else "未记录"
@@ -383,7 +383,7 @@ def read_channel(device, tag):
 
 def build_report(rows_by_round, duration_note, out_path, channels=None):
     lines = [
-        "# T91 · instrumented 场景 × PASS/FAIL 报告",
+        "# 集成测试 · instrumented 场景 × PASS/FAIL 报告",
         "",
         "| 场景 | 说明 | %s |" % " | ".join("Round %s" % n for n in sorted(rows_by_round)),
         "|---|---|%s" % ("---|" * len(rows_by_round)),
@@ -435,7 +435,7 @@ def stage_report(device, rounds, duration_note):
             rows_by_round[tag] = rows
     if not rows_by_round:
         raise RuntimeError("无任何 results.tsv 可构建报告")
-    build_report(rows_by_round, duration_note, os.path.join(SHOTS, "T91-report.md"))
+    build_report(rows_by_round, duration_note, os.path.join(SHOTS, "integration-report.md"))
 
 
 def stage_teardown(device):
@@ -445,7 +445,7 @@ def stage_teardown(device):
         if "emulator-" in proc.stdout:
             run(["adb", "shell", "svc", "power", "stayon", "false"],
                 env_extra={"HOME": ADB_HOME_EMU}, check=False)
-        subprocess.run(["pkill", "-f", "t91-phone-browser-"], capture_output=True)
+        subprocess.run(["pkill", "-f", "integration-phone-browser-"], capture_output=True)
         run(["adb", "emu", "kill"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
         time.sleep(5)
         for port in (5554, 5555):
@@ -461,7 +461,7 @@ def stage_teardown(device):
 
 
 def stage_mitv4_plan():
-    lines = ["T91 · MiTV4 真机场景映射（本轮仅打印；执行须户主逐次批准）", ""]
+    lines = ["集成测试 · MiTV4 真机场景映射（本轮仅打印；执行须户主逐次批准）", ""]
     for sid, desc in sorted(SCENARIO_MAP.items()):
         lines.append("- %s：%s" % (sid, desc))
     lines += ["", "真机前置核对项："]
@@ -507,15 +507,15 @@ def stage_rounds(assume_ready):
         for round_no in (1, 2):
             tag = "round%d" % round_no
             ensure_side_services(services)
-            adb("emulator", "shell", "settings", "delete", "system", "t91_remote_url")
-            adb("emulator", "shell", "settings", "delete", "system", "t91_phone_committed")
-            adb("emulator", "shell", "settings", "delete", "system", "t91_phone_channel")
+            adb("emulator", "shell", "settings", "delete", "system", "integration_remote_url")
+            adb("emulator", "shell", "settings", "delete", "system", "integration_phone_committed")
+            adb("emulator", "shell", "settings", "delete", "system", "integration_phone_channel")
             adb("emulator", "shell", "rm", "-rf",
-                "/storage/emulated/0/Android/data/com.sofatype.ime/files/t91")
-            log("marker 与设备侧 t91 产物已清（%s）" % tag)
+                "/storage/emulated/0/Android/data/com.sofatype.ime/files/integration")
+            log("marker 与设备侧 integration 产物已清（%s）" % tag)
             phone = spawn_bg(
-                ["python3", os.path.join(TOOLS_T91, "t91_phone.py"),
-                 "--device", "emulator", "--text", "客厅远程T91", "--timeout", "420"],
+                ["python3", os.path.join(TOOLS_INTEGRATION, "phone_driver.py"),
+                 "--device", "emulator", "--text", "客厅远程集成验证", "--timeout", "420"],
                 os.path.join(SHOTS, "logs", "phone-%s.log" % tag))
             code, _ = stage_instrument("emulator", tag)
             if phone.poll() is None:
@@ -536,8 +536,8 @@ def stage_rounds(assume_ready):
         services.stop()
     duration = "emulator 双轮 %.1f 分钟" % ((time.time() - started) / 60)
     build_report(rows_by_round=stage_report_collect(), duration_note=duration,
-                 out_path=os.path.join(SHOTS, "T91-report.md"), channels=channels)
-    log("报告已落：%s" % os.path.join(SHOTS, "T91-report.md"))
+                 out_path=os.path.join(SHOTS, "integration-report.md"), channels=channels)
+    log("报告已落：%s" % os.path.join(SHOTS, "integration-report.md"))
     stage_teardown("emulator")
     log("rounds 完成：%s" % "; ".join(notes))
 
@@ -551,7 +551,7 @@ def stage_full(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="T91 宿主薄 wrapper")
+    parser = argparse.ArgumentParser(description="集成测试宿主 wrapper")
     parser.add_argument("--stage", default="full")
     parser.add_argument("--device", default="emulator", choices=["emulator", "mitv4"])
     parser.add_argument("--host", help="真机 adb 地址 ip:5555（mitv4 段用）")
@@ -573,7 +573,7 @@ def main():
     elif stage == "instrument":
         stage_instrument(args.device, "manual", scenario=args.scenario, scenarios=args.scenarios)
     elif stage == "phone":
-        subprocess.run(["python3", os.path.join(TOOLS_T91, "t91_phone.py"),
+        subprocess.run(["python3", os.path.join(TOOLS_INTEGRATION, "phone_driver.py"),
                         "--device", args.device], check=True)
     elif stage == "mitv4-plan":
         stage_mitv4_plan()

@@ -1,4 +1,4 @@
-# tools/t91 · 集成测试宿主 wrapper（T91）
+# tools/integration · 集成测试宿主 wrapper（T91）
 
 宿主侧薄 wrapper：模拟器 instrument 全轮编排（冷启 → 装机 → ime set 核对 → am instrument →
 收报告 → 显式收尾）+ 真机专有环节逻辑（保活循环、安装许可 tap 代点、场景映射）。
@@ -15,14 +15,14 @@
   obscura 仍留在 flake 供其他用途。
 - **s10 场景浏览器为本地工具、非 flake 工具链**（户主拍板放开）；每轮报告如实记录实际通道、
   浏览器二进制路径与版本、是否发生降级。
-- 清理纪律：headless 实例只杀自建标志进程（临时 user-data-dir 前缀 `t91-phone-browser-`），
+- 清理纪律：headless 实例只杀自建标志进程（临时 user-data-dir 前缀 `integration-phone-browser-`），
   走查后无残留监听端口（9333 复核）、无残留页面。
 
 ## 模拟器一轮全跑（推荐入口）
 
 ```bash
 cd <工作区>
-python3 tools/t91/t91_runner.py --stage full --device emulator
+python3 tools/integration/integration_runner.py --stage full --device emulator
 ```
 
 - 前置：仓库已构建出 `app-debug.apk` 与 `app-debug-androidTest.apk`（构建命令见仓库本地开发指引
@@ -31,27 +31,27 @@ python3 tools/t91/t91_runner.py --stage full --device emulator
   `ime set` 核对 → 起 serve_mock（:8000）+ obscura（:9222，`--allow-private-network`）→
   Round A（黄金图缺失时自动记录实机基线）→ 黄金图落位 `app/src/androidTest/assets/goldens/emulator-api34/`
   → 重建重装 androidTest 包 → Round B（`Bitmap.sameAs` 真实比对）→ 报告落
-  `screenshots/T91/T91-report.md` → `adb emu kill` + 端口复核。
+  `reports/integration/integration-report.md` → `adb emu kill` + 端口复核。
 - 预期时长：冷启 2~4 分钟 + 两轮各 5~12 分钟 + 构建 1~2 分钟 ≈ 25~40 分钟。
-- 产物：`screenshots/T91/T91-report.md`、`screenshots/T91/pulled/round{1,2}/`（results.tsv + screenshots）、
-  `screenshots/T91/logs/`（emulator / serve_mock / obscura / phone 驱动日志）。
+- 产物：`reports/integration/integration-report.md`、`reports/integration/pulled/round{1,2}/`（results.tsv + screenshots）、
+  `reports/integration/logs/`（emulator / serve_mock / obscura / phone 驱动日志）。
 
 ## 分步执行
 
 | 命令 | 用途 |
 | --- | --- |
-| `t91_runner.py --stage boot` | 冷启模拟器（含冷启核验） |
-| `t91_runner.py --stage install` | 装 debug + androidTest 两包（装后 `am start` 一次解 stopped 态） |
-| `t91_runner.py --stage ime-check` | `ime set` + default 核对 |
-| `t91_runner.py --stage instrument` | `am instrument -w -e class …T91InstrumentedScenarioSuite` |
-| `python3 tools/t91/t91_phone.py --device emulator` | 手机端模拟驱动（须与 instrument 并发） |
-| `t91_runner.py --stage report` | 汇总 results.tsv 生成报告 |
-| `t91_runner.py --stage teardown` | `adb emu kill` + 5554/5555 + 8000/9222 复核 |
+| `integration_runner.py --stage boot` | 冷启模拟器（含冷启核验） |
+| `integration_runner.py --stage install` | 装 debug + androidTest 两包（装后 `am start` 一次解 stopped 态） |
+| `integration_runner.py --stage ime-check` | `ime set` + default 核对 |
+| `integration_runner.py --stage instrument` | `am instrument -w -e class …InstrumentedScenarioSuite` |
+| `python3 tools/integration/phone_driver.py --device emulator` | 手机端模拟驱动（须与 instrument 并发） |
+| `integration_runner.py --stage report` | 汇总 results.tsv 生成报告 |
+| `integration_runner.py --stage teardown` | `adb emu kill` + 5554/5555 + 8000/9222 复核 |
 
 ## 真机（MiTV4）段——本轮未执行
 
 - 场景映射与前置清单（只打印不触设备）：
-  `python3 tools/t91/t91_runner.py --stage mitv4-plan`
+  `python3 tools/integration/integration_runner.py --stage mitv4-plan`
 - 真机前置核对 / 装机（push + `pm install` + 安装许可 tap 代点 + 保活循环）逻辑已内置：
   `--stage mitv4-preflight` / `--stage mitv4-install --host <ip:5555> --confirm-tap x,y`。
   **`mitv4-preflight` 与 `mitv4-install` 在获得户主逐次批准前被脚本硬性拒绝执行。**

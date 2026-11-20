@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""T92 · 判定与报告汇总脚本（issue T92 口径 4/10：预算 PASS/FAIL 断言已在 T91 instrument 层设备端完成，
+"""性能回归 · 判定与报告汇总脚本（issue T92 口径 4/10：预算 PASS/FAIL 断言已在 T91 instrument 层设备端完成，
 本脚本为宿主侧报告汇总——对 PerfTrace 样本与基线 JSON 输出对比报告，口径与设备端一致）。
 
-判定口径（与设备端 T92PerfSupport 一致）：
+判定口径（与设备端 PerfSupport 一致）：
   每指标每轮 N>=minSamples（默认 20）；取中位数与 p95；
   判定 = 预算绝对值达标（median 与 p95 均不超预算） 且 较基线中位数劣化 <=20%（baseline median x 1.2）；
   任一不满足即 FAIL；样本数不足即 FAIL。无基线时只判预算绝对值（真机首轮即此形态）。
 
 用法：
-  python3 tools/t92/t92_report.py --samples <logcat 落盘> --baseline <json> [--e2e-phone <json>] \
+  python3 tools/perf/perf_report.py --samples <logcat 落盘> --baseline <json> [--e2e-phone <json>] \
       [--device mitv4] [--out <report.md>] [--min-samples 20]
-  python3 tools/t92/t92_report.py --selftest
+  python3 tools/perf/perf_report.py --selftest
 
---selftest 用 tools/t92/fixtures/ 下明确标注 synthetic 的合成样例验证判定路径，不触碰任何设备数据。
+--selftest 用 tools/perf/fixtures/ 下明确标注 synthetic 的合成样例验证判定路径，不触碰任何设备数据。
 隐私红线：PerfTrace 行只允许耗时与计数（白名单字段），含内容字段的行一律判 malformed 并 FAIL。
 """
 import argparse
@@ -136,8 +136,8 @@ def aggregate(sample_files):
         with open(path) as fh:
             for line in fh:
                 line = line.rstrip("\n")
-                if "T91Scenario:" in line:
-                    scenario_rows.append(line.split("T91Scenario:", 1)[1].strip())
+                if "IntegrationScenario:" in line:
+                    scenario_rows.append(line.split("IntegrationScenario:", 1)[1].strip())
                     continue
                 if TAG_PREFIX not in line:
                     continue
@@ -154,9 +154,9 @@ def aggregate(sample_files):
 
 
 def device_section(scenario_rows):
-    rows = [r for r in scenario_rows if r.startswith("t92_")]
+    rows = [r for r in scenario_rows if r.startswith("perf_")]
     if not rows:
-        return "（本轮采集未含设备端 instrument t92_* 结果行）"
+        return "（本轮采集未含设备端 instrument perf_* 结果行）"
     out = []
     for row in rows:
         parts = row.split("\t")
@@ -201,7 +201,7 @@ def build_report(sample_files, baseline_path, e2e_file, min_samples, device_labe
     else:
         conclusion = "**FAIL**（任一指标 FAIL 即 FAIL，需复测定位）"
     lines = [
-        "# T92 · 性能对比判定报告",
+        "# 性能回归 · 性能对比判定报告",
         "",
         "- 生成时间：%s" % datetime.now().isoformat(timespec="seconds"),
         "- 设备：%s（口径 6：模拟器数据不作为性能结论）" % device_label,
@@ -290,7 +290,7 @@ def selftest():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="T92 判定与报告汇总")
+    parser = argparse.ArgumentParser(description="性能回归判定与报告汇总")
     parser.add_argument("--samples", action="append", help="logcat 落盘文件（可多次）")
     parser.add_argument("--baseline", help="基线 JSON（docs/perf/ 下真机基线或 synthetic 夹具）")
     parser.add_argument("--e2e-phone", dest="e2e_phone", help="phone-e2e 记录 JSON（可选）")

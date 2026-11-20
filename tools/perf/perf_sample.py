@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""T92 · 宿主侧采样编排（issue T92 口径 3/7/10：宿主只做采样编排与日志收集，预算断言在设备端 instrument 内完成）。
+"""性能回归 · 宿主侧采样编排（issue T92 口径 3/7/10：宿主只做采样编排与日志收集，预算断言在设备端 instrument 内完成）。
 
 子命令：
-  ws-driver   轮询设备 settings system 表 t92_remote_url（instrument p02 写入），python3 标准 WS
+  ws-driver   轮询设备 settings system 表 perf_remote_url（instrument p02 写入），python3 标准 WS
               直连配对后，按 >=2s 间隔连发指定轮数 commit（每轮产生一条 ws_commit PerfTrace 样本），
-              结束写 marker：t92_ws_done=1、t92_ws_count=<ack 成功轮数>（失败也写，instrument 据此如实判 FAIL）。
-  collect     adb logcat -d -s PerfTrace T92Perf T91Scenario 落盘，作为 t92_report.py 输入。
+              结束写 marker：perf_ws_done=1、perf_ws_count=<ack 成功轮数>（失败也写，instrument 据此如实判 FAIL）。
+  collect     adb logcat -d -s PerfTrace IntegrationScenario 落盘，作为 perf_report.py 输入。
   phone-e2e   手机段 E2E 测量（口径 3）：真机优先本地 headless 浏览器驱动 H5 页（页面打开 -> 页面 WS
               已连接 = 可输入，计时 phoneSegmentMs），摄像头扫码段不自动化；模拟器因 slirp 隧道与
               浏览器式页面加载不兼容（HANDOFF 坑 21），只做 python3 WS 直连等价通路逻辑核验，
               输出 logicOnly=true，不作为性能结论。
 
-依赖：python3（标准库）+ adb；真机浏览器路径可选本机 chrome/chromium/brave（检测逻辑复用 tools/t91）。
+依赖：python3（标准库）+ adb；真机浏览器路径可选本机 chrome/chromium/brave（检测逻辑复用 tools/integration）。
 真机（mitv4）目标一律需 --i-have-owner-approval 显式批准（口径：真机操作先询问户主），本脚本不含
 装机/注入动作，仅经 adb 读写 settings 与 logcat。
 退出码 0 = 采样闭环完成；非 0 = 失败（串行重试，不轰炸）。
@@ -32,20 +32,20 @@ import urllib.request
 
 from datetime import datetime
 
-TOOLS_T91 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "t91")
-sys.path.insert(0, TOOLS_T91)
-from t91_phone import adb, adb_out, wait_page_ready, poll_page_connected  # noqa: E402  t91 既有通道（HOME 重定向封装）
+TOOLS_INTEGRATION = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "t91")
+sys.path.insert(0, TOOLS_INTEGRATION)
+from phone_driver import adb, adb_out, wait_page_ready, poll_page_connected  # noqa: E402  integration 既有通道（HOME 重定向封装）
 
 _print = functools.partial(print, flush=True)
 
 
 def log(*a, **kw):
-    _print("[%s][t92]" % datetime.now().strftime("%H:%M:%S.%f")[:-3], *a, **kw)
+    _print("[%s][perf]" % datetime.now().strftime("%H:%M:%S.%f")[:-3], *a, **kw)
 
 
-MARKER_URL = "t92_remote_url"
-MARKER_DONE = "t92_ws_done"
-MARKER_COUNT = "t92_ws_count"
+MARKER_URL = "perf_remote_url"
+MARKER_DONE = "perf_ws_done"
+MARKER_COUNT = "perf_ws_count"
 TUNNEL_HOST_PORT = 31000
 
 
@@ -188,8 +188,8 @@ def ws_commit_round(host, port, token, commits, rhythm_s, text, ack_timeout_s=15
     client = WsClient(host, port)
     acks = 0
     try:
-        client.send_obj({"type": "hello", "token": token, "deviceName": "t92-perf",
-                         "deviceType": "browser", "deviceKey": "t92-perf-driver"})
+        client.send_obj({"type": "hello", "token": token, "deviceName": "perf-driver",
+                         "deviceType": "browser", "deviceKey": "perf-sample-driver"})
         state = client.recv_obj(ack_timeout_s)
         if not state.get("connected"):
             raise RuntimeError("配对被拒：%s" % state)
@@ -258,7 +258,7 @@ def ws_driver(args):
 
 def collect(args):
     require_owner_approval(args)
-    out = adb_out(args.device, "shell", "logcat -d -s PerfTrace T92Perf T91Scenario")
+    out = adb_out(args.device, "shell", "logcat -d -s PerfTrace IntegrationScenario")
     with open(args.out, "w") as fh:
         fh.write(out)
         if not out.endswith("\n"):
@@ -270,8 +270,8 @@ def collect(args):
 
 
 def detect_browser_local():
-    sys.path.insert(0, TOOLS_T91)
-    from t91_phone import detect_browser
+    sys.path.insert(0, TOOLS_INTEGRATION)
+    from phone_driver import detect_browser
     return detect_browser()
 
 
@@ -312,7 +312,7 @@ def phone_e2e(args):
                 raise RuntimeError("本机未检出 chrome/chromium/brave，真机浏览器路径不可用（手机段 E2E 需浏览器通道）")
             name, binary, version = info
             log("本地浏览器命中：%s（%s）" % (name, version))
-            browser = __import__("t91_phone").BrowserInstance(name, binary, version)
+            browser = __import__("phone_driver").BrowserInstance(name, binary, version)
             if not browser.start():
                 browser.stop()
                 raise RuntimeError("浏览器实例启动失败")
@@ -340,8 +340,8 @@ def phone_e2e(args):
         else:
             t0 = time.time()
             client = WsClient(ws_host, ws_port)
-            client.send_obj({"type": "hello", "token": token, "deviceName": "t92-perf",
-                             "deviceType": "browser", "deviceKey": "t92-perf-driver"})
+            client.send_obj({"type": "hello", "token": token, "deviceName": "perf-driver",
+                             "deviceType": "browser", "deviceKey": "perf-sample-driver"})
             state = client.recv_obj(15)
             t1 = time.time()
             if not state.get("connected"):
@@ -388,7 +388,7 @@ def phone_e2e_cycles(args):
         raise SystemExit("本机未检出 chrome/chromium/brave，真机浏览器路径不可用（手机段 E2E 需浏览器通道）")
     name, binary, version = info
     log("本地浏览器命中：%s（%s）" % (name, version))
-    browser = __import__("t91_phone").BrowserInstance(name, binary, version)
+    browser = __import__("phone_driver").BrowserInstance(name, binary, version)
     if not browser.start():
         browser.stop()
         raise SystemExit("浏览器实例启动失败")
@@ -440,10 +440,10 @@ def phone_e2e_cycles(args):
                 target_id = None
             if not qr_captured:
                 try:
-                    adb_out(device, "shell", "screencap -p /data/local/tmp/t92b/e2e-qr.png", timeout=60)
+                    adb_out(device, "shell", "screencap -p /data/local/tmp/perfb/e2e-qr.png", timeout=60)
                     qr_local = args.out.rsplit("/", 1)[0] + "/e2e-qr-tv.png"
-                    adb_out(device, "pull", "/data/local/tmp/t92b/e2e-qr.png", qr_local, timeout=180)
-                    adb_out(device, "shell", "rm -f /data/local/tmp/t92b/e2e-qr.png")
+                    adb_out(device, "pull", "/data/local/tmp/perfb/e2e-qr.png", qr_local, timeout=180)
+                    adb_out(device, "shell", "rm -f /data/local/tmp/perfb/e2e-qr.png")
                     qr_captured = True
                 except Exception as exc:
                     log("二维码截图留档失败（不阻断测量）：%s" % exc)
@@ -487,7 +487,7 @@ def main():
     p_ws.add_argument("--device", default="emulator", choices=["emulator", "mitv4"])
     p_ws.add_argument("--commits", type=int, default=20)
     p_ws.add_argument("--rhythm", type=float, default=2.2)
-    p_ws.add_argument("--text", default="T92采样")
+    p_ws.add_argument("--text", default="性能采样")
     p_ws.add_argument("--timeout", type=int, default=240)
     p_ws.add_argument("--retries", type=int, default=5)
     p_ws.add_argument("--i-have-owner-approval", action="store_true")
@@ -499,7 +499,7 @@ def main():
 
     p_e2e = sub.add_parser("phone-e2e", help="手机段 E2E 测量（真机浏览器优先，模拟器仅逻辑核验）")
     p_e2e.add_argument("--device", default="emulator", choices=["emulator", "mitv4"])
-    p_e2e.add_argument("--text", default="T92采样")
+    p_e2e.add_argument("--text", default="性能采样")
     p_e2e.add_argument("--timeout", type=int, default=240)
     p_e2e.add_argument("--out", required=True)
     p_e2e.add_argument("--cycles", type=int, default=1)

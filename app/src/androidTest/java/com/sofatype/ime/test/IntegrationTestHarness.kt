@@ -24,7 +24,7 @@ class ScenarioFailure(message: String) : AssertionError(message)
 
 class GoldenMissing(val goldenName: String) : RuntimeException(goldenName)
 
-class T91Harness private constructor(
+class IntegrationTestHarness private constructor(
     val device: UiDevice,
 ) {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -43,7 +43,7 @@ class T91Harness private constructor(
     private val outputDir: File = resolveOutputDir()
 
     private fun resolveOutputDir(): File {
-        val external = targetContext.getExternalFilesDir(null)?.resolve("t91")
+        val external = targetContext.getExternalFilesDir(null)?.resolve("integration")
         if (external != null) {
             external.mkdirs()
             val probe = File(external, ".probe")
@@ -55,7 +55,7 @@ class T91Harness private constructor(
             } catch (_: java.io.IOException) {
             }
         }
-        return File(targetContext.filesDir, "t91").also { it.mkdirs() }
+        return File(targetContext.filesDir, "integration").also { it.mkdirs() }
     }
 
     val resultsFile: File = outputDir.resolve("results.tsv").also {
@@ -75,7 +75,7 @@ class T91Harness private constructor(
             "s06_symbols_golden" to "模拟器已知假象：窗口帧可能滞留旧键面（closed/T64，逻辑层无恙）",
         )
 
-        fun create(): T91Harness = T91Harness(UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()))
+        fun create(): IntegrationTestHarness = IntegrationTestHarness(UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()))
     }
 
     init {
@@ -91,7 +91,7 @@ class T91Harness private constructor(
 
     fun report(scenarioId: String, status: String, detail: String) {
         val line = listOf(scenarioId, status, detail.replace("\t", " ").replace("\n", " ")).joinToString("\t")
-        android.util.Log.i("T91Scenario", line)
+        android.util.Log.i("IntegrationScenario", line)
         resultsFile.appendText(line + "\n")
     }
 
@@ -285,7 +285,7 @@ class T91Harness private constructor(
             val ok = device.takeScreenshot(target)
             if (!ok) throw ScenarioFailure("截图失败：${target.name}")
         } else {
-            val cap = "/data/local/tmp/t91-cap.png"
+            val cap = "/data/local/tmp/integration-cap.png"
             shell("screencap -p $cap")
             try {
                 val pfd = instrumentation.uiAutomation.executeShellCommand("cat $cap")
@@ -347,14 +347,14 @@ class T91Harness private constructor(
     }
 
     fun writeRemoteUrlMarker(url: String) {
-        shell("settings put system t91_remote_url $url")
-        val echoed = shell("settings get system t91_remote_url").trim()
+        shell("settings put system integration_remote_url $url")
+        val echoed = shell("settings get system integration_remote_url").trim()
         if (echoed != url) throw ScenarioFailure("remote_url 写入失败：回读=$echoed")
     }
 
     fun clearMarkers() {
-        shell("settings delete system t91_remote_url")
-        shell("settings delete system t91_phone_committed")
+        shell("settings delete system integration_remote_url")
+        shell("settings delete system integration_phone_committed")
     }
 
     fun readMarker(name: String): String {
@@ -387,7 +387,7 @@ class T91Harness private constructor(
 }
 
 class KeyboardNav(
-    private val harness: T91Harness,
+    private val harness: IntegrationTestHarness,
     chinese: Boolean? = null,
     symbols: Boolean = false,
     width: SymbolsWidth = SymbolsWidth.FULL_WIDTH,

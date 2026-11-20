@@ -33,7 +33,7 @@ sealed class PerfVerdict {
     data class Fail(val reasons: List<String>) : PerfVerdict()
 }
 
-object T92PerfSupport {
+object PerfSupport {
 
     const val SPAN_KEY_FEEDBACK = "key_feedback"
     const val SPAN_CANDIDATE_REFRESH = "candidate_refresh"
