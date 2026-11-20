@@ -294,8 +294,9 @@ class T91Harness private constructor(
                 }
             } catch (e: java.io.IOException) {
                 throw ScenarioFailure("截图回读失败：${target.name}（${e.message}）")
+            } finally {
+                shell("rm -f $cap")
             }
-            shell("rm -f $cap")
             if (!target.exists() || target.length() == 0L) {
                 throw ScenarioFailure("截图失败：${target.name}")
             }
