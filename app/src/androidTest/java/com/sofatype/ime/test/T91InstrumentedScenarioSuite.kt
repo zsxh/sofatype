@@ -20,6 +20,9 @@ class T91InstrumentedScenarioSuite {
         ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()
         ?: emptySet()
 
+    private val mockBase: String = androidx.test.platform.app.InstrumentationRegistry
+        .getArguments().getString("t91MockBase") ?: "http://10.0.2.2:8000"
+
     private fun runScenario(id: String, body: (T91Harness) -> Pair<String, String>) {
         if (scenarioFilter.isNotEmpty() && id !in scenarioFilter) return
         val harness = T91Harness.create()
@@ -38,9 +41,16 @@ class T91InstrumentedScenarioSuite {
         val metrics = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
         val d = metrics.density
         val screenH = harness.device.displayHeight
-        val x = (641 + 24) * d
-        val y = screenH - (196 - 43 - 16) * d
-        return android.graphics.Point(x.toInt(), y.toInt())
+        return if (harness.isEmulatorDevice) {
+            val x = (641 + 24) * d
+            val y = screenH - (196 - 43 - 16) * d
+            android.graphics.Point(x.toInt(), y.toInt())
+        } else {
+            android.graphics.Point(
+                harness.device.displayWidth * 7167 / 10000,
+                screenH * 9157 / 10000,
+            )
+        }
     }
 
     @Test
@@ -301,11 +311,16 @@ class T91InstrumentedScenarioSuite {
                 "-a com.sofatype.ime.debug.action.START_REMOTE_SERVER",
         )
         check(h.waitForServerLog("配对地址", 15_000)) { "远程服务应启动并打印配对地址" }
-        val match = Regex("配对地址：http://[0-9.]+:(\\d+)/\\?token=([A-Za-z0-9_\\-]+)").find(h.serverLog())
+        val match = Regex("配对地址：http://([0-9.]+):(\\d+)/\\?token=([A-Za-z0-9_\\-]+)").find(h.serverLog())
             ?: throw ScenarioFailure("配对地址解析失败")
-        val port = match.groupValues[1]
-        val token = match.groupValues[2]
-        val localUrl = "http://127.0.0.1:$port/?token=$token"
+        val host = match.groupValues[1]
+        val port = match.groupValues[2]
+        val token = match.groupValues[3]
+        val localUrl = if (h.isEmulatorDevice) {
+            "http://127.0.0.1:$port/?token=$token"
+        } else {
+            "http://$host:$port/?token=$token"
+        }
         h.clearMarkers()
         h.writeRemoteUrlMarker(localUrl)
         val committed = waitForCommitted(h)
@@ -338,7 +353,7 @@ class T91InstrumentedScenarioSuite {
     @Test
     fun s11_update_check_mock() = runScenario("s11_update_check_mock") { h ->
         h.openTypingPage()
-        h.setUpdateEndpoint("http://10.0.2.2:8000/releases-newer.json")
+        h.setUpdateEndpoint("$mockBase/releases-newer.json")
         h.shell("am start -n ${T91Harness.PKG}/.SettingsActivity")
         SystemClock.sleep(1_200)
         h.settingsButton("btn_check_update")
@@ -351,7 +366,7 @@ class T91InstrumentedScenarioSuite {
         SystemClock.sleep(700)
         h.device.pressBack()
         SystemClock.sleep(1_200)
-        h.setUpdateEndpoint("http://10.0.2.2:8000/releases-up-to-date.json")
+        h.setUpdateEndpoint("$mockBase/releases-up-to-date.json")
         h.shell("am start -n ${T91Harness.PKG}/.SettingsActivity")
         SystemClock.sleep(1_200)
         h.settingsButton("btn_check_update").click()

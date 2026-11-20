@@ -102,7 +102,7 @@ class BrowserInstance(object):
 
     def start(self):
         self.proc = subprocess.Popen(
-            [self.binary, "--headless=new", "--no-sandbox",
+            [self.binary, "--headless=new", "--no-sandbox", "--use-mock-keychain",
              "--user-data-dir=" + self.user_data_dir,
              "--remote-debugging-port=%d" % self.port, "about:blank"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -272,7 +272,7 @@ class _LineReader(object):
         return (line + b"\n").decode("utf-8", "replace")
 
 
-def wait_page_ready(session, timeout_s=10):
+def wait_page_ready(session, timeout_s=120):
     deadline = time.time() + timeout_s
     last = None
     while time.time() < deadline:
@@ -334,6 +334,7 @@ def pair_via_browser(browser, url, text):
     返回 (session, target_id, 通道描述)；页面短窗未连时返回未连接标记，由调用方
     决定 python3 尝试与页面迟到兜底（页面 WS 经 slirp 可能迟到配对成功并消费 token）。
     """
+    time.sleep(8)
     session, target_id = browser.open_page(url)
     wait_page_ready(session)
     page_t0 = time.time()
@@ -350,8 +351,7 @@ class TokenRotated(Exception):
 
 
 def pair_via_python(token, text, ws_port, device="emulator", tunnel=False, retries=5,
-                    url_setting=None, url_getter=None):
-    host = "127.0.0.1"
+                    url_setting=None, url_getter=None, host="127.0.0.1"):
     for attempt in range(1, retries + 1):
         sock = None
         try:
@@ -504,6 +504,7 @@ def main():
     port = raw_url.split("127.0.0.1:")[1].split("/")[0] if "127.0.0.1:" in raw_url else \
         raw_url.split(":", 3)[2].split("/")[0]
     token = raw_url.split("token=")[1].split("/")[0]
+    ws_host = "127.0.0.1" if args.device == "emulator" else raw_url.split("http://")[1].split(":")[0]
 
     tunnel = False
     if args.device == "emulator":
@@ -552,7 +553,8 @@ def main():
                 for attempt in (1, 2):
                     try:
                         channel = pair_via_python(token, args.text, ws_port,
-                                                  device=args.device, tunnel=tunnel) + "；降级=是"
+                                                  device=args.device, tunnel=tunnel,
+                                                  host=ws_host) + "；降级=是"
                         break
                     except Exception as exc:
                         print("[phone] python3 WS 尝试 %d 失败：%s" % (attempt, exc))
@@ -581,7 +583,8 @@ def main():
                                   device=args.device, tunnel=tunnel,
                                   url_setting=url_setting,
                                   url_getter=lambda: adb(args.device, "shell",
-                                      "settings get system " + url_setting).stdout.strip()) + "；降级=是"
+                                      "settings get system " + url_setting).stdout.strip(),
+                                  host=ws_host) + "；降级=是"
 
     adb_out(args.device, "shell", "settings put system " + commit_setting + " " + args.text)
     channel_desc = channel

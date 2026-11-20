@@ -2,6 +2,7 @@ package com.sofatype.ime.test
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.SystemClock
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -29,9 +30,33 @@ class T91Harness private constructor(
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val instrumentationContext = instrumentation.context
     private val targetContext = instrumentation.targetContext
-    private val outputDir: File =
-        targetContext.getExternalFilesDir(null)?.resolve("t91").also { it?.mkdirs() }
-            ?: throw ScenarioFailure("外部存储不可用")
+    val isEmulatorDevice: Boolean = Build.FINGERPRINT.contains("generic") ||
+        Build.FINGERPRINT.contains("ranchu") ||
+        Build.FINGERPRINT.contains("goldfish") ||
+        Build.HARDWARE.contains("ranchu") ||
+        Build.HARDWARE.contains("goldfish") ||
+        Build.PRODUCT.contains("sdk") ||
+        Build.MODEL.contains("Emulator") ||
+        Build.MODEL.contains("Android SDK")
+    val goldenDeviceDir: String =
+        if (isEmulatorDevice) "emulator-api${Build.VERSION.SDK_INT}" else "mitv4-api${Build.VERSION.SDK_INT}"
+    private val outputDir: File = resolveOutputDir()
+
+    private fun resolveOutputDir(): File {
+        val external = targetContext.getExternalFilesDir(null)?.resolve("t91")
+        if (external != null) {
+            external.mkdirs()
+            val probe = File(external, ".probe")
+            try {
+                if (probe.createNewFile() || probe.exists()) {
+                    probe.delete()
+                    return external
+                }
+            } catch (_: java.io.IOException) {
+            }
+        }
+        return File(targetContext.filesDir, "t91").also { it.mkdirs() }
+    }
 
     val resultsFile: File = outputDir.resolve("results.tsv").also {
         if (!it.exists()) it.createNewFile()
@@ -42,7 +67,6 @@ class T91Harness private constructor(
     companion object {
         const val PKG = "com.sofatype.ime"
         const val IME_ID = "com.sofatype.ime/.SofatypeImeService"
-        const val GOLDEN_DEVICE_DIR = "emulator-api34"
         const val FIELD_ID = "test_input"
         const val REMOTE_WAIT_MS = 240_000L
 
@@ -178,8 +202,7 @@ class T91Harness private constructor(
     fun saveScreenshot(name: String): File {
         val file = File(screensDir, "$name.png")
         if (file.exists()) file.delete()
-        val ok = device.takeScreenshot(file)
-        if (!ok) throw ScenarioFailure("截图失败：$name")
+        captureTo(file)
         return file
     }
 
@@ -187,7 +210,7 @@ class T91Harness private constructor(
         val stats = mutableListOf<String>()
         val actualFile = captureStableFrame(name, stats)
         val goldenStream = try {
-            instrumentationContext.assets.open("goldens/$GOLDEN_DEVICE_DIR/$name.png")
+            instrumentationContext.assets.open("goldens/$goldenDeviceDir/$name.png")
         } catch (e: Exception) {
             throw GoldenMissing(name)
         }
@@ -258,8 +281,25 @@ class T91Harness private constructor(
 
     private fun captureTo(target: File): File {
         if (target.exists()) target.delete()
-        val ok = device.takeScreenshot(target)
-        if (!ok) throw ScenarioFailure("截图失败：${target.name}")
+        if (isEmulatorDevice) {
+            val ok = device.takeScreenshot(target)
+            if (!ok) throw ScenarioFailure("截图失败：${target.name}")
+        } else {
+            val cap = "/data/local/tmp/t91-cap.png"
+            shell("screencap -p $cap")
+            try {
+                val pfd = instrumentation.uiAutomation.executeShellCommand("cat $cap")
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            } catch (e: java.io.IOException) {
+                throw ScenarioFailure("截图回读失败：${target.name}（${e.message}）")
+            }
+            shell("rm -f $cap")
+            if (!target.exists() || target.length() == 0L) {
+                throw ScenarioFailure("截图失败：${target.name}")
+            }
+        }
         return target
     }
 
@@ -270,6 +310,7 @@ class T91Harness private constructor(
         } catch (golden: GoldenMissing) {
             throw golden
         } catch (t: Throwable) {
+            if (!isEmulatorDevice) throw t
             val reason = WHITELIST[scenarioId] ?: throw t
             "PASS_WHITELISTED[$reason]"
         }
