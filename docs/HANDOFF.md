@@ -138,5 +138,5 @@
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
-- 集成测试接入点：instrument 场景集在 `app/src/androidTest/java/com/sofatype/ime/test/`（harness `T91Harness.kt` + 场景套件 `T91InstrumentedScenarioSuite.kt`，黄金图按设备目录 `assets/goldens/<device-api>/`），宿主 wrapper `tools/t91/`（README 含分步纪律与 `--scenario` 定向通道）；视觉回归 `KeyboardVisualRegressionTest`（Paparazzi，已转正）（T91）。
+- 集成测试接入点：instrument 场景集在 `app/src/androidTest/java/com/sofatype/ime/test/`（harness `IntegrationTestHarness.kt` + 场景套件 `InstrumentedScenarioSuite.kt`，黄金图按设备目录 `assets/goldens/<device-api>/`），宿主 wrapper `tools/integration/`（README 含分步纪律与 `--scenario` 定向通道）；视觉回归 `KeyboardVisualRegressionTest`（Paparazzi，已转正）（T91）。
 - 开工顺序：`AGENTS.md` → `docs/issues/README.md`（规范与模板）→ 基线 `docs/PRD_20261104.md`（按需查阅，先核对第 12 章修订链）→ `docs/devices/` → `designs/`。

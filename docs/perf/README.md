@@ -29,4 +29,4 @@ T92（issue `docs/issues/open/T92.md`）基线与测量产物的唯一存放处�
 
 - 模拟器数据不作为性能结论（口径 6）；本目录不收模拟器测量产物。
 - 基线重定须户主拍板（口径 5）。
-- 判定脚本：`tools/t92/t92_report.py`（`--selftest` 用 `tools/t92/fixtures/` synthetic 夹具）。
+- 判定脚本：`tools/perf/perf_report.py`（`--selftest` 用 `tools/perf/fixtures/` synthetic 夹具）。
