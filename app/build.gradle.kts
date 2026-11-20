@@ -4,6 +4,10 @@ plugins {
     id("app.cash.paparazzi")
 }
 
+base {
+    archivesName = "sofatype"
+}
+
 android {
     namespace = "com.sofatype.ime"
     compileSdk = 34 // 对齐 nix SDK 内 platform android-34
