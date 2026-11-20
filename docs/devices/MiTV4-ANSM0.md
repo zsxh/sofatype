@@ -38,11 +38,13 @@
 - 本应用**自家 Activity 前台切走沿**：键盘窗口创建过后即成风险态（窗口对象收起后仍挂包名下，Activity 销毁与否无关）——平台检查「刚被切走的前台包」是否持系统窗口，自家包持 IME 窗口即被杀。
 - **空闲屏保沿**：屏保启动时平台主动强杀持系统窗口的包（见四.2），同样触发夺回。
 - **第三方宿主前台切走沿不触发**（第三方包名下无系统窗口，检查不命中）——第三方应用里打字后退出不落本坑。
+- **instrument 测试边界沿**（T91 真机批次实证）：instrumented 套件跨场景的 `am start`（自家 Activity 前台切走 + 同进程键盘窗口对象仍在）→ 包级 force-stop（system_server）→ instrumentation 进程连带死亡（`am instrument` 报「Process crashed」）；随后 finished-inst 沿「has system window,so kill it」补刀。全量一轮跑不可达。
 
 **应对**：
 - 每次弹键盘前核对 `settings get secure default_input_method`；被夺回先 `ime set com.sofatype.ime/.SofatypeImeService` 恢复再取证；任何杀进程 / 夺回链实验后同样核对。
 - 受控 `ime set` 切走不重启 IME 进程（pid 不变）——「服务重启、新 pid」仅发生于夺回链，勿把恢复动作误计为夺回证据。
 - 搜狗可能出现「`mInputShown=true` 请求态但窗口不渲染」的内部态，IME 实际显示判定须并核窗口 surface（见四.6 显示态判据）。
+- instrumented 批次按「单场景一跑」编排：每场景独立 `am instrument` 进程 + 轮间恢复纪律（BACK 清弹窗、`ime set` 核对、`logcat -c`）；收尾阶段 finished-inst 强杀 + 窗口击杀必现，属收尾噪音，场景结果以先期落盘的 tsv 为准。
 
 ### 2. 空闲自动清杀（走查头号现场杀手）
 
@@ -77,6 +79,7 @@
 - `uiautomator dump` 退出段自身抛 SecurityException FATAL（shell uid 工具噪音）→ 全窗 FATAL 核查按 pid/uid 排除，不代表应用崩溃。
 - dump 坐标系是应用窗口缩放系（与屏幕像素空间比 ≈0.927），且候选栏显隐 / 中英切换 / 进出符号键盘会引起键盘区整体位移 → `input tap` 坐标一律以**当前态最新 screencap 目测像素**为准，两态切换后必须重新截图目测再点；dump 只用于读控件结构 / 文本，不产坐标。
 - 设备端 `logcat -f <文件>` 后台落盘可失效（命令在跑、文件不落盘）→ 长窗取证改用 `logcat -d` 全缓冲导出（先 `logcat -G` 扩容防 chatty 吞没），等效取证。
+- `UiDevice.takeScreenshot`（uiautomator）该机恒返回失败（SurfaceFlinger 拒绝 app 域截图），失败沿可断 UiAutomation 连锁终止整轮 instrumentation（「Process crashed」）；shell `screencap` 正常 → 测试框架截图取证改走 `screencap` 落盘 + 二进制回读通道（T91 Harness 已内置），勿再用 UiDevice 截图。
 
 ### 6. 输入法会话与操作边界
 
@@ -90,3 +93,17 @@
 ### 7. 文本注入限制
 
 默认 IME 为搜狗时，`adb shell input text` 注入含英文字母的文本会被搜狗当拼音组合态吞掉（数字直通可靠）→ 含字母样例不可靠，改用应用内通道（如「填入示例文本」按钮）或先处理输入法模式。
+
+### 8. 外部存储 app 域文件创建被拒（EACCES）
+
+**现象**：app 对自身 `Android/data/<pkg>/` 可建子目录，但文件创建报 EACCES（sdcardfs 权限执行差异；manifest 未声明存储权限属产品口径）；`run-as` 身份同路径可写，仅 app 域被拒。
+
+**应对**：
+- 应用 / 测试框架落盘证据用内部存储（`filesDir`），不依赖 `getExternalFilesDir`（T91 Harness 已按「外部可写探测 → 内部回退」实现）。
+- 内部存储产物拉回：`adb exec-out run-as <pkg> cat <path>` 逐文件拉取并核对字节数后才可用；二进制内容走 `adb shell` 文本通道会流损坏（tar 实证），大文件不硬扛。
+
+### 9. 机端实存版本与记录口径可能漂移
+
+**现象**：装机记录为「已卸载」时，实测 `dumpsys package` 可能为旧版本已装且为当时 default（T91 批次实测 0.1.0(1)，firstInstallTime=lastUpdateTime=2026-11-19 11:48:57）。
+
+**应对**：装机类操作动手前一律 `dumpsys package <pkg>` 实测装机态（versionName / lastUpdateTime / pkgFlags），以实测为准，不按既有记录臆断；版本差异按升级链 `pm install -r` 处置并如实留痕。

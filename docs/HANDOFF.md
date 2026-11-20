@@ -18,17 +18,19 @@
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
 5. 需求 / 设计变更与新拍板一律入对应 issue（issue 即需求），本文决策速查表按 issue 号登记一行。**基线 PRD（`docs/PRD_20261104.md`）已冻结，开发环境工具链拍板不入基线**，记录于本文决策速查与对应 issue。
 
-## 当前快照（截至 2026-11-19）
+## 当前快照（截至 2026-11-20）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.2.0(2)（T89 起，首版 0.1.0(1)）。构建一律 `nix develop` 内 `./gradlew`。
-- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
+- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core、日志 Timber 决策 60；测试域第三方测试库经 T91 拍板放开，限 test / androidTest / 插件作用域不进 APK）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切 CLI 工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 变更状态（任务制已废止，以 issue 目录为准）：
-  - 已关闭（closed）：T1~T88 全部（v1.2 收口，2026-11-19 户主拍板）＋ T89（APK 版本升至 0.2.0(2)）＋ T90（mock 源占位符参数化）；T89/T90 为 2026-11-19 户主拍板免真机 / 端到端直接归档，明细见 `docs/issues/closed/` 对应 issue。
+  - 已关闭（closed）：T1~T88 全部（v1.2 收口，2026-11-19 户主拍板）＋ T89（APK 版本升至 0.2.0(2)）＋ T90（mock 源占位符参数化）＋ T91（集成测试体系；2026-11-20 户主验收归档，明细见 `docs/issues/closed/T91.md`）；T89/T90 为 2026-11-19 户主拍板免真机 / 端到端直接归档。
+  - 进行中（open，未开工）：T92（性能回归测试体系）。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
+  - Paparazzi 试点（T91 口径 7：键盘布局 JVM 渲染视觉回归）转正与否待户主拍板（试点结论：AGP 8.2.2 兼容版本 1.3.3，渲染与断言正常；明细见 closed/T91）。
   - 平台夺回链（坑 5 / 9 同族：自家 Activity 切走沿 / 屏保沿触发平台 force-stop 本 IME 包 → 重选系统默认搜狗）为设备长期事实；应用侧治理 = 设置页检测横幅 + 一键选回恢复通道（T82 closed 2026-11-18，决策 66，明细见 `docs/issues/closed/T82.md`）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
@@ -68,8 +70,8 @@
 | 63 | 远程服务端口持久复用：首次随机、持久化、使用期复用（修订决策 16 端口随机）——服务 URL origin 跨退出重开稳定，决策 61 保号链真实路径生效 |
 | T89 | APK 版本升至 0.2.0(2)：按决策 19 随发布批次递增，工程不再锚定 0.1.0(1)；mock 源 v0.2.0 锚定口径随之失效，刷新另立 issue |
 | T90 | 检查更新 mock 源占位符参数化：版本值由 serve_mock.py 启动参数注入（JSON 零硬编码，决策 17 同构）；递增包口径随基线改指 0.3.0(3)，基线包 = 工程当前版本 |
-| T91 | 测试体系拆两 issue 立项：集成测试 T91、性能回归 T92；真机验证类操作一律先询问户主；测试域允许第三方测试库（test / androidTest / 插件作用域，不进 APK）——instrumented 层（UiAutomator）+ 黄金图对比 + Paparazzi 试点；依赖可重现 = Gradle 版本目录 + 依赖锁 + SHA-256 校验（maven 库不进 flake，进程级工具仍先进 flake） |
-| T92 | 性能回归 = 方案 A「应用内 debug 门控 PerfTrace 埋点 + 设备侧计时」+ JMH 引擎地板（宿主侧）；判定 = 预算绝对值 + 较基线中位数劣化 ≤20%，断言在设备端 instrument 内；基线入库与重定须拍板；模拟器数据不作性能结论；依赖可重现机制同 T91 |
+| T91 | 测试体系拆两 issue 立项：集成测试 T91、性能回归 T92；真机操作一律先询问户主；测试域第三方测试库放开（test / androidTest / 插件作用域，不进 APK）——instrumented 层（UiAutomator）+ 黄金图逐像素对比（按设备分目录）+ Paparazzi 试点（转正待拍板）；依赖可重现机制（版本目录 + 依赖锁 + SHA-256）2026-11-20 户主拍板整套废止，依赖声明内联坐标；s10 手机端模拟浏览器可换、本地检测优先（chrome > chromium > brave），模拟器 slirp 隧道与浏览器式页面加载不兼容（实测毒化）走 python3 WS 直连，浏览器路径保留真机 |
+| T92 | 性能回归 = 方案 A「应用内 debug 门控 PerfTrace 埋点 + 设备侧计时」+ JMH 引擎地板（宿主侧）；判定 = 预算绝对值 + 较基线中位数劣化 ≤20%，断言在设备端 instrument 内；基线入库与重定须拍板；模拟器数据不作性能结论；依赖声明内联坐标（同 T91 废止口径） |
 
 ## 坑清单（按主题合并；细节见对应 issue）
 
@@ -113,6 +115,7 @@
 18. 注入通道两坑：硬件键码 62 在组合态下是向组合串插空格（R-2 绑定空格键面，非键码）；键码 67 在 <1.5s 注入节奏下 IC 更新会丢，≥2s 节奏或每键穿插 dump 同步则 20/20 可靠——采样循环用候选提交复位（T36）。
 19. 模拟器 tap 触摸通道收起键盘不生效（组合落定正常、requestHideSelf 未生效；键码通道同路径正常，既有问题非回归）：走查收起一律键码通道；隐藏态判定不单凭 `dumpsys` 的 `mInputShown`（宿主无输入会话时不可靠），以截图 + ImeKeyTrace 为准（T59 review-qa 复验发现，见 closed/T59 走查发现）。
 20. 模拟器窗口帧可能滞留旧键面（渲染层，逻辑层无恙）：T64「行步进后全/半切换」场景实证——视图树/状态/输出全部正确（诊断 trace + 焦点探针 + 输出值均新键位），窗口帧滞留旧页键面，`invalidate()` 亦不恢复，offset=0 场景与步进本身的 rebuild 不复现；真机已定性（2026-11-13 MiTV4 复验：同路径双向切换零滞留——API 34 模拟器渲染管线 gfxstream 缺陷，非应用缺陷，模拟器口径规避即可，T64 坑 1）。截图判读键面字符时，先用 ImeKeyTrace 焦点探针核对逻辑焦点键位，勿单凭截图断言状态错乱（T64 Round 1）。
+21. 模拟器 slirp 隧道与浏览器式页面加载不兼容：浏览器页面单次主文档导航即触发连接级毒化且不可恢复（redir 同端口重建、换端口、关页均救不回，python3 WS 随后同样被 reset；T91 隔离实测，浏览器隔离下页面 WS 本身 2 秒直连正常）。测试用 H5 驱动在模拟器一律走 python3 WS 直连等价通路，浏览器优先路径保留真机 LAN 直连（T91，通道与降级态每轮入报告）。
 
 ### 真机走查（前置检查；细节以设备档案为准）
 
@@ -138,4 +141,5 @@
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
+- 集成测试接入点：instrument 场景集在 `app/src/androidTest/java/com/sofatype/ime/test/`（harness `T91Harness.kt` + 场景套件 `T91InstrumentedScenarioSuite.kt`，黄金图按设备目录 `assets/goldens/<device-api>/`），宿主 wrapper `tools/t91/`（README 含分步纪律与 `--scenario` 定向通道）；视觉回归 `KeyboardVisualRegressionTest`（Paparazzi 试点）（T91）。
 - 开工顺序：`AGENTS.md` → `docs/issues/README.md`（规范与模板）→ 基线 `docs/PRD_20261104.md`（按需查阅，先核对第 12 章修订链）→ `docs/devices/` → `designs/`。
