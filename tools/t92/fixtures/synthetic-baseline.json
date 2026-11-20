@@ -1,0 +1,38 @@
+{
+  "schema": "sofatype-perf-baseline/1",
+  "synthetic": true,
+  "note": "SYNTHETIC fixture for T92 judgment-script self-test. All values are invented, not measured. Do not use for any budget conclusion.",
+  "env": {
+    "device": "synthetic-device",
+    "buildFingerprint": "synthetic/none",
+    "uptimeSeconds": 0,
+    "meminfoTotalMb": 0,
+    "foreground": "synthetic"
+  },
+  "metrics": {
+    "key_feedback": {
+      "budgetMs": 100,
+      "n": 20,
+      "medianMs": 50.0,
+      "p95Ms": 90.0
+    },
+    "candidate_refresh": {
+      "budgetMs": 200,
+      "n": 20,
+      "medianMs": 120.0,
+      "p95Ms": 180.0
+    },
+    "ws_commit": {
+      "budgetMs": 300,
+      "n": 20,
+      "medianMs": 150.0,
+      "p95Ms": 250.0
+    },
+    "e2e_phone_to_tv": {
+      "budgetMs": 3000,
+      "n": 20,
+      "medianMs": 2000.0,
+      "p95Ms": 2800.0
+    }
+  }
+}

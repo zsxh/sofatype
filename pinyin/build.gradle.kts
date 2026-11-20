@@ -2,6 +2,7 @@
 // 职责：SPD1 词库格式读写、词库源文件校验与构建期转换（零网络）、拼音切分、词组级候选与排序。
 plugins {
     id("org.jetbrains.kotlin.jvm")
+    id("me.champeau.jmh")
 }
 
 java {
@@ -27,6 +28,12 @@ sourceSets {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    jmh("org.openjdk.jmh:jmh-core:1.37")
+}
+
+jmh {
+    resultFormat.set("JSON")
+    resultsFile.set(layout.buildDirectory.file("reports/jmh/results.json"))
 }
 
 tasks.withType<Test>().configureEach {

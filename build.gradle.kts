@@ -8,6 +8,7 @@ plugins {
     // T9：拼音引擎独立模块为纯 Kotlin JVM 模块，与 android 模块共用同一 Kotlin 版本
     id("org.jetbrains.kotlin.jvm") version "1.9.24" apply false
     id("app.cash.paparazzi") version "1.3.3" apply false
+    id("me.champeau.jmh") version "0.7.3" apply false
 }
 
 subprojects {

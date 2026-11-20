@@ -1,0 +1,62 @@
+11-20 09:50:02.200  31337  31337 D PerfTrace: key_feedback seq=1 durationMs=42.000
+11-20 09:50:02.200  31337  31337 D PerfTrace: candidate_refresh seq=1 durationMs=100.000 total=10 pages=1
+11-20 09:50:02.200  31337  31337 D PerfTrace: ws_commit seq=1 durationMs=120.000 committed=true
+11-20 09:50:04.400  31337  31337 D PerfTrace: key_feedback seq=2 durationMs=43.000
+11-20 09:50:04.400  31337  31337 D PerfTrace: candidate_refresh seq=2 durationMs=101.000 total=11 pages=1
+11-20 09:50:04.400  31337  31337 D PerfTrace: ws_commit seq=2 durationMs=121.000 committed=true
+11-20 09:50:06.600  31337  31337 D PerfTrace: key_feedback seq=3 durationMs=44.000
+11-20 09:50:06.600  31337  31337 D PerfTrace: candidate_refresh seq=3 durationMs=102.000 total=12 pages=1
+11-20 09:50:06.600  31337  31337 D PerfTrace: ws_commit seq=3 durationMs=122.000 committed=true
+11-20 09:50:08.800  31337  31337 D PerfTrace: key_feedback seq=4 durationMs=45.000
+11-20 09:50:08.800  31337  31337 D PerfTrace: candidate_refresh seq=4 durationMs=103.000 total=13 pages=1
+11-20 09:50:08.800  31337  31337 D PerfTrace: ws_commit seq=4 durationMs=123.000 committed=true
+11-20 09:50:11.000  31337  31337 D PerfTrace: key_feedback seq=5 durationMs=46.000
+11-20 09:50:11.000  31337  31337 D PerfTrace: candidate_refresh seq=5 durationMs=104.000 total=14 pages=1
+11-20 09:50:11.000  31337  31337 D PerfTrace: ws_commit seq=5 durationMs=124.000 committed=true
+11-20 09:50:13.200  31337  31337 D PerfTrace: key_feedback seq=6 durationMs=47.000
+11-20 09:50:13.200  31337  31337 D PerfTrace: candidate_refresh seq=6 durationMs=105.000 total=10 pages=1
+11-20 09:50:13.200  31337  31337 D PerfTrace: ws_commit seq=6 durationMs=125.000 committed=true
+11-20 09:50:15.400  31337  31337 D PerfTrace: key_feedback seq=7 durationMs=48.000
+11-20 09:50:15.400  31337  31337 D PerfTrace: candidate_refresh seq=7 durationMs=106.000 total=11 pages=1
+11-20 09:50:15.400  31337  31337 D PerfTrace: ws_commit seq=7 durationMs=126.000 committed=true
+11-20 09:50:17.600  31337  31337 D PerfTrace: key_feedback seq=8 durationMs=49.000
+11-20 09:50:17.600  31337  31337 D PerfTrace: candidate_refresh seq=8 durationMs=107.000 total=12 pages=1
+11-20 09:50:17.600  31337  31337 D PerfTrace: ws_commit seq=8 durationMs=127.000 committed=true
+11-20 09:50:19.800  31337  31337 D PerfTrace: key_feedback seq=9 durationMs=50.000
+11-20 09:50:19.800  31337  31337 D PerfTrace: candidate_refresh seq=9 durationMs=108.000 total=13 pages=1
+11-20 09:50:19.800  31337  31337 D PerfTrace: ws_commit seq=9 durationMs=128.000 committed=true
+11-20 09:50:22.000  31337  31337 D PerfTrace: key_feedback seq=10 durationMs=51.000
+11-20 09:50:22.000  31337  31337 D PerfTrace: candidate_refresh seq=10 durationMs=109.000 total=14 pages=1
+11-20 09:50:22.000  31337  31337 D PerfTrace: ws_commit seq=10 durationMs=129.000 committed=true
+11-20 09:50:24.200  31337  31337 D PerfTrace: key_feedback seq=11 durationMs=52.000
+11-20 09:50:24.200  31337  31337 D PerfTrace: candidate_refresh seq=11 durationMs=110.000 total=10 pages=1
+11-20 09:50:24.200  31337  31337 D PerfTrace: ws_commit seq=11 durationMs=130.000 committed=true
+11-20 09:50:26.400  31337  31337 D PerfTrace: key_feedback seq=12 durationMs=53.000
+11-20 09:50:26.400  31337  31337 D PerfTrace: candidate_refresh seq=12 durationMs=111.000 total=11 pages=1
+11-20 09:50:26.400  31337  31337 D PerfTrace: ws_commit seq=12 durationMs=131.000 committed=true
+11-20 09:50:28.600  31337  31337 D PerfTrace: key_feedback seq=13 durationMs=54.000
+11-20 09:50:28.600  31337  31337 D PerfTrace: candidate_refresh seq=13 durationMs=112.000 total=12 pages=1
+11-20 09:50:28.600  31337  31337 D PerfTrace: ws_commit seq=13 durationMs=132.000 committed=true
+11-20 09:50:30.800  31337  31337 D PerfTrace: key_feedback seq=14 durationMs=55.000
+11-20 09:50:30.800  31337  31337 D PerfTrace: candidate_refresh seq=14 durationMs=113.000 total=13 pages=1
+11-20 09:50:30.800  31337  31337 D PerfTrace: ws_commit seq=14 durationMs=133.000 committed=true
+11-20 09:50:33.000  31337  31337 D PerfTrace: key_feedback seq=15 durationMs=56.000
+11-20 09:50:33.000  31337  31337 D PerfTrace: candidate_refresh seq=15 durationMs=114.000 total=14 pages=1
+11-20 09:50:33.000  31337  31337 D PerfTrace: ws_commit seq=15 durationMs=134.000 committed=true
+11-20 09:50:35.200  31337  31337 D PerfTrace: key_feedback seq=16 durationMs=57.000
+11-20 09:50:35.200  31337  31337 D PerfTrace: candidate_refresh seq=16 durationMs=115.000 total=10 pages=1
+11-20 09:50:35.200  31337  31337 D PerfTrace: ws_commit seq=16 durationMs=135.000 committed=true
+11-20 09:50:37.400  31337  31337 D PerfTrace: key_feedback seq=17 durationMs=58.000
+11-20 09:50:37.400  31337  31337 D PerfTrace: candidate_refresh seq=17 durationMs=116.000 total=11 pages=1
+11-20 09:50:37.400  31337  31337 D PerfTrace: ws_commit seq=17 durationMs=136.000 committed=true
+11-20 09:50:39.600  31337  31337 D PerfTrace: key_feedback seq=18 durationMs=59.000
+11-20 09:50:39.600  31337  31337 D PerfTrace: candidate_refresh seq=18 durationMs=117.000 total=12 pages=1
+11-20 09:50:39.600  31337  31337 D PerfTrace: ws_commit seq=18 durationMs=137.000 committed=true
+11-20 09:50:41.800  31337  31337 D PerfTrace: key_feedback seq=19 durationMs=42.000
+11-20 09:50:41.800  31337  31337 D PerfTrace: candidate_refresh seq=19 durationMs=118.000 total=13 pages=1
+11-20 09:50:41.800  31337  31337 D PerfTrace: ws_commit seq=19 durationMs=138.000 committed=true
+11-20 09:50:44.000  31337  31337 D PerfTrace: key_feedback seq=20 durationMs=43.000
+11-20 09:50:44.000  31337  31337 D PerfTrace: candidate_refresh seq=20 durationMs=119.000 total=14 pages=1
+11-20 09:50:44.000  31337  31337 D PerfTrace: ws_commit seq=20 durationMs=139.000 committed=true
+11-20 09:59:00.000  31337  31337 D PerfTrace: key_feedback seq=999 dropped=true
+11-20 09:59:00.000  31337  31337 D PerfTrace: candidate_refresh seq=998 durationMs=1.000 total=3 pages=1
