@@ -1,101 +1,150 @@
-# tools/perf · 性能回归采样编排与判定报告（T92）
+# tools/perf · 性能回归工具
 
-宿主侧薄 wrapper（口径 10：宿主只做采样编排与报告汇总；预算 PASS/FAIL 断言在 T91 instrument
-层设备端完成）。工具口径：python3（标准库）+ adb；WS 通道复用 `tools/integration` 既有封装。
+本目录三个宿主侧工具：`perf_sample.py`（采样编排）、`perf_report.py`（判定报告）、`jmh_to_baseline.py`（JMH 基线转换）。
+分层口径：宿主只做采样编排与报告汇总；预算 PASS/FAIL 断言在设备端 instrument（`PerfBudgetTest`）内完成。
+工具为 python3 标准库 + adb；WS 通道复用 `tools/integration/phone_driver.py` 封装。adb home 走通用机制
+（`ANDROID_USER_HOME` / 调用方 `HOME`，工具不注入、不设专用变量；详见 [tools/integration/README.md](../integration/README.md)「环境变量」节）。
 
-## 组成
+---
 
-| 文件 | 职责 |
-| --- | --- |
-| `perf_sample.py` | 采样编排：`ws-driver`（WS commit 样本驱动）/ `collect`（logcat 落盘）/ `phone-e2e`（手机段 E2E，真机浏览器优先、模拟器仅 python3 直连逻辑核验） |
-| `perf_report.py` | 判定与报告汇总（口径 4）：样本 × 基线 → 指标 × median/p95 × PASS/FAIL；`--selftest` 用 synthetic 夹具自测 |
-| `jmh_to_baseline.py` | JMH results.json → 引擎基线 JSON（口径 9，宿主侧产物入 `docs/perf/`） |
-| `fixtures/` | synthetic 判定夹具（明确标注 synthetic，不进 `docs/perf/`，不冒充基线） |
+## PERF_SAMPLE(1) · perf_sample.py
 
-## JMH 引擎基准复现（口径 9，宿主侧）
+**名称** — PerfTrace 埋点采样编排。
+
+**概要**
 
 ```bash
-cd <工作区>
-export HOME="$PWD/.emulator-adbhome"
-export GRADLE_USER_HOME="$PWD/.gradle-home"
-export XDG_CACHE_HOME="$PWD/.nix-cache"
-export JAVA_TOOL_OPTIONS="-Duser.home=$HOME"
-nix develop -c ./gradlew --no-daemon --rerun-tasks :pinyin:jmh
-python3 tools/perf/jmh_to_baseline.py \
-  --results pinyin/build/reports/jmh/results.json \
+python3 tools/perf/perf_sample.py ws-driver [--device {emulator|mitv4}] [--commits N]
+      [--rhythm SEC] [--text STR] [--timeout SEC] [--retries N] [--i-have-owner-approval]
+python3 tools/perf/perf_sample.py collect --out PATH [--device {emulator|mitv4}] [--i-have-owner-approval]
+python3 tools/perf/perf_sample.py phone-e2e --out PATH [--device {emulator|mitv4}]
+      [--text STR] [--timeout SEC] [--cycles N] [--i-have-owner-approval]
+```
+
+**描述**
+
+- `ws-driver`：与设备端 `PerfBudgetTest#p02` 并发运行。轮询 `settings system perf_remote_url`（p02 写入）取远程页 URL，经 WS 逐条发送 commit，驱动 `ws_commit` 采样。
+- `collect`：读取设备 logcat 的 PerfTrace 行，落盘为 `--out` 文件，供 perf_report 判定。
+- `phone-e2e`：手机段到上屏的端到端计时。真机浏览器优先；模拟器仅逻辑核验，输出 `logicOnly=true`。`--cycles` 大于 1 走多轮。
+- **互斥约束**：远程服务只有单连接槽位且配对 token 滚动签发（新连接顶替旧连接），`phone-e2e` 与 `ws-driver` 不可同窗并发——phone-e2e 先行会顶掉 ws-driver 配对、ws-driver 先行结束后服务随 p02 关闭会使 phone-e2e 轮询扑空；如需两者都有产物，各起一轮 instrument 分别独占运行。
+
+**选项**
+
+| 子命令 | 选项 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| 全部 | `--device` | `emulator` | `emulator` 或 `mitv4` |
+| ws-driver | `--commits` | `20` | 发送的 commit 条数 |
+| ws-driver | `--rhythm` | `2.2` | 每条间隔秒数 |
+| ws-driver | `--text` | 性能采样 | 注入文本 |
+| ws-driver | `--timeout` | `240` | 等待远程页 URL 的秒数上限 |
+| ws-driver | `--retries` | `5` | 失败重试次数 |
+| collect | `--out` | 必填 | logcat 落盘路径 |
+| phone-e2e | `--out` | 必填 | 计时记录 JSON 路径 |
+| phone-e2e | `--cycles` | `1` | 执行轮数 |
+| phone-e2e | `--text` / `--timeout` | 同上 | 注入文本 / 等待上限 |
+
+**真机门控**：`--device mitv4` 时，全部子命令必须加 `--i-have-owner-approval`；缺参脚本以 SystemExit 拒绝执行。真机操作先经设备所有者逐次确认。
+
+**退出状态**：`0` 完成；非 0 失败（未批准、限时内未读到 `perf_remote_url` marker 等）。
+
+---
+
+## PERF_REPORT(1) · perf_report.py
+
+**名称** — 采样判定与报告汇总。
+
+**概要**
+
+```bash
+python3 tools/perf/perf_report.py --samples FILE [--samples FILE ...] [--baseline JSON]
+      [--e2e-phone JSON] [--device NAME] [--min-samples N] [--out FILE]
+python3 tools/perf/perf_report.py --selftest
+```
+
+**选项**
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `--samples` | 必填 | logcat 落盘文件；可多次传入 |
+| `--baseline` | 无 | 基线 JSON（`docs/perf/` 真机基线或 synthetic 夹具）；缺省只判预算绝对值 |
+| `--e2e-phone` | 无 | phone-e2e 记录 JSON；并入 `e2e_phone_to_tv` 指标 |
+| `--device` | `emulator` | 设备名，写入报告 |
+| `--min-samples` | `20` | 每指标最少样本数 |
+| `--out` | 打印 stdout | 报告输出路径 |
+| `--selftest` | — | 用 `fixtures/` synthetic 夹具自测六条判定路径，不触设备 |
+
+**判定口径**
+
+- 每指标取 median 与 p95；样本数低于 `--min-samples` 即 FAIL。
+- 预算：`key_feedback` ≤100ms；`candidate_refresh` ≤200ms；`ws_commit` ≤300ms；`e2e_phone_to_tv` ≤3000ms（基线 PRD 第 8 章）。
+- 有基线：median 与 p95 均不超预算，且较基线中位数劣化 ≤20%；任一不满足即 FAIL。
+- 无基线：只判预算绝对值（真机首轮形态）。
+- 模拟器产物仅验证判定机制，不作性能结论；性能结论只认真机。
+
+**数据格式**（logcat tag=`PerfTrace`；只含耗时与计数，无输入内容）
+
+```text
+key_feedback seq=N durationMs=X.XXX
+candidate_refresh seq=N durationMs=X.XXX total=T pages=P
+ws_commit seq=N durationMs=X.XXX committed=true|false
+```
+
+**退出状态**
+
+- `0`：整体 PASS。
+- `1`：整体 FAIL（含样本不足）。
+- `2`：用法错误。
+
+---
+
+## JMH_TO_BASELINE(1) · jmh_to_baseline.py
+
+**名称** — `:pinyin` JMH 结果转引擎基线 JSON（宿主侧产物）。
+
+**概要**
+
+```bash
+python3 tools/perf/jmh_to_baseline.py --results pinyin/build/reports/jmh/results.json \
   --out docs/perf/baseline-pinyin-jmh-host-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).json
 ```
 
-`--rerun-tasks` 必带：不带时已跑过的环境任务 UP-TO-DATE 假成功（仓库本地开发指引 2.3 同款坑）。
+**选项**：`--results` 必填（JMH results.json）；`--out` 必填（基线路径，文件名体现宿主 OS / 架构）。
 
+**输出**：schema `sofatype-perf-baseline-jmh/1`；环境指纹随文件记录。
 
-## 埋点与断言分层
+---
 
-- **埋点**：`PerfTrace`（debug 变体源集 `app/src/debug/.../PerfTrace.kt`；release 变体为空实现桩
-  `app/src/release/.../PerfTrace.kt`，release 产物无埋点日志路径）。三段跨度：
-  - `key_feedback`：onKeyDown → 该键引发的视图绘制完成（键盘根视图 post 终点标记，排在含本次
-    视觉变更的 traversal 之后）；
-  - `candidate_refresh`：键码进入 → 候选列表发布（沿用 traceCandidateLoadCompleted 调用点）；
-  - `ws_commit`：WS 收帧（`RemoteInputServerManager.onRemoteCommit`，WS 读线程同步回调链内）
-    → 上屏成功写入 IC（`commitRemoteText` 成功返回）。
-  - 行格式（logcat tag=`PerfTrace`，只含耗时与计数，无任何输入内容）：
-    `key_feedback seq=N durationMs=X.XXX`、`candidate_refresh seq=N durationMs=X.XXX total=T pages=P`、
-    `ws_commit seq=N durationMs=X.XXX committed=true|false`。
-- **设备端断言**：`app/src/androidTest/java/com/sofatype/ime/test/PerfBudgetTest.kt`
-  （`p00` synthetic 自测 / `p01` 键段采样+断言 / `p02` WS 段采样+断言；逐行格式白名单校验 =
-  零泄漏防线；基线文件经 `-e perfBaselinePath <设备路径>` 可选注入，无则只判预算绝对值）。
-- **宿主报告**：`perf_report.py` 聚合 PerfTrace 样本 + 基线 + 设备端结果行出报告。
+## 输出文件
 
-## 模拟器一轮（逻辑回归；产物不作性能结论，口径 6）
+| 路径 | 内容 |
+| --- | --- |
+| `reports/perf/perf-samples.logcat` | PerfTrace 原始采样 |
+| `reports/perf/perf-report.md` | 指标 × median/p95 × PASS/FAIL 判定报告 |
+| `reports/perf/phone-e2e.json` | 手机端到端计时记录 |
+| `docs/perf/` | 基线入库目录（引擎基线 + 真机基线 `baseline-mitv4.json`）；基线重定须项目所有者确认 |
+| `fixtures/` | synthetic 判定夹具（明确标注 synthetic；不进 `docs/perf/`，不冒充基线） |
 
-前置：仓库已构建 `app-debug.apk` / `app-debug-androidTest.apk`；无在线模拟器实例
-（活实例不可跨回合依赖）。冷启与收尾纪律见仓库本地开发指引 2.2。
+**示例**
+
+模拟器一轮完整命令链见 [DEVELOP.md](../../DEVELOP.md)「测试」节。核心形态：
 
 ```bash
-cd <工作区>
-export HOME="$PWD/.emulator-adbhome"   # adb 用模拟器钥匙目录
-adb devices                             # 就绪判据：sofatype-tv 显示 device
-
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell ime set com.sofatype.ime/.SofatypeImeService
-adb shell am start -n com.sofatype.ime/.TestTypingActivity   # 解 stopped 态
-adb shell settings put secure default_input_method com.sofatype.ime/.SofatypeImeService
-
-# 1) instrument 断言（后台）与 2) WS 采样驱动（前台）并发：
-adb shell am instrument -w -e class com.sofatype.ime.test.PerfBudgetTest \
-  -e perfMinSamples 20 -e perfWsTimeoutMs 240000 \
-  -e perfBaselinePath /data/local/tmp/perf/synthetic-baseline.json \
-  com.sofatype.ime.test/androidx.test.runner.AndroidJUnitRunner &
-adb push app/src/androidTest/assets/perf/synthetic-baseline.json /data/local/tmp/perf/synthetic-baseline.json
+# （后台）设备端断言与（前台）WS 采样驱动并发，再取证判定：
+adb shell am instrument -w -e class com.sofatype.ime.test.PerfBudgetTest ... &
 python3 tools/perf/perf_sample.py ws-driver --device emulator --commits 20 --rhythm 2.2
-
-# 3) 取证与判定报告（synthetic 基线仅验证判定机制）：
 python3 tools/perf/perf_sample.py collect --device emulator --out reports/perf/perf-samples.logcat
 python3 tools/perf/perf_report.py --samples reports/perf/perf-samples.logcat \
   --baseline app/src/androidTest/assets/perf/synthetic-baseline.json \
   --device emulator --out reports/perf/perf-report.md
-
-# 4) 收尾：核对 default_input_method 恢复、删除 /data/local/tmp/perf/、adb emu kill + 端口复核
 ```
 
-可选 `phone-e2e`（模拟器仅逻辑核验，输出 logicOnly=true）：
-`python3 tools/perf/perf_sample.py phone-e2e --device emulator --out reports/perf/phone-e2e.json`
-（须与 instrument p02 并发，即远程服务运行期。）
+真机差异三处：`--device mitv4`；每条 perf_sample 命令加 `--i-have-owner-approval`；基线换 `docs/perf/baseline-mitv4.json`（push 到设备后经 `-e perfBaselinePath` 注入）。
 
-## instrument 参数
+---
 
-| 参数 | 默认 | 说明 |
-| --- | --- | --- |
-| `perfMinSamples` | 20 | 每指标最少样本数（口径 4：N≥20；真机批次保持 20） |
-| `perfWsTimeoutMs` | 240000 | p02 等待 ws_commit 样本的上限 |
-| `perfBaselinePath` | 空 | 设备侧基线 JSON 路径（真机批次 push `docs/perf/baseline-mitv4.json`）；缺省只判预算绝对值 |
+## 参见
 
-## 真机批次（本轮未执行）
-
-- 前置：户主批准（口径 5/6：真机执行与基线采集一律先询问户主）；`perf_sample.py` 对
-  `--device mitv4` 硬性要求 `--i-have-owner-approval`。
-- 步骤概要：装机（debug 包）→ 核默认输入法 → `am instrument`（p00/p01/p02，≥2s 注入节奏由
-  设备端 sampling 内置）+ `perf_sample.py ws-driver --device mitv4` 并发 → 收尾恢复设置态 →
-  `perf_report.py --samples ... --baseline docs/perf/baseline-mitv4.json --device mitv4`。
-- 判定：median 与 p95 均不超预算 且 较基线中位数劣化 ≤20%；任一不满足即 FAIL。
+- [DEVELOP.md](../../DEVELOP.md)「测试」节：模拟器 / 真机完整操作链
+- `app/src/androidTest/java/com/sofatype/ime/test/PerfBudgetTest.kt`：设备端断言与 PerfTrace 注入
+- [docs/perf/README.md](../../docs/perf/README.md)：基线库 schema 与判定口径
+- [docs/issues/closed/T92.md](../../docs/issues/closed/T92.md)：工具来源与拍板记录

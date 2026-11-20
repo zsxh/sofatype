@@ -1,13 +1,13 @@
 # docs/perf · 性能基线目录
 
-T92（issue `docs/issues/open/T92.md`）基线与测量产物的唯一存放处。
+T92（issue `docs/issues/closed/T92.md`）基线与测量产物的唯一存放处。
 
 ## 文件清单与状态
 
 | 文件 | 内容 | 状态 |
 | --- | --- | --- |
 | `baseline-pinyin-jmh-host-<os>-<arch>.json` | `:pinyin` 引擎 JMH 基线（口径 9，宿主侧 JVM 产物，环境指纹随文件） | 本轮实跑产出 |
-| `baseline-mitv4.json` | 真机（MiTV4）四项指标基线：中位数 / p95 / 环境指纹（uptime / meminfo / 前台态） | 待真机批次（执行前先询问户主，口径 5/6），本轮不存在，禁止用合成或模拟器数据冒充 |
+| `baseline-mitv4.json` | 真机（MiTV4）四项指标基线：中位数 / p95 / 环境指纹（uptime / meminfo / 前台态） | 已入库（2026-11-20 真机批次实跑产出；重定须户主拍板，口径 5）；禁止用合成或模拟器数据冒充真机基线 |
 
 ## 基线 JSON schema（perf-baseline/1）
 

@@ -21,10 +21,10 @@
 ## 当前快照（截至 2026-11-20）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.2.0(2)（T89 起，首版 0.1.0(1)）。构建一律 `nix develop` 内 `./gradlew`。
-- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core、日志 Timber 决策 60；测试域第三方测试库经 T91 拍板放开，限 test / androidTest / 插件作用域不进 APK）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切 CLI 工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；devShell 含 Obscura 无头浏览器（H5 CDP 调试，见 T34）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
+- 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core、日志 Timber 决策 60；测试域第三方测试库经 T91 拍板放开，限 test / androidTest / 插件作用域不进 APK）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切 CLI 工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；H5 页调试用本机支持 CDP 的无头浏览器（chrome / chromium / brave / firefox 等）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T92 全部归档；open 无。
+- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T92 全部归档；open T93（测试工具重命名与报告目录迁移）。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
@@ -85,7 +85,7 @@
 9. 两模块同图构建：`mergeDebugAssets` / `mergeReleaseAssets` 均须显式 `dependsOn(":pinyin:buildDict")`（T10/T32）；`pinyin/assets` 双源目录致词库产物双份入包，待 resources 排除（T10 遗留非阻塞建议）。
 10. 分页模型区间坐标系（T11）：`CandidateMoreRow.paginate` 区间为相对坐标系的旧坑已随 T66 重构消除——paginate 与「更多⌄」体系整体删除，`CandidatePager.kt` 页区间即候选全局下标；新代码勿再引入相对/全局两套坐标系。
 11. 单测取证防旧结果：`--rerun` 在本工具链实测静默失效（up-to-date 跳过、假绿），口径统一 `--rerun-tasks` 强制实跑，核对任务全 executed + test-results XML 时间戳（T32/T45）。
-12. merge/package 类任务输入未变则 UP-TO-DATE：「实跑取证」须删 `app/build/intermediates/assets/<variant>/` 后复跑；release 产物名 `app-release-unsigned.apk`（T32）。
+12. merge/package 类任务输入未变则 UP-TO-DATE：「实跑取证」须删 `app/build/intermediates/assets/<variant>/` 后复跑；release 产物名 `sofatype-release-unsigned.apk`（无 signingConfig；T32 口径，产物名前缀随 archivesName 改为 sofatype-）。
 13. `testDebugUnitTest` 只覆盖 Android 模块（:app），纯 JVM 模块 `:pinyin` 单独 `:pinyin:test` 补跑（T15）。
 14. debug 构建 StrictMode 查主线程网络 IO（death penalty）：WS 回发等任何 socket 写不得落主线程——帧写统一下沉专用线程（ConnectionWriter 模式），时序依赖用「同步等待写完」保住（T16，细节见 issue T16 坑 1）。
 15. 新建 drawable 与消费点同轮核对引用：grep 资源名可检出「创建未挂载」资源，视觉走查对底/描边缺失类缺陷不敏感（T17，R1 评审抽实发现）。

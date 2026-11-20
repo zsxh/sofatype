@@ -41,11 +41,11 @@ app 侧检查请求、解析、下载、安装链全是真实实现，本目录�
 nix develop -c ./gradlew --no-daemon clean assembleDebug \
   -I tools/mock/github-releases/build-incremented-apk.gradle \
   -PmockVersionCode=3 -PmockVersionName=0.3.0
-cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.3.0.apk
+cp app/build/outputs/apk/debug/sofatype-debug.apk tools/mock/github-releases/sofatype-0.3.0.apk
 
 # 基线包（= 工程当前版本）：不带 -I 与 -P 重新 clean 构建（注入非构建输入，不 clean 会残留递增包产物）
 nix develop -c ./gradlew --no-daemon clean assembleDebug
-cp app/build/outputs/apk/debug/app-debug.apk tools/mock/github-releases/sofatype-0.2.0.apk
+cp app/build/outputs/apk/debug/sofatype-debug.apk tools/mock/github-releases/sofatype-0.2.0.apk
 
 # 放置后用 SDK 工具实测取证清单版本（两包分别执行，versionCode 须为 3 / 2；示例值随基线同步）
 aapt dump badging tools/mock/github-releases/sofatype-0.3.0.apk | grep package:
@@ -74,11 +74,13 @@ python3 tools/mock/github-releases/serve_mock.py --current-version 0.2.0 --newer
 （`UpdateMockReceiver`，仅进程内存不持久化，release 无此组件）：
 
 ```bash
-HOME=<工作区>/.emulator-adbhome adb shell am broadcast \
+HOME=<模拟器adb钥匙目录> adb shell am broadcast \
   -n com.sofatype.ime/.update.UpdateMockReceiver \
   -a com.sofatype.ime.debug.action.SET_UPDATE_ENDPOINT \
   -e endpoint http://10.0.2.2:8000/releases-newer.json
 ```
+
+adb home 走通用机制（`ANDROID_USER_HOME` / 调用方 `HOME`）：按需在调用环境声明，工具链不注入、不设专用变量。
 
 - 模拟器：endpoint 用 `http://10.0.2.2:<port>/releases-newer.json`；
 - 真机：endpoint 用 `http://<Mac 局域网 IP>:<port>/releases-newer.json`；

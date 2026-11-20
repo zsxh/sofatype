@@ -1,63 +1,171 @@
-# tools/integration · 集成测试宿主 wrapper（T91）
+# tools/integration · 集成测试工具
 
-宿主侧薄 wrapper：模拟器 instrument 全轮编排（冷启 → 装机 → ime set 核对 → am instrument →
-收报告 → 显式收尾）+ 真机专有环节逻辑（保活循环、安装许可 tap 代点、场景映射）。
-工具口径：python3（宿主 PATH）+ adb + flake 内 emulator / gradle（经 `nix develop -c` /
-`nix run` 子进程调用）。真机执行一律先询问户主，户主同意后才跑（issue T91 口径 3）。
+本目录两个宿主侧工具：`integration_runner.py`（集成测试编排器）与 `phone_driver.py`（手机端模拟驱动）。
+工具为薄 wrapper：python3 标准库 + adb；模拟器进程与构建经 `nix develop -c` / `nix run` 子进程调用。
 
-## s10 手机端通道（户主拍板：本地检测驱动）
+---
 
-- 检测本机 chrome / chromium / brave（macOS .app 与 PATH 双查，按此优先级，第一个能成功启动
-  headless 实例的胜出）；命中则开 H5 页 + DOM 探针 + 页面自身 WS + H5 UI 全链
-  （textarea 注入 → 上屏按钮 → 回执清空），WS 连接探测 15 秒短时限，超时快速降级。
-- 未检测到浏览器、启动失败或页面 WS 超时 → 回退 python3 标准 WS 客户端直连（已证通路）。
-- obscura 已从 s10 链路移出（其页面 WS 经 slirp 隧道存在稳定挂起假象，隔离诊断见 T91 报告）；
-  obscura 仍留在 flake 供其他用途。
-- **s10 场景浏览器为本地工具、非 flake 工具链**（户主拍板放开）；每轮报告如实记录实际通道、
-  浏览器二进制路径与版本、是否发生降级。
-- 清理纪律：headless 实例只杀自建标志进程（临时 user-data-dir 前缀 `integration-phone-browser-`），
-  走查后无残留监听端口（9333 复核）、无残留页面。
+## INTEGRATION_RUNNER(1) · integration_runner.py
 
-## 模拟器一轮全跑（推荐入口）
+**名称** — 编排 `InstrumentedScenarioSuite` 集成测试并产出报告。
+
+**概要**
 
 ```bash
-cd <工作区>
-python3 tools/integration/integration_runner.py --stage full --device emulator
+python3 tools/integration/integration_runner.py [--stage STAGE] [--device {emulator|mitv4}]
+      [--host IP:5555] [--confirm-tap X,Y] [--assume-ready] [--scenario ID] [--scenarios ID[,ID...]]
 ```
 
-- 前置：仓库已构建出 `app-debug.apk` 与 `app-debug-androidTest.apk`（构建命令见仓库本地开发指引
-  「构建与测试」节）；无在线模拟器实例（活实例不可跨回合依赖）。
-- 流程：删 default_boot 快照真冷启 → 60 秒就绪判据 → `/proc/uptime` 秒级核验 → 装两包 →
-  `ime set` 核对 → 起 serve_mock（:8000）+ obscura（:9222，`--allow-private-network`）→
-  Round A（黄金图缺失时自动记录实机基线）→ 黄金图落位 `app/src/androidTest/assets/goldens/emulator-api34/`
-  → 重建重装 androidTest 包 → Round B（`Bitmap.sameAs` 真实比对）→ 报告落
-  `reports/integration/integration-report.md` → `adb emu kill` + 端口复核。
-- 预期时长：冷启 2~4 分钟 + 两轮各 5~12 分钟 + 构建 1~2 分钟 ≈ 25~40 分钟。
-- 产物：`reports/integration/integration-report.md`、`reports/integration/pulled/round{1,2}/`（results.tsv + screenshots）、
-  `reports/integration/logs/`（emulator / serve_mock / obscura / phone 驱动日志）。
+**描述**
 
-## 分步执行
+- 在目标设备上执行 `app/src/androidTest` 的场景套件（11 个场景，见「场景」节），产出场景 × PASS/FAIL 报告。
+- `--device emulator`（默认）：宿主全托管。`--stage full` 一条命令完成冷启、装机、双轮执行、报告与收尾。
+- `--device mitv4`：仅装机类环节自动化（plan / preflight / install）；场景执行不纳入本工具，见「限制」节。
+- adb home 走通用机制（`ANDROID_USER_HOME` / 调用方 `HOME`），工具不注入、不设专用变量；需要钥匙分向的环境用通用变量自行声明。见「环境变量」节。
 
-| 命令 | 用途 |
+**环境要求**
+
+- 仓库根执行；adb 走系统 PATH；`boot` 阶段经 `nix run .#tv-emulator` 启动模拟器。
+- 前置构建两包（命令见 [DEVELOP.md](../../DEVELOP.md)「本地构建」）：`sofatype-debug.apk` 与 `sofatype-debug-androidTest.apk`。
+- `full` / `rounds` 要求本机无在线模拟器实例；活实例不可跨回合依赖，有则先 `teardown`。
+
+**环境变量**
+
+工具不发明专用变量、不注入环境；adb home 与构建缓行走各自的标准机制，按需在调用环境声明：
+
+| 用途 | 标准变量（均可选） | 说明 |
+| --- | --- | --- |
+| adb home | `ANDROID_USER_HOME`（AVD 精确定位另可用 `ANDROID_AVD_HOME`） | adb 密钥与模拟器令牌所在；未声明时 adb 用 `HOME/.android` |
+| Gradle 缓存 | `GRADLE_USER_HOME` | `nix develop` 构建链透传 |
+| 缓存目录 | `XDG_CACHE_HOME` | `nix develop` 构建链透传 |
+
+`boot` 阶段按上述通用变量解析 AVD 快照路径做真冷启；均未声明时跳过快照清理并在日志明示。
+
+**选项**
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `--stage` | `full` | 阶段名，见「阶段」节 |
+| `--device` | `emulator` | `emulator` 或 `mitv4` |
+| `--host` | 无 | 真机 adb 地址 `ip:5555`；mitv4 装机段必传 |
+| `--confirm-tap` | 无 | 安装许可确认钮坐标 `x,y`；先 `screencap` 目测再传 |
+| `--assume-ready` | 关 | `rounds` 跳过 boot / install / ime-check（当前实例已就绪时） |
+| `--scenario` | 无 | 定向单场景，配合 `--stage instrument` |
+| `--scenarios` | 无 | 逗号分隔多场景，配合 `--stage instrument` |
+
+**阶段（--stage）**
+
+| stage | 设备 | 行为 |
+| --- | --- | --- |
+| `full`（默认） | 模拟器 | boot → install → ime-check → 双轮编排 → 报告 → teardown，全程托管 |
+| `boot` | 模拟器 | 删 default_boot 快照（保 userdata）→ 冷启 → 60 秒就绪判据 → `/proc/uptime` 秒级冷启核验 |
+| `install` | 两者 | 装两包 + `am start` 解 stopped 态；mitv4 走 push + `pm install` + 许可弹窗代点 |
+| `ime-check` | 两者 | `ime set` 本 IME + `default_input_method` 核对 |
+| `instrument` | 两者 | `am instrument -w -e class InstrumentedScenarioSuite`；`--scenario` / `--scenarios` 定向子集 |
+| `phone` | 两者 | 起 `phone_driver.py`（独立进程，须与 instrument 并发跑） |
+| `rounds` | 模拟器 | 双轮编排：round A 记黄金图 → 落位重建 → round B 真实比对 → 报告 → teardown |
+| `teardown` | 两者 | `adb emu kill`；复核 5554/5555 无 qemu、8000/9333 清场、`adb devices` 空；真机不动设备连接 |
+| `mitv4-plan` | — | 只打印真机场景映射与前置清单，不触设备 |
+| `mitv4-preflight` | — | 恒拒绝执行：逻辑已内置、待启用 |
+| `mitv4-install` | 真机 | push + `pm install` + 许可弹窗 tap 代点 + 保活循环；缺 `--host` / `--confirm-tap` 直接拒绝 |
+
+内部环节（无独立 stage 入口，仅 `full` / `rounds` 编排内部调用）：`pre`（起 serve_mock :8000）、`goldens`（首轮截图落位 androidTest assets 并重建 androidTest 包）、`report`（汇总 results.tsv 出报告）。
+
+**场景**（`InstrumentedScenarioSuite`，11 项）
+
+| ID | 内容 |
 | --- | --- |
-| `integration_runner.py --stage boot` | 冷启模拟器（含冷启核验） |
-| `integration_runner.py --stage install` | 装 debug + androidTest 两包（装后 `am start` 一次解 stopped 态） |
-| `integration_runner.py --stage ime-check` | `ime set` + default 核对 |
-| `integration_runner.py --stage instrument` | `am instrument -w -e class …InstrumentedScenarioSuite` |
-| `python3 tools/integration/phone_driver.py --device emulator` | 手机端模拟驱动（须与 instrument 并发） |
-| `integration_runner.py --stage report` | 汇总 results.tsv 生成报告 |
-| `integration_runner.py --stage teardown` | `adb emu kill` + 5554/5555 + 8000/9222 复核 |
+| `s01_keyboard_show` | 键盘显示（黄金图 `s01_keyboard_show`） |
+| `s02_hide_keycode_back` | 键码通道（BACK）收起 |
+| `s03_tap_hide_whitelisted` | tap 通道收起（模拟器白名单；真机预期真 PASS） |
+| `s04_composition_candidates` | 网格导航 nihao → 候选行 → 上屏（黄金图 `s04_keyboard_candidates`） |
+| `s05_language_case_switch` | 中英与大小写切换：EN+UPPER 直落 A / LOWER 直落 a |
+| `s06_symbols_fullhalf_golden` | 符号键盘与全半角（黄金图 `s06_keyboard_symbols`，模拟器滞留帧白名单） |
+| `s07_delete_rhythm` | 删除节奏：单删 3 次 + OK 长按连删 |
+| `s08_back_exit_gate` | 设置页 BACK 二次退出（2 秒窗） |
+| `s09_hidden_key_passthrough` | 隐藏态键码透传宿主 |
+| `s10_remote_pairing` | 远程配对（phone_driver 模拟手机端配合） |
+| `s11_update_check_mock` | 检查更新（serve_mock 桩：发现新版 v0.3.0 + 已是最新） |
 
-## 真机（MiTV4）段——本轮未执行
+**输出文件**
 
-- 场景映射与前置清单（只打印不触设备）：
-  `python3 tools/integration/integration_runner.py --stage mitv4-plan`
-- 真机前置核对 / 装机（push + `pm install` + 安装许可 tap 代点 + 保活循环）逻辑已内置：
-  `--stage mitv4-preflight` / `--stage mitv4-install --host <ip:5555> --confirm-tap x,y`。
-  **`mitv4-preflight` 与 `mitv4-install` 在获得户主逐次批准前被脚本硬性拒绝执行。**
-- 代点纪律（设备档案坑 16/17）：先 `screencap` 目测弹窗确认钮，坐标经 `--confirm-tap` 传入，
-  双钮两段式 tap×2，上限 4 次不解除即停手交户主，不轰炸重试；确认界面只吃 tap 不吃键码。
-- 保活循环（设备档案坑 2）：装机等待期每约 6 分钟一发 DPAD，走查毕即清；instrument 运行期
-  不注键码（防污染场景焦点），由 harness 侧 `svc power stayon true` 保屏。
-- 黄金图目录：`mitv4-api23`（真机首轮自动走 GOLDEN_RECORDED 记录实机基线，次轮起真实比对）。
-- 装机核验铁证：`dumpsys package com.sofatype.ime` 的 `pkgFlags` 含 `DEBUGGABLE`。
+| 路径 | 内容 |
+| --- | --- |
+| `reports/integration/integration-report.md` | 场景 × PASS/FAIL 汇总报告；s10 一并记录实际手机模拟通道 |
+| `reports/integration/pulled/round{1,2}/` | 每轮 `results.tsv` + 截图 |
+| `reports/integration/logs/` | 模拟器 / serve_mock / phone 驱动日志 |
+| `app/src/androidTest/assets/goldens/emulator-api34/` | 首轮落位的黄金图（入库资产，次轮起比对用） |
+
+**退出状态**
+
+- `0`：编排完成。不代表全场景 PASS；场景级结果以报告为准。
+- `1`：阶段失败（RuntimeError：APK 缺失、就绪超时、非冷启、装机失败、端口残留等）。
+- `2`：用法错误（argparse）。
+
+**限制**
+
+- 真机场景执行（`am instrument`）不在阶段内：真机全量一轮受 instrumentation 击杀链限制不可达（[docs/devices/](../../docs/devices/) 设备档案），按「单场景一跑」手动编排；黄金图真机目录 `mitv4-api23`，首轮记 `GOLDEN_RECORDED` 基线。
+- `mitv4-install` 做纯 dex 校验：检出 `lib/` 即中止。
+- 许可弹窗代点上限 4 次，不解除即停手；确认界面只吃 tap 不吃键码。
+- `boot` 仅支持模拟器；已有模拟器在线时拒绝执行（先 `teardown`）。
+
+**示例**
+
+```bash
+# 模拟器一键全跑（约 25~40 分钟；先构建两包）
+./gradlew assembleDebug assembleDebugAndroidTest
+python3 tools/integration/integration_runner.py --stage full --device emulator
+
+# 定向重跑两个场景（当前实例已就绪时）
+python3 tools/integration/integration_runner.py --stage instrument \
+  --scenarios s01_keyboard_show,s04_composition_candidates
+
+# 只看真机计划（不触设备，可随时执行）
+python3 tools/integration/integration_runner.py --stage mitv4-plan
+```
+
+---
+
+## PHONE_DRIVER(1) · phone_driver.py
+
+**名称** — 手机 H5 端模拟驱动：配对 + 远程打字全链。
+
+**概要**
+
+```bash
+python3 tools/integration/phone_driver.py [--device {emulator|mitv4}]
+      [--marker-prefix STR] [--text STR] [--timeout SEC]
+```
+
+**描述**
+
+- 轮询设备 `settings system <prefix>_remote_url`（IME 远程卡写入）取配对 URL，注入文本并上屏，核验回执 `<prefix>_phone_committed` / `<prefix>_phone_channel`。
+- 通道选择：真机按 chrome > chromium > brave 检测（macOS `.app` 与 PATH 双查），命中走 headless 页面全链；未命中或页面 WS 15 秒超时降级 python3 WS 直连。模拟器固定 python3 WS 直连（slirp 隧道对浏览器式并发连接毒化，实测不可恢复）。
+- adb home 同走通用机制（见「环境变量」节）；真机路径沿用调用方 adb 环境。
+- 须与 instrument 的 s10 场景并发运行：先起本进程，再起 instrument。
+
+**选项**
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `--device` | `emulator` | 目标设备 |
+| `--marker-prefix` | `integration` | settings 键前缀（须与 harness 写入侧一致） |
+| `--text` | 客厅远程集成验证 | 注入文本 |
+| `--timeout` | `240` | 等待配对 URL 的秒数上限 |
+
+**退出状态**
+
+- `0`：完成，上屏回执核验通过。
+- `2`：限时内未读到 remote_url marker。
+- 其他非 0：通道失败。
+
+**清理纪律**：headless 实例只杀自建进程（临时 profile 前缀 `integration-phone-browser-`）；收尾后 9333 无监听、无残留页面。每轮报告如实记录实际通道、浏览器路径与版本、是否降级。
+
+---
+
+## 参见
+
+- [DEVELOP.md](../../DEVELOP.md)「测试」节：模拟器 / 真机完整操作指引与参数对照
+- [docs/devices/MiTV4-ANSM0.md](../../docs/devices/MiTV4-ANSM0.md)：真机纪律与已踩坑
+- [tools/mock/github-releases/](../mock/github-releases/README.md)：serve_mock 更新源桩
+- [docs/issues/closed/T91.md](../../docs/issues/closed/T91.md)：工具来源与拍板记录
