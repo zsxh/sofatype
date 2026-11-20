@@ -30,7 +30,6 @@
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
-  - Paparazzi 试点（T91 口径 7：键盘布局 JVM 渲染视觉回归）转正与否待户主拍板（试点结论：AGP 8.2.2 兼容版本 1.3.3，渲染与断言正常；明细见 closed/T91）。
   - 平台夺回链（坑 5 / 9 同族：自家 Activity 切走沿 / 屏保沿触发平台 force-stop 本 IME 包 → 重选系统默认搜狗）为设备长期事实；应用侧治理 = 设置页检测横幅 + 一键选回恢复通道（T82 closed 2026-11-18，决策 66，明细见 `docs/issues/closed/T82.md`）。
   - 行 4 键帽顶缘 +2px（容差内，坑清单词库与数据 2）。
   - H5 矮视口垂直溢出。
@@ -70,7 +69,7 @@
 | 63 | 远程服务端口持久复用：首次随机、持久化、使用期复用（修订决策 16 端口随机）——服务 URL origin 跨退出重开稳定，决策 61 保号链真实路径生效 |
 | T89 | APK 版本升至 0.2.0(2)：按决策 19 随发布批次递增，工程不再锚定 0.1.0(1)；mock 源 v0.2.0 锚定口径随之失效，刷新另立 issue |
 | T90 | 检查更新 mock 源占位符参数化：版本值由 serve_mock.py 启动参数注入（JSON 零硬编码，决策 17 同构）；递增包口径随基线改指 0.3.0(3)，基线包 = 工程当前版本 |
-| T91 | 测试体系拆两 issue 立项：集成测试 T91、性能回归 T92；真机操作一律先询问户主；测试域第三方测试库放开（test / androidTest / 插件作用域，不进 APK）——instrumented 层（UiAutomator）+ 黄金图逐像素对比（按设备分目录）+ Paparazzi 试点（转正待拍板）；依赖可重现机制（版本目录 + 依赖锁 + SHA-256）2026-11-20 户主拍板整套废止，依赖声明内联坐标；s10 手机端模拟浏览器可换、本地检测优先（chrome > chromium > brave），模拟器 slirp 隧道与浏览器式页面加载不兼容（实测毒化）走 python3 WS 直连，浏览器路径保留真机 |
+| T91 | 测试体系拆两 issue 立项：集成测试 T91、性能回归 T92；真机操作一律先询问户主；测试域第三方测试库放开（test / androidTest / 插件作用域，不进 APK）——instrumented 层（UiAutomator）+ 黄金图逐像素对比（按设备分目录）+ Paparazzi 视觉回归（2026-11-20 户主拍板转正）；依赖可重现机制（版本目录 + 依赖锁 + SHA-256）2026-11-20 户主拍板整套废止，依赖声明内联坐标；s10 手机端模拟浏览器可换、本地检测优先（chrome > chromium > brave），模拟器 slirp 隧道与浏览器式页面加载不兼容（实测毒化）走 python3 WS 直连，浏览器路径保留真机 |
 | T92 | 性能回归 = 方案 A「应用内 debug 门控 PerfTrace 埋点 + 设备侧计时」+ JMH 引擎地板（宿主侧）；判定 = 预算绝对值 + 较基线中位数劣化 ≤20%，断言在设备端 instrument 内；基线入库与重定须拍板；模拟器数据不作性能结论；依赖声明内联坐标（同 T91 废止口径） |
 
 ## 坑清单（按主题合并；细节见对应 issue）
@@ -141,5 +140,5 @@
 - 候选栏翻页模型在 `CandidatePager.kt`：页区间 = 候选全局下标，箭头装饰不进焦点链（T66；「更多⌄」展开体系已删除，FR-A15 废止）。
 - IME 服务 `onEvaluateFullscreenMode` 恒 false（防 TV 横屏全屏提取盖住宿主），勿动（T3）。
 - 拼音引擎接口见 `:pinyin` 模块（issue T9）；跨屏服务接口见 `remote/` 包（issue T13/T14/T15）。
-- 集成测试接入点：instrument 场景集在 `app/src/androidTest/java/com/sofatype/ime/test/`（harness `T91Harness.kt` + 场景套件 `T91InstrumentedScenarioSuite.kt`，黄金图按设备目录 `assets/goldens/<device-api>/`），宿主 wrapper `tools/t91/`（README 含分步纪律与 `--scenario` 定向通道）；视觉回归 `KeyboardVisualRegressionTest`（Paparazzi 试点）（T91）。
+- 集成测试接入点：instrument 场景集在 `app/src/androidTest/java/com/sofatype/ime/test/`（harness `T91Harness.kt` + 场景套件 `T91InstrumentedScenarioSuite.kt`，黄金图按设备目录 `assets/goldens/<device-api>/`），宿主 wrapper `tools/t91/`（README 含分步纪律与 `--scenario` 定向通道）；视觉回归 `KeyboardVisualRegressionTest`（Paparazzi，已转正）（T91）。
 - 开工顺序：`AGENTS.md` → `docs/issues/README.md`（规范与模板）→ 基线 `docs/PRD_20261104.md`（按需查阅，先核对第 12 章修订链）→ `docs/devices/` → `designs/`。
