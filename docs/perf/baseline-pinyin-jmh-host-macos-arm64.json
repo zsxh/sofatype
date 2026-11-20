@@ -1,0 +1,46 @@
+{
+  "schema": "sofatype-perf-baseline-jmh/1",
+  "engine": "pinyin",
+  "scope": "host-jvm",
+  "synthetic": false,
+  "jmhVersion": "1.37",
+  "sampledAt": "2026-11-20T01:52:26+00:00",
+  "env": {
+    "os": "Darwin",
+    "osRelease": "27.2.0",
+    "arch": "arm64",
+    "java": "openjdk version \"17.0.19\" 2026-04-21 LTS",
+    "dictSha256": "3305268ababf66df0466f3b3dd94d8bc14cf84081d1f50dc9d73a5e6d50a811e"
+  },
+  "note": "T92 口径 9 引擎性能地板（宿主侧 JMH，:pinyin 真实词库 65105 条）；劣化阈值试点后另定（本轮不设判定阈值）；与真机基线 baseline-mitv4.json 互不替代",
+  "benchmarks": [
+    {
+      "name": "abbreviationQuery",
+      "mode": "avgt",
+      "unit": "us/op",
+      "score": 3205.8057788061988,
+      "scoreError": 1005.4755210659521
+    },
+    {
+      "name": "fullPinyinQuery",
+      "mode": "avgt",
+      "unit": "us/op",
+      "score": 1976.3321647957605,
+      "scoreError": 302.8404897799438
+    },
+    {
+      "name": "mixedQuery",
+      "mode": "avgt",
+      "unit": "us/op",
+      "score": 2591.443008774723,
+      "scoreError": 555.4280466529356
+    },
+    {
+      "name": "segmentation",
+      "mode": "avgt",
+      "unit": "us/op",
+      "score": 1.4404178868384092,
+      "scoreError": 0.4187095161940205
+    }
+  ]
+}

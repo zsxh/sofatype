@@ -76,6 +76,7 @@
 - `ps -A` 可偶发回仅表头空表；toybox `grep` 可原生崩溃产生 tombstone → 「进程不存在 / 无匹配」必须换通道交叉验证（`dumpsys activity processes`）；计数 / 匹配操作拉回本地文件处理。
 - `/proc/net/tcp6` 端口表读数偶发假阴性（监听中报 0 条）→ 「无监听 / 残留」结论必须同参数双读 + 双表（tcp6/tcp）交叉验证，单次 0 条不定论。
 - `pidof <包名>` 返回全量 pid 不过滤 → 进程定位用 `ps | grep` 或 logcat 行内 pid。
+- `dumpsys cpuinfo` 可能保留已死进程的陈旧条目（T92 批次实测：显示已不存在 pid 的 1.9% CPU，现进程 0%）→ 非激活零 CPU 类结论以 `top -n 1` 现行进程读数为准，cpuinfo 陈旧条目须并核 pid 存活后排除。
 - `uiautomator dump` 退出段自身抛 SecurityException FATAL（shell uid 工具噪音）→ 全窗 FATAL 核查按 pid/uid 排除，不代表应用崩溃。
 - dump 坐标系是应用窗口缩放系（与屏幕像素空间比 ≈0.927），且候选栏显隐 / 中英切换 / 进出符号键盘会引起键盘区整体位移 → `input tap` 坐标一律以**当前态最新 screencap 目测像素**为准，两态切换后必须重新截图目测再点；dump 只用于读控件结构 / 文本，不产坐标。
 - 设备端 `logcat -f <文件>` 后台落盘可失效（命令在跑、文件不落盘）→ 长窗取证改用 `logcat -d` 全缓冲导出（先 `logcat -G` 扩容防 chatty 吞没），等效取证。

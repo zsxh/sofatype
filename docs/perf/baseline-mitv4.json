@@ -1,0 +1,48 @@
+{
+  "schema": "sofatype-perf-baseline/1",
+  "synthetic": false,
+  "batch": "T92-Round2-mitv4-20261120",
+  "env": {
+    "device": "MiTV4-ANSM0 (Xiaomi/xmen/xmen:6.0.1/MHC19J/3352:user/release-keys)",
+    "buildFingerprint": "Xiaomi/xmen/xmen:6.0.1/MHC19J/3352:user/release-keys",
+    "abi": "armeabi-v7a,armeabi",
+    "appVersion": "0.2.0 debug (versionCode 2, DEBUGGABLE, lastUpdateTime=2026-11-20 12:31:11)",
+    "uptimeSeconds": 4527,
+    "meminfoTotalKb": 1663152,
+    "meminfoAvailKb": 637288,
+    "foreground": "app.orchard.tv/app.orchard.tv.MainActivity（非激活态采样时前台）",
+    "note": "环境指纹取批次收口时点（非激活零 CPU 采样前后）"
+  },
+  "metrics": {
+    "key_feedback": {
+      "budgetMs": 100,
+      "n": 95,
+      "medianMs": 17.5,
+      "p95Ms": 57.6
+    },
+    "candidate_refresh": {
+      "budgetMs": 200,
+      "n": 27,
+      "medianMs": 30.1,
+      "p95Ms": 41.2
+    },
+    "ws_commit": {
+      "budgetMs": 300,
+      "n": 20,
+      "medianMs": 14.6,
+      "p95Ms": 18.2
+    },
+    "e2e_phone_to_tv": {
+      "budgetMs": 3000,
+      "n": 21,
+      "medianMs": 1062.3,
+      "p95Ms": 1253.0,
+      "phoneSegmentMedianMs": 1047.7,
+      "tvSegmentMedianMs": 14.6,
+      "phoneSegmentP95Ms": 1234.8,
+      "tvSegmentP95Ms": 18.2,
+      "p95Composition": "组合 p95 = 手机段逐轮 p95 + TV 段 ws_commit p95（两段独立采样，线性相加为保守上界口径）"
+    }
+  },
+  "note": "首批真机基线（无先前基线，劣化项以本次为基线）；判定口径：median 与 p95 均不超预算（e2e 为 median 判定），较基线中位数劣化 <=20% 自次轮起生效；三段样本由设备端 T92PerfBudgetTest 断言（p01/p02 results.tsv 行），e2e 手机段为本地 Brave 浏览器真实页面打开 -> 页面 WS 已连接测量（21/21 轮）"
+}
