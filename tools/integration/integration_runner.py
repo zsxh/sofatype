@@ -6,19 +6,24 @@
                 → /proc/uptime 秒级冷启核验）
   install       装 app-debug + androidTest 两包（emulator 直装；mitv4 走 push + pm install + 安装许可代点）
   ime-check     ime set 本 IME + default_input_method 核对
-  pre           起 serve_mock（:8000；s10 浏览器通道由 phone 驱动按本地检测结果选择）
-  instrument    am instrument 跑 InstrumentedScenarioSuite（可 --round 1|2）
+  instrument    am instrument 跑 InstrumentedScenarioSuite（--scenario / --scenarios 定向子集）
   phone         手机端模拟驱动（调 phone_driver.py；与 instrument 并发）
-  goldens       把 round A 记录的黄金图落位 androidTest assets 并重建 androidTest 包
-  report        拉 results.tsv / screenshots / logcat，生成场景 × PASS/FAIL 报告落 reports/integration/
+  rounds        双轮编排：round A 记黄金图 → goldens 落位重建 → round B 真实比对 → 报告 → teardown
+                （--assume-ready 跳过 boot/install/ime-check）
   teardown      显式收尾：adb emu kill + 端口复核 + serve_mock/浏览器残留清场
   mitv4-plan    真机场景映射与前置清单（只打印，不触设备）
-  mitv4-preflight   真机前置核对逻辑（只读；本轮不执行——真机操作须户主逐次批准）
-  mitv4-install     真机装机逻辑（push + pm install + 安装许可 tap 代点 + 保活循环；本轮不执行）
-  full          emulator：boot→install→ime-check→pre→[round A→goldens→round B]→report→teardown
+  mitv4-preflight   恒拒绝执行：逻辑已内置、待启用
+  mitv4-install     真机装机逻辑（push + pm install + 安装许可 tap 代点 + 保活循环）；
+                缺 --host / --confirm-tap 直接拒绝，执行前须户主逐次批准
+  full          emulator：boot→install→ime-check→rounds（assume_ready）全程托管
+
+编排内部环节（无独立 stage 入口，仅 rounds / full 内调用）：
+  pre（起 serve_mock :8000）、goldens（黄金图落位 androidTest assets 并重建 androidTest 包）、
+  report（拉 results.tsv 生成场景 × PASS/FAIL 报告落 reports/integration/）
 
 环境前提：仓库根执行；python3 走系统 PATH；nix / flake 内工具由本脚本以
-`nix develop -c` / `nix run` 子进程方式调用；adb 走系统 PATH，HOME 按仓库本地开发指引「adb 密钥目录」节分向。
+`nix develop -c` / `nix run` 子进程方式调用；adb 走系统 PATH，adb home 走通用机制
+（ANDROID_USER_HOME / 调用方 HOME；工具不注入 HOME、不设专用变量）。
 预期时长（emulator full，双轮）：冷启 2~4 分钟 + 两轮 instrument 各 5~12 分钟 + 构建 1~2 分钟。
 真机执行一律先询问户主，户主同意后才跑（issue T91 口径 3）。
 """
@@ -32,12 +37,10 @@ import threading
 import time
 
 WORKSPACE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ADB_HOME_EMU = os.path.join(WORKSPACE, ".emulator-adbhome")
-ADB_HOME_MITV = os.path.join(WORKSPACE, ".MiTV4-adbhome")
 SHOTS = os.path.join(WORKSPACE, "reports", "integration")
-TOOLS_INTEGRATION = os.path.join(WORKSPACE, "tools", "t91")
-APK_DEBUG = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
-APK_ANDROIDTEST = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "androidTest", "debug", "app-debug-androidTest.apk")
+TOOLS_INTEGRATION = os.path.join(WORKSPACE, "tools", "integration")
+APK_DEBUG = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "debug", "sofatype-debug.apk")
+APK_ANDROIDTEST = os.path.join(WORKSPACE, "app", "build", "outputs", "apk", "androidTest", "debug", "sofatype-debug-androidTest.apk")
 TEST_RUNNER = "com.sofatype.ime.test/androidx.test.runner.AndroidJUnitRunner"
 TEST_CLASS = "com.sofatype.ime.test.InstrumentedScenarioSuite"
 GOLDEN_ASSET_DIR = os.path.join(WORKSPACE, "app", "src", "androidTest", "assets", "goldens", "emulator-api34")
@@ -54,7 +57,7 @@ SCENARIO_MAP = {
     "s07_delete_rhythm": "删除节奏：单删 3 次 + OK 长按连删",
     "s08_back_exit_gate": "设置页 BACK 二次退出（2 秒窗）",
     "s09_hidden_key_passthrough": "隐藏态键码透传宿主",
-    "s10_remote_pairing": "远程配对（Obscura 无头浏览器模拟手机端，host 配合）",
+    "s10_remote_pairing": "远程配对（phone_driver 模拟手机端，host 配合）",
     "s11_update_check_mock": "检查更新（serve_mock 桩：发现新版 v0.3.0 + 已是最新）",
 }
 
@@ -70,8 +73,17 @@ def log(msg):
     print("[runner %s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
 
 
-def adb_home(device):
-    return ADB_HOME_EMU if device == "emulator" else ADB_HOME_MITV
+def avd_snapshots_dir():
+    base = os.environ.get("ANDROID_AVD_HOME")
+    if not base:
+        user_home = os.environ.get("ANDROID_USER_HOME")
+        if user_home:
+            base = os.path.join(user_home, "avd")
+        elif os.environ.get("HOME"):
+            base = os.path.join(os.environ["HOME"], ".android", "avd")
+    if not base:
+        return None
+    return os.path.join(base, "sofatype-tv.avd", "snapshots", "default_boot")
 
 
 def run(cmd, timeout=300, env_extra=None, check=True):
@@ -86,7 +98,7 @@ def run(cmd, timeout=300, env_extra=None, check=True):
 
 
 def adb(device, *args, timeout=120, check=True):
-    return run(["adb", *args], timeout=timeout, env_extra={"HOME": adb_home(device)}, check=check)
+    return run(["adb", *args], timeout=timeout, check=check)
 
 
 def adb_out(device, *args, timeout=120):
@@ -95,13 +107,7 @@ def adb_out(device, *args, timeout=120):
 
 
 def nix_dev(*cmd, timeout=1800):
-    env_extra = {
-        "HOME": ADB_HOME_EMU,
-        "GRADLE_USER_HOME": os.path.join(WORKSPACE, ".gradle-home"),
-        "XDG_CACHE_HOME": os.path.join(WORKSPACE, ".nix-cache"),
-        "JAVA_TOOL_OPTIONS": "-Duser.home=" + ADB_HOME_EMU,
-    }
-    return run(["nix", "develop", "-c", *cmd], timeout=timeout, env_extra=env_extra)
+    return run(["nix", "develop", "-c", *cmd], timeout=timeout)
 
 
 def wait_port_free(port, timeout=10):
@@ -143,7 +149,7 @@ def device_serial(device):
 
 
 def ensure_no_emulator():
-    proc = run(["adb", "devices"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
+    proc = run(["adb", "devices"], check=False)
     if "emulator-" in proc.stdout:
         raise RuntimeError("已有模拟器实例在线，不可跨回合依赖；先执行 teardown 收尾再冷启。stdout=%s" % proc.stdout)
 
@@ -152,27 +158,34 @@ def stage_boot(device):
     if device != "emulator":
         raise RuntimeError("boot 仅支持模拟器")
     ensure_no_emulator()
-    snapshots = os.path.join(ADB_HOME_EMU, ".android", "avd", "sofatype-tv.avd", "snapshots", "default_boot")
-    if os.path.isdir(snapshots):
+    snapshots = avd_snapshots_dir()
+    if snapshots and os.path.isdir(snapshots):
         shutil.rmtree(snapshots)
         log("已删 default_boot 快照（保留 userdata）→ 本次为真冷启")
+    elif not snapshots:
+        log("AVD 目录未定（未声明 ANDROID_AVD_HOME / ANDROID_USER_HOME / HOME），跳过快照清理")
     else:
         log("无 default_boot 快照，冷启成立")
     boot_log = os.path.join(SHOTS, "logs", "emulator-boot.log")
-    spawn_bg(["nix", "run", ".#tv-emulator"], boot_log, env_extra={"HOME": ADB_HOME_EMU})
+    spawn_bg(["nix", "run", ".#tv-emulator"], boot_log)
     serial = device_serial(device)
     deadline = time.time() + 60
     ready = False
+    saw_unauthorized = False
     while time.time() < deadline:
-        proc = run(["adb", "devices"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
+        proc = run(["adb", "devices"], check=False)
         line = [l for l in proc.stdout.splitlines() if l.startswith(serial)]
         if line and line[0].endswith("device"):
             ready = True
             break
         if line and line[0].endswith("unauthorized"):
-            raise RuntimeError("adb unauthorized：钥匙不对（见仓库本地开发指引「adb 密钥目录」节），停手")
+            saw_unauthorized = True
         time.sleep(2)
     if not ready:
+        if saw_unauthorized:
+            raise RuntimeError(
+                "60 秒内模拟器未就绪且持续 unauthorized：核对调用环境声明的 adb home（ANDROID_USER_HOME / HOME）"
+                "钥匙是否与 AVD 已信任钥匙一致，看 %s" % boot_log)
         raise RuntimeError("60 秒内模拟器未就绪（adb devices 无 device），看 %s" % boot_log)
     log("模拟器就绪（device）")
     uptime = adb_out(device, "shell", "cat", "/proc/uptime")
@@ -204,7 +217,7 @@ def stage_install(device, host=None, confirm_tap=None):
         try:
             install_proc = subprocess.Popen(
                 ["adb", "-s", host, "shell", "pm", "install", "-r", "/data/local/tmp/sofatype-integration.apk"],
-                env={**os.environ, "HOME": adb_home(device)},
+                env=os.environ.copy(),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             confirm_install_dialog(device, host, confirm_tap, install_proc)
             out, err = install_proc.communicate(timeout=600)
@@ -441,17 +454,17 @@ def stage_report(device, rounds, duration_note):
 def stage_teardown(device):
     log("显式收尾开始")
     if device == "emulator":
-        proc = run(["adb", "devices"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
+        proc = run(["adb", "devices"], check=False)
         if "emulator-" in proc.stdout:
             run(["adb", "shell", "svc", "power", "stayon", "false"],
-                env_extra={"HOME": ADB_HOME_EMU}, check=False)
+                check=False)
         subprocess.run(["pkill", "-f", "integration-phone-browser-"], capture_output=True)
-        run(["adb", "emu", "kill"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
+        run(["adb", "emu", "kill"], check=False)
         time.sleep(5)
         for port in (5554, 5555):
             if not wait_port_free(port, 30):
                 raise RuntimeError("端口 %d 仍有 qemu 监听，收尾未通过" % port)
-        proc = run(["adb", "devices"], env_extra={"HOME": ADB_HOME_EMU}, check=False)
+        proc = run(["adb", "devices"], check=False)
         if "emulator-" in proc.stdout:
             raise RuntimeError("adb devices 非空，收尾未通过：%s" % proc.stdout)
         log("模拟器收尾通过：5554/5555 无监听且 devices 无实例")

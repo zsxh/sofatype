@@ -32,7 +32,7 @@ import urllib.request
 
 from datetime import datetime
 
-TOOLS_INTEGRATION = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "t91")
+TOOLS_INTEGRATION = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "integration")
 sys.path.insert(0, TOOLS_INTEGRATION)
 from phone_driver import adb, adb_out, wait_page_ready, poll_page_connected  # noqa: E402  integration 既有通道（HOME 重定向封装）
 

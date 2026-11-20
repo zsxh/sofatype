@@ -14,7 +14,8 @@
   5. 配对与上屏闭环完成后把上屏文本写入 settings system 表 marker integration_phone_committed，
      通道描述写入 integration_phone_channel，instrument 侧据此断言输入框内容，报告如实记录通道。
 
-浏览器为本场景本地工具、非 flake 工具链（户主拍板放开）；obscura 已从 s10 链路移出。
+浏览器为本场景本地工具、非 flake 工具链（户主拍板放开）；自动检测覆盖 chrome / chromium / brave，
+其他支持 CDP 的浏览器（如 firefox）可手动接入调试。
 
 用法：
   python3 tools/integration/phone_driver.py --device emulator --text "客厅远程集成验证" --timeout 240
@@ -43,16 +44,12 @@ _print = functools.partial(print, flush=True)
 def print(*a, **kw):
     _print("[%s]" % datetime.now().strftime("%H:%M:%S.%f")[:-3], *a, **kw)
 
-ADB_HOME_EMU = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".emulator-adbhome")
 BROWSER_PORT = 9333
 PAGE_WS_TIMEOUT_S = 15
 
 
 def adb(device, *args, timeout=30):
-    env = os.environ.copy()
-    if device == "emulator":
-        env["HOME"] = ADB_HOME_EMU
-    return subprocess.run(["adb", *args], env=env, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(["adb", *args], env=os.environ.copy(), capture_output=True, text=True, timeout=timeout)
 
 
 def adb_out(device, *args, timeout=30):
