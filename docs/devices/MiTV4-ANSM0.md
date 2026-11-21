@@ -27,6 +27,12 @@
 3. **无 adb 关机通道**：`reboot -p` 实测等同重启；关机由设备主人遥控执行。
 4. **shell 无法真实切换 Wi-Fi**：`svc wifi disable` 报 SecurityException、airplane 设置 MiTV 栈不响应——真实网络变化只能由人在电视设置手动操作。
 5. **安装授权标准态**：安装授权判定读 global 位（UI 开关写 secure 位，两处不一致），`settings get global install_non_market_apps` 应为 `1`（长期保持置位）。
+6. **语音输入能力基线（2026-11-21 实测）**：
+   - 标准安卓语音接口不可用：全量 `dumpsys package` 三张 Resolver Table 无 `android.speech.RecognitionService`、无 `android.speech.action.RECOGNIZE_SPEECH` 处理者 → `SpeechRecognizer` / `RecognizerIntent` 在本机必失败；`voice_interaction_service` 设置位为 null（无 VoiceInteractionService）。注意特性表虽含 `android.software.voice_recognizers`，但该特性位只表声明、无服务兑现，不能作为可用判据。
+   - 机身无内置麦克风：特性表无 `android.hardware.microphone`；音频策略输入仅 SCO / 有线耳机 / USB / HDMI-in / REMOTE_SUBMIX，加专用语音遥控器输入模块 `rc`（`AUDIO_DEVICE_IN_RC`，16 kHz 单声道），配套厂商特性 `mitv.hardware.voicerc.compatible`。
+   - 系统语音能力全在厂商栈，第三方不可接入：`com.xiaomi.voicecontrol`（system uid，常驻后台白名单）持语音遥控 / 远场语音（`OPEN/CLOSE_MDSPEECH_NEW`）无障碍驱动第三方 UI（`VoiceAccessibilityService`，运行中实测）；另有 K 歌 USB 麦克风栈（`com.xiaomi.mitv.karaoke.service`）与手机遥控语音服务（`com.xiaomi.mitv.remotecontroller.service/.voice.VoiceServer`）。
+   - 键盘语音输入唯一来源是搜狗 IME 自带语音栈：搜狗（privileged，RECORD_AUDIO 已授）包内含 `com.sogou.speech.offline.OfflineService` 与 `com.sogou.speech.keyboardstate.KeyboardStateService`（AIDL 私有桥）；历史上独立的系统包 `com.sogou.speech.offlineservice` 已移除（dumpsys 记录 wiping its data）。
+   - 未实测项：普通 app uid 能否从 `rc` / SCO 通道取到音频（AudioRecord 探针未做，需装机验证）；取证时 BT GATT 连接数 0，语音遥控器未在线，其是否在位待设备主人确认。
 
 ## 四、问题与应对（当前有效）
 
@@ -46,7 +52,7 @@
 - 搜狗可能出现「`mInputShown=true` 请求态但窗口不渲染」的内部态，IME 实际显示判定须并核窗口 surface（见四.6 显示态判据）。
 - instrumented 批次按「单场景一跑」编排：每场景独立 `am instrument` 进程 + 轮间恢复纪律（BACK 清弹窗、`ime set` 核对、`logcat -c`）；收尾阶段 finished-inst 强杀 + 窗口击杀必现，属收尾噪音，场景结果以先期落盘的 tsv 为准。
 
-**补充定性（2026-11-21 对照调研，证据 `screenshots/research-ime-reset-20261121/`）**：
+**补充定性（2026-11-21 对照调研）**：
 - 触发前提量化：夺回只发生在「被切走前台包在切换瞬间持 TYPE_INPUT_METHOD 系统窗口」时。无窗口态 BACK 二次退出自家设置页实测零指纹、零杀、`default_input_method` 保持本 IME——该沿可经前提规避。
 - 应用身份无豁免：tv远程输入法 `com.tvkeyboard`（同为第三方 `/data/app` 包，页面与 IME 同包同进程）在同条件（窗口挂载态退出其应用页）下同链同杀同重置（`com.tvkeyboard has system window,so kill it` → 重选搜狗）。「tvkeyboard 不被重置」是退出瞬间窗口未挂载的条件差异，非应用属性。
 - 窗口挂载存续期：键盘 show 过一次即挂载，收起后不随收起摘除，随 IME 绑定存续（绑定随最近宿主客户端存活）；自然摘除只伴随进程死亡 / force-stop，不存在「挂载中先自然摘除再切前台」的窗口期。
