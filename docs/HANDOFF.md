@@ -18,13 +18,13 @@
 4. 实机新坑写入对应设备档案；同一事实只在设备档案维护，本文只写指向。
 5. 需求 / 设计变更与新拍板一律入对应 issue（issue 即需求），本文决策速查表按 issue 号登记一行。**基线 PRD（`docs/PRD_20261104.md`）已冻结，开发环境工具链拍板不入基线**，记录于本文决策速查与对应 issue。
 
-## 当前快照（截至 2026-11-20）
+## 当前快照（截至 2026-11-21）
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.2.0(2)（T89 起，首版 0.1.0(1)）。构建一律 `nix develop` 内 `./gradlew`。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core、日志 Timber 决策 60；测试域第三方测试库经 T91 拍板放开，限 test / androidTest / 插件作用域不进 APK）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切 CLI 工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；H5 页调试用本机支持 CDP 的无头浏览器（chrome / chromium / brave / firefox 等）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T92 全部归档；open T93（测试工具重命名与报告目录迁移）。
+- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T93 全部归档；open 无。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
@@ -69,6 +69,7 @@
 | T90 | 检查更新 mock 源占位符参数化：版本值由 serve_mock.py 启动参数注入（JSON 零硬编码，决策 17 同构）；递增包口径随基线改指 0.3.0(3)，基线包 = 工程当前版本 |
 | T91 | 测试体系拆两 issue 立项：集成测试 T91、性能回归 T92；真机操作一律先询问户主；测试域第三方测试库放开（test / androidTest / 插件作用域，不进 APK）——instrumented 层（UiAutomator）+ 黄金图逐像素对比（按设备分目录）+ Paparazzi 视觉回归（2026-11-20 户主拍板转正）；依赖可重现机制（版本目录 + 依赖锁 + SHA-256）2026-11-20 户主拍板整套废止，依赖声明内联坐标；s10 手机端模拟浏览器可换、本地检测优先（chrome > chromium > brave），模拟器 slirp 隧道与浏览器式页面加载不兼容（实测毒化）走 python3 WS 直连，浏览器路径保留真机 |
 | T92 | 性能回归 = 方案 A「应用内 debug 门控 PerfTrace 埋点 + 设备侧计时」+ JMH 引擎地板（宿主侧）；判定 = 预算绝对值 + 较基线中位数劣化 ≤20%，断言在设备端 instrument 内；基线入库与重定须拍板；模拟器数据不作性能结论；依赖声明内联坐标（同 T91 废止口径） |
+| T93 | 测试工具去 T 编号自描述化命名（`tools/integration/`、`tools/perf/`、Kotlin 类与参数键 / settings marker 同步）；集成 / 性能报告迁仓库根 `reports/`（gitignore 不入库），`screenshots/` 语义不变；根 README 收敛产品页、开发内容迁 `DEVELOP.md`；测试工具 adb home / 构建缓存全走标准环境变量（`ANDROID_USER_HOME` / `ANDROID_AVD_HOME` / `GRADLE_USER_HOME` / `XDG_CACHE_HOME`）纯透传零注入，不发明专用变量；构建产物名带 `sofatype-` 前缀；obscura 出全仓与 flake，H5 调试改通用 CDP 无头浏览器（phone_driver 自动检测 chrome / chromium / brave）（2026-11-20 多轮户主拍板） |
 
 ## 坑清单（按主题合并；细节见对应 issue）
 
