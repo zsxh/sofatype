@@ -46,6 +46,12 @@
 - 搜狗可能出现「`mInputShown=true` 请求态但窗口不渲染」的内部态，IME 实际显示判定须并核窗口 surface（见四.6 显示态判据）。
 - instrumented 批次按「单场景一跑」编排：每场景独立 `am instrument` 进程 + 轮间恢复纪律（BACK 清弹窗、`ime set` 核对、`logcat -c`）；收尾阶段 finished-inst 强杀 + 窗口击杀必现，属收尾噪音，场景结果以先期落盘的 tsv 为准。
 
+**补充定性（2026-11-21 对照调研，证据 `screenshots/research-ime-reset-20261121/`）**：
+- 触发前提量化：夺回只发生在「被切走前台包在切换瞬间持 TYPE_INPUT_METHOD 系统窗口」时。无窗口态 BACK 二次退出自家设置页实测零指纹、零杀、`default_input_method` 保持本 IME——该沿可经前提规避。
+- 应用身份无豁免：tv远程输入法 `com.tvkeyboard`（同为第三方 `/data/app` 包，页面与 IME 同包同进程）在同条件（窗口挂载态退出其应用页）下同链同杀同重置（`com.tvkeyboard has system window,so kill it` → 重选搜狗）。「tvkeyboard 不被重置」是退出瞬间窗口未挂载的条件差异，非应用属性。
+- 窗口挂载存续期：键盘 show 过一次即挂载，收起后不随收起摘除，随 IME 绑定存续（绑定随最近宿主客户端存活）；自然摘除只伴随进程死亡 / force-stop，不存在「挂载中先自然摘除再切前台」的窗口期。
+- 对照观察：`com.tvkeyboard` 的 IME 被收起时会自拉起其 MainActivity（BACK 收起沿实测，无 shell start）。
+
 ### 2. 空闲自动清杀（走查头号现场杀手）
 
 **现象**：
