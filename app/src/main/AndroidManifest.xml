@@ -41,6 +41,11 @@
             android:label="@string/log_settings_label" />
 
         <activity
+            android:name=".DictPackSettingsActivity"
+            android:exported="true"
+            android:label="@string/dict_settings_label" />
+
+        <activity
             android:name=".LogViewerActivity"
             android:exported="true"
             android:label="@string/log_viewer_label" />

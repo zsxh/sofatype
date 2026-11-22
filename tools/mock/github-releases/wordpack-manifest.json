@@ -1,0 +1,9 @@
+[
+  {
+    "name": "样例热词包",
+    "version": "1.0",
+    "sha256": "8a58d9c57ac809c8f40723c3a4b3831f144417ed1b2f4516fdeb21c51f949e0d",
+    "bytes": 172,
+    "url": "http://__HOSTPORT__/wordpack-sample.bin"
+  }
+]

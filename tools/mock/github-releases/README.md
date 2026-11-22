@@ -12,6 +12,27 @@ app 侧检查请求、解析、下载、安装链全是真实实现，本目录�
 | `build-incremented-apk.gradle` | Gradle init 脚本：构建 versionCode 真递增的 mock APK（用法见下方「APK 资产」） |
 | `releases-newer.json` | 发现新版态：tag `v__VER_NEWER__` 占位符（由 `--newer-version` 注入）+ 更新说明 + APK 资产 |
 | `releases-up-to-date.json` | 已是最新态：tag `v__VER_CUR__` 占位符（= 当前版本，由 `--current-version` 注入） |
+| `wordpack-sample-source.txt` | T94 样例词包源文本（词包原料，入库） |
+| `wordpack-sample.bin` | T94 样例词包 SPD1 产物（`./gradlew :pinyin:makeSampleWordPack` 手动产出，字节确定，入库） |
+| `wordpack-manifest.json` | T94 词包目录 manifest（名称/版本/sha256/字节数/下载地址；`url` 用 `__HOSTPORT__` 占位符） |
+| `wordpack-manifest-badsha.json` | T94 坏包态 manifest（sha256 故意错一位，走「校验失败回退」用） |
+
+## T94 词包 mock 口径
+
+- 样例词包内容：显眼包（xian yan bao）/ 尊嘟假嘟（zun du jia du）/ 泰裤辣（tai ku la）/ 搭子（da zi），四词均不在主词库（主词库 AOSP 谷歌拼音 65 105 条内无此四词，已核）。
+- 重新产出：`nix develop -c ./gradlew --no-daemon :pinyin:makeSampleWordPack`（源文本 `wordpack-sample-source.txt` → SPD1 `wordpack-sample.bin`，同源重跑字节一致）。**sha256 或字节数变了必须同步改写 `wordpack-manifest.json` 与 `wordpack-manifest-badsha.json`**（sha256 字段当前对应 172 字节产物 `8a58d9c5…949e0d`）。
+- app 侧指向（仅 debug 构建，与检查更新 mock 同模式，进程内存覆写不持久化）：
+
+```bash
+HOME=<模拟器adb钥匙目录> adb shell am broadcast \
+  -n com.sofatype.ime/.dicts.DictPackMockReceiver \
+  -a com.sofatype.ime.debug.action.SET_DICT_CATALOG \
+  -e endpoint http://10.0.2.2:8000/wordpack-manifest.json
+```
+
+- 失败可重试态走查：endpoint 指向未监听端口（如 `http://10.0.2.2:8001/wordpack-manifest.json`）；
+  坏包（sha256 不符）走查：endpoint 指向 `wordpack-manifest-badsha.json`（下载成功但校验被拒）。
+
 
 ## 版本参数口径（占位符参数化，2026-11-19 户主拍板）
 

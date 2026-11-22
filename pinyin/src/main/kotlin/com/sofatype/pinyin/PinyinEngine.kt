@@ -164,7 +164,7 @@ class PinyinEngine private constructor(
 
         fun load(input: InputStream): PinyinEngine = fromData(DictFormat.read(input))
 
-        internal fun fromData(data: DictData): PinyinEngine =
+        fun fromData(data: DictData): PinyinEngine =
             PinyinEngine(data, PinyinSegmenter(data.syllables.toSet()))
     }
 }

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/dict_pack_row"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/dict_row_height"
+        android:background="@drawable/bg_log_row"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/dict_row_padding_h"
+        android:paddingEnd="@dimen/dict_row_padding_h">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/dict_pack_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_body"
+                android:textSize="@dimen/dict_row_label_text"
+                android:textStyle="normal" />
+
+            <TextView
+                android:id="@+id/dict_pack_meta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/dict_meta_gap"
+                android:textColor="@color/text_dim"
+                android:textSize="@dimen/dict_row_meta_text" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/dict_pack_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/set_status_gap"
+            android:textColor="@color/text_dim"
+            android:textSize="@dimen/dict_row_status_text" />
+
+        <com.sofatype.ime.LogSwitchView
+            android:id="@+id/dict_pack_switch"
+            android:layout_width="@dimen/dict_switch_width"
+            android:layout_height="@dimen/dict_switch_height"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dict_pack_action_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/dict_row_padding_h"
+        android:paddingTop="4dp"
+        android:paddingEnd="@dimen/dict_row_padding_h"
+        android:paddingBottom="6dp">
+
+        <Button
+            android:id="@+id/btn_dict_pack_download"
+            android:layout_width="@dimen/btn_width"
+            android:layout_height="@dimen/btn_height"
+            android:background="@drawable/bg_btn_accent"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textColor="@color/text_body"
+            android:textSize="@dimen/btn_text"
+            android:textStyle="normal" />
+
+        <ProgressBar
+            android:id="@+id/dict_pack_progress"
+            style="@android:style/Widget.Material.ProgressBar.Horizontal"
+            android:layout_width="@dimen/dict_progress_width"
+            android:layout_height="@dimen/dict_progress_height"
+            android:layout_marginStart="@dimen/btn_gap"
+            android:max="100"
+            android:progressBackgroundTint="@color/divider_soft"
+            android:progressTint="@color/accent"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/dict_pack_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/set_status_gap"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_dim"
+            android:textSize="@dimen/dict_row_status_text" />
+    </LinearLayout>
+</LinearLayout>

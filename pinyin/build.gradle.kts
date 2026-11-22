@@ -94,6 +94,20 @@ tasks.register("buildDict") {
     dependsOn("verifyDict", "convertDict")
 }
 
+// T94 样例词包手动产出（构建机侧，不入 APK）：词包源文本 → SPD1 产物，落到 mock 源目录
+// （tools/mock/github-releases/），供词包下载链路联调；产物字节确定（同源重跑一致）。
+val sampleWordPackSourceFile = rootDir.resolve("tools/mock/github-releases/wordpack-sample-source.txt")
+val sampleWordPackOutputFile = rootDir.resolve("tools/mock/github-releases/wordpack-sample.bin")
+tasks.register<JavaExec>("makeSampleWordPack") {
+    group = "sofatype"
+    description = "T94 样例词包手动产出：源文本转 SPD1 词包产物（零网络）"
+    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
+    mainClass.set("com.sofatype.pinyin.tools.MakeWordPackKt")
+    args(sampleWordPackSourceFile.absolutePath, sampleWordPackOutputFile.absolutePath)
+    inputs.file(sampleWordPackSourceFile)
+    outputs.file(sampleWordPackOutputFile)
+}
+
 // 构建期转换入包口径（决策 28/29）：测试资源与 APK assets 复制前先保证产物就绪，
 // 避免「复制旧产物 / 转换新产物」在同轮构建中顺序不定。
 tasks.named("processResources") {

@@ -161,7 +161,7 @@
     <dimen name="set_status_dot_size">4dp</dimen>
     <dimen name="set_status_gap">4dp</dimen>
     <dimen name="set_status_text">8sp</dimen>
-    <dimen name="bottom_hint_margin_top">454.5dp</dimen>
+    <dimen name="bottom_hint_margin_top">515dp</dimen>
     <dimen name="bottom_hint_text">7.5sp</dimen>
 
     <dimen name="update_notes_text">8sp</dimen>
@@ -196,6 +196,20 @@
     <dimen name="log_view_line_spacing">4.5dp</dimen>
     <dimen name="log_hint_margin_top">415dp</dimen>
     <dimen name="log_viewer_hint_margin_top">474dp</dimen>
+
+    <dimen name="dict_card_margin_top">170dp</dimen>
+    <dimen name="dict_card_width">310dp</dimen>
+    <dimen name="dict_row_height">56dp</dimen>
+    <dimen name="dict_row_padding_h">11dp</dimen>
+    <dimen name="dict_row_label_text">9.5sp</dimen>
+    <dimen name="dict_row_meta_text">8.5sp</dimen>
+    <dimen name="dict_row_status_text">8sp</dimen>
+    <dimen name="dict_switch_width">32dp</dimen>
+    <dimen name="dict_switch_height">16dp</dimen>
+    <dimen name="dict_progress_height">12dp</dimen>
+    <dimen name="dict_progress_width">96dp</dimen>
+    <dimen name="dict_status_dot_gap">4dp</dimen>
+    <dimen name="dict_meta_gap">2dp</dimen>
 
     <dimen name="takeover_margin_top">64dp</dimen>
     <dimen name="takeover_viewer_margin_top">42dp</dimen>
