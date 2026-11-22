@@ -36,5 +36,8 @@ local.properties
 # mock 源测试装载物(本地生成,不入库;T21 挂账重验用,见 docs/issues/open/T46.md)
 tools/mock/github-releases/*.apk
 
+# T95 词包流水线产物（构建产物不入库；fixture 原料入库）
+/tools/wordpack/dist/
+
 # Python 缓存（S1）
 __pycache__/

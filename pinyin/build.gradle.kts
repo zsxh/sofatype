@@ -113,3 +113,17 @@ tasks.register<JavaExec>("makeSampleWordPack") {
 tasks.named("processResources") {
     dependsOn("buildDict")
 }
+
+tasks.register<JavaExec>("wordPackBuild") {
+    group = "sofatype"
+    description = "T95 词包流水线：scel 与热搜注音源合并转 SPD1 词包 + manifest（构建机工具，零网络）"
+    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
+    mainClass.set("com.sofatype.pinyin.tools.WordPackBuildKt")
+    dependsOn("verifyDict")
+    doFirst {
+        val toolArgs = project.findProperty("toolArgs")
+        if (toolArgs != null) {
+            args(toolArgs.toString().split(','))
+        }
+    }
+}

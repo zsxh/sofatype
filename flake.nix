@@ -96,6 +96,8 @@
               a.sdk
               a.pkgs.git # 版本管理必须工具，不依赖宿主机已有的 git
               a.pkgs.gradle # 仅用于首次 `gradle wrapper` 生成包装器；日常构建用 ./gradlew
+              a.pkgs.python3
+              a.pkgs.python3Packages.pypinyin
             ];
 
             shellHook = ''
