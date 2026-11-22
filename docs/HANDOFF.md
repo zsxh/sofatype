@@ -22,9 +22,9 @@
 
 - 工程基线：仓库根 Gradle 工程，Kotlin 1.9.24 / AGP 8.2.2；minSdk 23 / compileSdk 34 / versionName 0.2.0(2)（T89 起，首版 0.1.0(1)）。构建一律 `nix develop` 内 `./gradlew`。
 - 工具链：纯 Kotlin、无第三方 SDK（例外：二维码 ZXing core、日志 Timber 决策 60；测试域第三方测试库经 T91 拍板放开，限 test / androidTest / 插件作用域不进 APK）；拼音引擎自研 + 内置词库；跨屏 HTTP/WS 自研。一切 CLI 工具由 `flake.nix` 声明（新工具先进 flake 再用），`flake.lock` 锁 nixpkgs-unstable、必须随批提交；H5 页调试用本机支持 CDP 的无头浏览器（chrome / chromium / brave / firefox 等）；支持 aarch64-darwin/linux 与 x86_64-linux，TV arm64 镜像 API 31 起；不装 NDK/CMake（坑见构建与环境 3/4）。
-- 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。
+- 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。热词库（T96）：搜狗「网络流行新词」scel 累积库 + 百度沸点 / 实时榜 / 咬文嚼字 / 语监中心历年词，构建期转 SPD1 内置 `assets/dict/hotwords.bin`，逐词库 gradle 开关默认全内置；词库档案与开关用法见 `docs/DICTS.md`。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
-- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T95 全部归档；open T96（热词内置离线化：DROP T94/T95 词包路线，2026-11-22 已拍板立项，未开工）。
+- 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T96 全部归档；open T97（键盘交互限制：退格删不掉数字 / 符号段、行 4 ←/→ 键语义、布局切换焦点落点，2026-11-22 拍板立项，未开工）。
 - 遗留观察（挂账，不影响功能）：
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
   - flake tv-emulator 包装不透传参数：`-no-snapshot` 等实未生效，历史「冷启」多为快照恢复（判据：`/proc/uptime` 秒级 = 冷启、数百秒以上 = 快照恢复；明细见 closed/T77，2026-11-15 实测）；透传修复属 flake 改动，待户主拍板。
@@ -72,7 +72,7 @@
 | T93 | 测试工具去 T 编号自描述化命名（`tools/integration/`、`tools/perf/`、Kotlin 类与参数键 / settings marker 同步）；集成 / 性能报告迁仓库根 `reports/`（gitignore 不入库），`screenshots/` 语义不变；根 README 收敛产品页、开发内容迁 `DEVELOP.md`；测试工具 adb home / 构建缓存全走标准环境变量（`ANDROID_USER_HOME` / `ANDROID_AVD_HOME` / `GRADLE_USER_HOME` / `XDG_CACHE_HOME`）纯透传零注入，不发明专用变量；构建产物名带 `sofatype-` 前缀；obscura 出全仓与 flake，H5 调试改通用 CDP 无头浏览器（phone_driver 自动检测 chrome / chromium / brave）（2026-11-20 多轮户主拍板） |
 | T94 | 词包插件机制（词库外热词/新词）：词包 = SPD1 数据包 + manifest，设置页勾选、手动更新（自动更新不做）；分发 URL 构建期固定 GitHub Release——GitHub（Release + Actions）第三方服务例外入册（ZXing/Timber 先例同款）；下载匿名 GET 不带设备标识与输入内容，输入处理仍全本地；候选装载仍仅由组合态触发（决策 42 不变）。**2026-11-22 户主拍板 DROP，被 T96 替代后关闭** |
 | T95 | 词包流水线自动化：scel（自带拼音免注音）/ 百度热搜端点自动筛词（pypinyin 注音、查主词库去重；2026-11-22 拍板废止人工筛词）→ SPD1 + manifest → GitHub Release 发布（workflow 现仅手动触发，定时周期待拍板）；scel 版权条款限个人使用，户主拍板私人家用接受、产物不对外分发；转换确定性（重跑字节稳定）。**发布链路部分 2026-11-22 随 T96 废止；转换器资产留作 T96 复用评估** |
-| T96 | 热词内置离线化（2026-11-22 拍板）：DROP T94/T95 词包下载与 GitHub 发布路线；搜狗「网络流行新词」周更库 + 百度热搜词构建期内置 APK（不含天文词），随 app 更新，无设置挑选、用户无感知、零外部词库地址依赖；词源入库 + sha256 门禁 + 构建零网络沿决策 28/29；百度长周期词源预研：官方仅实时榜 + 年度沸点，第三方归档仓库为二手数据如采用须另拍板 |
+| T96 | 热词内置离线化（2026-11-22 拍板）：DROP T94/T95 词包下载与 GitHub 发布路线；搜狗「网络流行新词」周更库 + 百度热搜词构建期内置 APK（不含天文词），随 app 更新，无设置挑选、用户无感知、零外部词库地址依赖；词源入库 + sha256 门禁 + 构建零网络沿决策 28/29。同日追加拍板：①热词目标为历年累积库（app 年更）；②新建 `docs/DICTS.md` 词库档案；③网络公开长尾热词资源一并整合、逐源评估取舍；④gradle 构建期逐词库开关，默认全内置。合并形态评估结论：主词库去重词 64 406 逼近 SPD1 词 id uint16 上限（65 535），热词必须走独立第二数据包（运行时 DictHotMerge 加权 ×10 并入，沿 T94 实测系数）。**2026-11-22 Round 1 实施并 review-qa 审查 PASS（模拟器已验证），户主验收归档；真机待批次** |
 
 ## 坑清单（按主题合并；细节见对应 issue）
 

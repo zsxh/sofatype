@@ -7,7 +7,7 @@
 
 - 前置：[Nix](https://nix.dev)（启用 flakes）。宿主支持 macOS（Apple Silicon）与 Linux（arm64 / x86_64）。
 - 一切工具经 `nix develop` 进入开发 shell：JDK / Android SDK（含 adb、emulator、avdmanager）/ Gradle（日常构建用 `./gradlew` wrapper）全就绪。组件清单以 [flake.nix](flake.nix) 为准，勿混用系统 PATH 的 JDK / gradle / adb。
-- 首次进入会自动下载 Android SDK 组件，需网络。此后构建零网络：拼音词库源文件随仓库入库 + sha256 门禁校验（见 `pinyin/build.gradle.kts`，决策 29）。
+- 首次进入会自动下载 Android SDK 组件，需网络。此后构建零网络：拼音词库源文件随仓库入库 + sha256 门禁校验（见 `pinyin/build.gradle.kts`，决策 29）。词库清单 / 体量 / 更新方式与构建选择见 [docs/DICTS.md](docs/DICTS.md)。
 - 首次搭模拟器执行一次 `nix run .#tv-avd`（创建 tv_1080p 形态 AVD）。
 - adb home 与构建缓行走各自的标准环境变量（`ANDROID_USER_HOME` / `ANDROID_AVD_HOME` / `GRADLE_USER_HOME` / `XDG_CACHE_HOME`）：按需声明即可，工具不发明专用变量、不注入，详见 [tools/integration/README.md](tools/integration/README.md)「环境变量」节。
 
@@ -29,6 +29,13 @@
 - 复测统一加 `--rerun-tasks`：不带时已跑过的任务 UP-TO-DATE 跳过，呈假绿。
 - 通过判据：任务全部 executed + `app/build/test-results/` 下 JUnit XML 时间戳为本轮产物。
 - release 为未签名产物；真机升级安装涉及签名兼容处理，按设备档案与设备所有者现场指引执行（见 [docs/devices/](docs/devices/)）。
+
+**词库与热词（构建期内置）**：
+
+- APK 构建自动携带词库：`:pinyin` 的 `processResources` 先跑 `buildDict`（主词库 sha256 门禁 + 转换）与 `buildHotDict`（热词源 sha256 门禁 + 合并转换），无需单独执行。单独重建：`./gradlew --no-daemon :pinyin:buildDict :pinyin:buildHotDict`，产物在 `pinyin/assets/dict/`（构建产物不入库）。
+- 逐词库开关：`./gradlew assembleDebug -PsofatypeHotDicts=sogou,baidu-boiling`（逗号分隔热词源 id；默认全内置，空值全关回退纯主词库，未知 id 构建失败）。
+- 更新热词库（年更）：`nix develop -c bash tools/wordpack/refresh_hotwords.sh`——自动刷新搜狗累积库与百度实时榜并重算 `sources.sha256` 门禁；百度沸点 / 咬文嚼字 / 语监中心年度榜无 API，每年 12 月人工转录并入 `*_years.txt` 后重跑该脚本过门禁。
+- 逐词库来源、词数、大小与合并总量详见 [docs/DICTS.md](docs/DICTS.md)。
 
 ## 本地开发
 
@@ -225,6 +232,7 @@ python3 tools/perf/perf_report.py --samples reports/perf/perf-samples.logcat \
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | 协作规范与红线（动手前必读；变更走 issue 制） |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | 关键决策 / 坑清单 / 当前状态 / 代码接入速查 |
+| [docs/DICTS.md](docs/DICTS.md) | 词库档案（清单 / 体量 / 更新方式 / 构建选择） |
 | [tools/integration/README.md](tools/integration/README.md) | 集成测试工具 man page（选项 / 阶段 / 退出状态 / 限制） |
 | [tools/perf/README.md](tools/perf/README.md) | 性能回归工具 man page（子命令 / 判定口径 / 数据格式） |
 | [tools/mock/github-releases/README.md](tools/mock/github-releases/README.md) | 检查更新 mock 源用法 |

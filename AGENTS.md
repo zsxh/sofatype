@@ -61,7 +61,7 @@ sofatype/
   - **CHANGELOG（[`CHANGELOG.md`](CHANGELOG.md)）**：发版时更新，一版一节，按该版本包含的 issue 汇总（新增 / 变更 / 修复）。
 - **文档同步**：实测结论与新踩的坑写入对应[设备档案](docs/devices/)（一机一档：概述 / 参数 / 踩过的坑 / 已知问题）；开发环境问题写入 `local/DEV-GUIDE.md`（不提交）；新拍板决策与口径入对应 issue，[`docs/HANDOFF.md`](docs/HANDOFF.md) 决策速查表按 issue 号登记一行（基线 PRD 决策 1~78 已冻结，决策编号体系废止）。
 - 提交信息与代码注释用中文。
-- **代码注释白名单 = TODO / FIXME 工作签**：为防 agent 受过时或可能错误的注释与实现思路误导，代码实现中不允许新增 TODO、FIXME 工作签以外的任何注释，KDoc / 行注释 / 块注释一律不加；设计依据、决策与口径一律入 issue（基线只读引用），不入代码。
+- **代码注释白名单 = TODO / FIXME 工作签**：为防 agent 受过时或可能错误的注释与实现思路误导，代码实现中不允许新增 TODO、FIXME 工作签以外的任何注释，KDoc / 行注释 / 块注释一律不加；设计依据、决策与口径一律入 issue（基线只读引用），不入代码。构建脚本（`*.gradle.kts`、`flake.nix` 等非 Kotlin 实现代码）豁免，延续存量注释风格（2026-11-22 户主拍板）。
 - **提交信息遵循 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) 规范**：结构为 `<type>(<scope>): <描述>` + 可选 body + 可选 footer；type / scope / footer 关键词用规范固定英文词，描述与正文按上一条用中文。
   - **type（必填，小写英文）**：`feat` 新功能、`fix` 修 bug 必用；其余按需选 `build`、`chore`、`ci`、`docs`、`style`、`refactor`、`perf`、`test`、`revert`。
   - **scope（可选）**：括号内的名词，标明改动区域，如 `fix(ime):`。
