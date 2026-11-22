@@ -61,6 +61,7 @@ android {
 // 变体任务由 AGP 后注册，用惰性匹配挂依赖；debug / release 两变体共用 assets 源目录，边都要挂。
 tasks.matching { it.name == "mergeDebugAssets" || it.name == "mergeReleaseAssets" }.configureEach {
     dependsOn(":pinyin:buildDict")
+    dependsOn(":pinyin:buildHotDict")
 }
 
 dependencies {

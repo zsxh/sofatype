@@ -94,36 +94,76 @@ tasks.register("buildDict") {
     dependsOn("verifyDict", "convertDict")
 }
 
-// T94 样例词包手动产出（构建机侧，不入 APK）：词包源文本 → SPD1 产物，落到 mock 源目录
-// （tools/mock/github-releases/），供词包下载链路联调；产物字节确定（同源重跑一致）。
-val sampleWordPackSourceFile = rootDir.resolve("tools/mock/github-releases/wordpack-sample-source.txt")
-val sampleWordPackOutputFile = rootDir.resolve("tools/mock/github-releases/wordpack-sample.bin")
-tasks.register<JavaExec>("makeSampleWordPack") {
-    group = "sofatype"
-    description = "T94 样例词包手动产出：源文本转 SPD1 词包产物（零网络）"
-    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
-    mainClass.set("com.sofatype.pinyin.tools.MakeWordPackKt")
-    args(sampleWordPackSourceFile.absolutePath, sampleWordPackOutputFile.absolutePath)
-    inputs.file(sampleWordPackSourceFile)
-    outputs.file(sampleWordPackOutputFile)
+// ---- T96 · 热词内置离线化：热词源入库 + sha256 门禁 + 构建期转 SPD1（零网络，逐词库开关）----
+// 热词源文件（入库 pinyin/dictsrc/hotwords/，sha256 锁定见 sources.sha256）：
+// id -> (文件, 原料类型)；scel = 搜狗细胞词库原件（自带拼音），hot = 注音源文本行（词 频次 0 拼音…）。
+val hotDictSources = linkedMapOf(
+    "sogou" to Triple("sogou-liuxingxinci.scel", "scel", "搜狗网络流行新词累积库"),
+    "baidu-boiling" to Triple("baidu-boiling-years.txt", "hot", "百度沸点/搜索风云榜历年榜（人工整理）"),
+    "nlc-netlang" to Triple("nlc-netlang-years.txt", "hot", "国家语言资源监测中心年度网络用语"),
+    "yaowenjiaozi" to Triple("yaowenjiaozi-years.txt", "hot", "咬文嚼字年度十大流行语"),
+    "baidu-realtime" to Triple("baidu-realtime-days.txt", "hot", "百度实时榜多日积累"),
+)
+val hotDictSourceDir = layout.projectDirectory.dir("dictsrc/hotwords")
+val hotDictLockFile = hotDictSourceDir.file("sources.sha256")
+val hotDictOutputFile = layout.projectDirectory.file("assets/dict/hotwords.bin")
+
+// 构建开关（户主 2026-11-22 拍板：默认全内置）：-PsofatypeHotDicts=sogou,baidu-boiling 选择子集；
+// 未设置 = 全部热词源；设为空值（-PsofatypeHotDicts=）= 全不内置（产物为空 SPD1，运行时回退纯主词库）；
+// 未知 id 构建失败。
+val hotDictSelected: List<String> = run {
+    val raw = findProperty("sofatypeHotDicts") as String?
+    if (raw == null) {
+        hotDictSources.keys.toList()
+    } else {
+        val picked = raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val unknown = picked.filter { it !in hotDictSources }
+        require(unknown.isEmpty()) { "未知热词源 id：$unknown（可选：${hotDictSources.keys}）" }
+        hotDictSources.keys.filter { it in picked.toSet() }
+    }
 }
+
+tasks.register<JavaExec>("verifyHotDict") {
+    group = "sofatype"
+    description = "校验热词源文件 sha256 与入库锁定值一致（sources.sha256）"
+    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
+    mainClass.set("com.sofatype.pinyin.tools.VerifyHotDictKt")
+    args(hotDictSourceDir.asFile.absolutePath)
+    inputs.file(hotDictLockFile)
+    inputs.files(hotDictSources.values.map { hotDictSourceDir.file(it.first) })
+}
+
+tasks.register<JavaExec>("buildHotDict") {
+    group = "sofatype"
+    description = "热词源合并转换为 SPD1 内置产物（零网络；-PsofatypeHotDicts 逐词库开关）"
+    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
+    mainClass.set("com.sofatype.pinyin.tools.HotDictBuildKt")
+    dependsOn("verifyDict", "verifyHotDict")
+    doFirst {
+        val selected = hotDictSelected.ifEmpty {
+            println("[hotDictBuild] 热词源全不内置（sofatypeHotDicts 为空），产物为空 SPD1")
+            emptyList()
+        }
+        val materials = selected.map { id ->
+            val (file, kind, label) = hotDictSources.getValue(id)
+            println("[hotDictBuild] 热词源 ${id}（${label}）：${kind}:${hotDictSourceDir.file(file).asFile.absolutePath}")
+            "${kind}:${hotDictSourceDir.file(file).asFile.absolutePath}"
+        }
+        args(
+            hotDictOutputFile.asFile.absolutePath,
+            dictSourceFile.asFile.absolutePath,
+        )
+        if (materials.isNotEmpty()) args(materials)
+    }
+    inputs.file(dictSourceFile)
+    inputs.files(hotDictSelected.map { hotDictSourceDir.file(hotDictSources.getValue(it).first) })
+    outputs.file(hotDictOutputFile)
+}
+
+// T96 热词构建任务见上方 buildHotDict 段（词包样例产出与 manifest 分发链路随 T94/T95 废止移除）
 
 // 构建期转换入包口径（决策 28/29）：测试资源与 APK assets 复制前先保证产物就绪，
 // 避免「复制旧产物 / 转换新产物」在同轮构建中顺序不定。
 tasks.named("processResources") {
-    dependsOn("buildDict")
-}
-
-tasks.register<JavaExec>("wordPackBuild") {
-    group = "sofatype"
-    description = "T95 词包流水线：scel 与热搜注音源合并转 SPD1 词包 + manifest（构建机工具，零网络）"
-    classpath = sourceSets["main"].compileClasspath + files(sourceSets["main"].output.classesDirs)
-    mainClass.set("com.sofatype.pinyin.tools.WordPackBuildKt")
-    dependsOn("verifyDict")
-    doFirst {
-        val toolArgs = project.findProperty("toolArgs")
-        if (toolArgs != null) {
-            args(toolArgs.toString().split(','))
-        }
-    }
+    dependsOn("buildDict", "buildHotDict")
 }

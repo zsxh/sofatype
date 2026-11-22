@@ -1,63 +1,46 @@
-# tools/wordpack · 词包流水线（T95）
+# tools/wordpack · 热词源刷新工具（T96）
 
-从原料（搜狗细胞词库 scel + 百度热搜自动筛词）产出单个 SPD1 热词包 + manifest。
-构建机工具链，产物不入 APK；主词库 `ConvertDict` / `VerifyDict` / sha256 门禁零改动。
+本目录是构建机侧词源刷新工具。抓取与整理热词源，产物入库 `pinyin/dictsrc/hotwords/`。
+gradle 构建期零网络；词源抓取只发生在本机刷新时。
 
-## 原料
+## 入库词源（pinyin/dictsrc/hotwords/）
 
 | 文件 | 说明 |
 | --- | --- |
-| `fixtures/sogou-wangluoliuxingxinci.scel` | 搜狗官方细胞词库「网络流行新词」样本（276,283 字节，2026-11-22 取自 `pinyin.sogou.com/d/dict/download_cell.php?id=4`，ECS 头格式） |
-| `fixtures/sogou-tianwencihui.scel` | 搜狗官方细胞词库「天文词汇大全」样本（89,866 字节，同渠道 id=15204，DCS 头格式） |
-| `fixtures/baidu-hot-search-sample.json` | 百度热搜官方榜单页内嵌 s-data JSON 样本快照（2026-11-22 抓取，51 词条；仅作链路输入样本，非实时端点响应） |
+| `sogou-liuxingxinci.scel` | 搜狗官方细胞词库「网络流行新词」累积库原件（ECS 头，自带拼音，官方周更；sha256 见 `sources.sha256`） |
+| `baidu-boiling-years.txt` | 百度沸点 / 百度搜索风云榜历年榜单人工整理注音行（2009 起逐年；年份顺序为新在前） |
+| `nlc-netlang-years.txt` | 国家语言资源监测中心年度十大网络用语（2012 起）注音行 |
+| `yaowenjiaozi-years.txt` | 《咬文嚼字》年度十大流行语（2008 起）注音行 |
+| `baidu-realtime-days.txt` | 百度实时热搜榜多日积累注音行（抓取 → 筛词 → 注音后追加式并入） |
+| `sources.sha256` | 全部热词源 sha256 锁定文件；构建期 `verifyHotDict` 门禁 + 单测 `HotDictSourceLockTest` 双核对 |
 
-scel 版权口径：官方条款限个人使用（T95 口径 4，户主 2026-11-22 拍板），私人家用使用，产物不对外分发。
+注音行格式：`词 频次 0 拼音…`（频次固定 3000.0；拼音由 pypinyin 生成，一词一音节）。
+词表条目规则：纯汉字、1~6 字；字母数字混合条目（如「栓Q」「YYDS」「city不city」）无法按拼音输入，不入词表。
+许可与逐源评估结论见 `docs/DICTS.md`。
 
-热搜端点：`https://top.baidu.com/board?tab=realtime`，数据为页面内嵌 `<!--s-data:{JSON}-->`；
-该地址 API 路径 `/api/platform/getBoard` 实测 404，抓取走页面内嵌数据块（`fetch_hot_search.py`）。
-
-## 链路
-
-1. `fetch_hot_search.py`：抓端点 → s-data JSON 快照（离线验证可改用 fixtures 样本快照）。
-2. `screen_hot_words.py`：自动筛词。规则：跳过置顶运营位（`isTop`）；标题按标点/空白切分；
-   片段须纯汉字、2~6 字（6 字上限 = SPD1 单词条音节数上限）；榜单原序去重；取前 30。
-3. `hot_search_annotate.py`：筛出词经 pypinyin 注音为源文本行 `词 频次 0 拼音…`（频次固定 3000.0；
-   拼音不可用即跳过并计数）。scel 自带拼音，免注音。
-4. `./gradlew :pinyin:wordPackBuild`：两路汇合——scel 词条全量并入，热搜词查主词库
-   （`pinyin/dictsrc/rawdict_utf16_65105_freq.txt`）去重、跨原料去重，转 SPD1 并生成 manifest。
-
-## 跑法
+## 刷新（年更，发版前人工执行一次）
 
 ```bash
-# 本地完整流水线（默认版本号 = 当日日期.1；含环境重定向，见仓库本地开发指引「构建与测试」节）
-bash tools/wordpack/build_wordpack.sh
-# 指定版本号与输出目录
-bash tools/wordpack/build_wordpack.sh 20261122.1 tools/wordpack/dist
-# 确定性重跑（固定原料：热搜改用 fixtures 样本快照；产物 sha256 须与首跑一致）
-HOT_SNAPSHOT=tools/wordpack/fixtures/baidu-hot-search-sample.json \
-  nix develop -c bash tools/wordpack/pipeline.sh 20261122.1 tools/wordpack/dist-check
+nix develop -c bash tools/wordpack/refresh_hotwords.sh
 ```
 
-产物（`tools/wordpack/dist/`，gitignore 不入库）：
+步骤：①scel 整包重抓（需先访问详情页取会话，直链会被拒绝）→ ②百度实时榜抓取、筛词、注音、追加并入 → ③重算 `sources.sha256` → ④`verifyHotDict` 门禁复验 → ⑤人工整理当年沸点 / 咬文嚼字 / 语监中心榜单并入 `*_years.txt`。核对 `git diff` 后随发版批次提交。
 
-| 文件 | 说明 |
+## 构建接线
+
+- 热词源 → SPD1：`:pinyin:buildHotDict`（合并去重、查主词库去重、确定性产物，见 `pinyin/build.gradle.kts`）。
+- 逐词库开关：`-PsofatypeHotDicts=<id,…>`；默认全内置。用法见 `docs/DICTS.md`。
+- 运行时：APK 内置 `assets/dict/hotwords.bin`，引擎装载时并入（`PinyinEngineLoader` + `DictHotMerge`）。
+
+## 单测
+
+`ScelDictParserTest`（scel 解析）、`HotDictBuildTest`（合并去重、超限跳过、同源重跑 sha256 一致）、
+`HotDictSourceLockTest`（源文件 sha256 门禁）、`DictHotMergeTest` / `DictHotRealDictTest`（运行时合并与加权排序）。
+跑法：`nix develop -c ./gradlew --no-daemon :pinyin:test --rerun-tasks`。
+
+## 词源抓取端点
+
+| 端点 | 说明 |
 | --- | --- |
-| `baidu-hot-search-snapshot.json` | 本轮热搜原料快照 |
-| `hot-words-screened.txt` / `hot-words-annotated.txt` | 筛词与注音中间产物 |
-| `wordpack.bin` | SPD1 热词包（复用 `DictFormat`，词 + 拼音 + 权重） |
-| `manifest.json` | 词包清单，字段 name / version / sha256 / bytes / url |
-
-manifest 口径：`version` 格式 `YYYYMMDD.N`；`sha256` 与 `bytes` 对应 `wordpack.bin`；
-`url` 固定空串 = 分发 URL 未配置（T94 追加补充同口径，待户主提供后回填重出）。
-已知缺口：当前 app 侧 `DictPackManifestParser` 要求 `url` 非空 http(s)，空串 manifest
-在「分发源未配置」态加载会回退纯主词库，不阻塞输入主链路。
-
-## 单测与 CI
-
-- 转换核心单测：`ScelDictParserTest`（scel 解析：ECS/DCS/SCEL 头、同音词组、附加区、坏词跳过、
-  魔数校验）、`WordPackBuildTest`（注音去重合并、SPD1 往返、manifest 生成与确定性）。跑法：
-  `nix develop -c ./gradlew --no-daemon :pinyin:test --rerun-tasks`。
-- GitHub Actions：`.github/workflows/wordpack.yml`，仅 `workflow_dispatch` 手动触发
-  （户主拍板暂不定时），CI 装 JDK 17 + Python + pypinyin 后跑 `pipeline.sh`，产物上传 artifact，
-  不发布 Release。该 workflow 仓库暂无远端，未实测。
-- 本机兜底：`build_wordpack.sh`（环境重定向 + nix develop 内跑 pipeline.sh）。
+| `https://pinyin.sogou.com/dict/detail/index/4` → `download_cell.php?id=4&…` | 搜狗细胞词库「网络流行新词」（`fetch_sogou_scel.py`；直链访问返回 HTML，须先 GET 详情页取会话） |
+| `https://top.baidu.com/board?tab=realtime` | 百度热搜官方榜单页，数据为页面内嵌 `<!--s-data:{JSON}-->`（`fetch_hot_search.py`；API 路径 `/api/platform/getBoard` 实测 404） |

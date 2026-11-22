@@ -22,15 +22,6 @@
                 <action android:name="com.sofatype.ime.debug.action.SET_UPDATE_ENDPOINT" />
             </intent-filter>
         </receiver>
-
-        <receiver
-            android:name=".dicts.DictPackMockReceiver"
-            android:exported="true">
-
-            <intent-filter>
-                <action android:name="com.sofatype.ime.debug.action.SET_DICT_CATALOG" />
-            </intent-filter>
-        </receiver>
     </application>
 
 </manifest>

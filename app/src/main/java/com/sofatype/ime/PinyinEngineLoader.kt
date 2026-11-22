@@ -2,7 +2,7 @@ package com.sofatype.ime
 
 import com.sofatype.pinyin.DictData
 import com.sofatype.pinyin.DictFormat
-import com.sofatype.pinyin.DictPackMerge
+import com.sofatype.pinyin.DictHotMerge
 import com.sofatype.pinyin.PinyinEngine
 import java.io.InputStream
 import java.util.concurrent.LinkedBlockingQueue
@@ -13,7 +13,7 @@ class PinyinEngineLoader(
     private val openAsset: (String) -> InputStream,
     private val fullAssetPath: String,
     private val highFreqAssetPath: String,
-    private val packDataProvider: (() -> List<DictData>)? = null,
+    private val hotAssetPaths: List<String> = emptyList(),
     private val threadFactory: (Runnable) -> Thread = { Thread(it, PRELOAD_THREAD_NAME) },
     private val onEngineReady: (scope: String, entryCount: Int) -> Unit = { _, _ -> },
     private val onLoadFailure: (scope: String, error: Throwable) -> Unit = { _, _ -> },
@@ -50,7 +50,7 @@ class PinyinEngineLoader(
             if (base == null) {
                 preloadSequence()
             } else {
-                activateFullWithPacks(base)
+                activateFullWithHot(base)
             }
         }
     }
@@ -74,7 +74,7 @@ class PinyinEngineLoader(
         if (scope == SCOPE_FULL) {
             fullData = data
             fullReady = true
-            activateFullWithPacks(data)
+            activateFullWithHot(data)
         } else if (fullReady) {
             return
         } else {
@@ -84,27 +84,31 @@ class PinyinEngineLoader(
         }
     }
 
-    private fun activateFullWithPacks(base: DictData) {
-        val packs = loadPacks()
-        val engine = if (packs.isEmpty()) {
+    private fun activateFullWithHot(base: DictData) {
+        val hotDicts = loadHotDicts()
+        val engine = if (hotDicts.isEmpty()) {
             PinyinEngine.fromData(base)
         } else {
             PinyinEngine.fromData(
-                DictPackMerge.mergeBaseWithPacks(base, packs, DictPackMerge.DEFAULT_PACK_FREQ_BOOST),
+                DictHotMerge.mergeBaseWithHot(base, hotDicts, DictHotMerge.DEFAULT_HOT_FREQ_BOOST),
             )
         }
         activeEngine = engine
         onEngineReady(SCOPE_FULL, engine.entryCount)
     }
 
-    private fun loadPacks(): List<DictData> {
-        val provider = packDataProvider ?: return emptyList()
-        return try {
-            provider()
-        } catch (t: Throwable) {
-            alwaysLog(failureMessage(SCOPE_PACKS, t))
-            emptyList()
+    private fun loadHotDicts(): List<DictData> {
+        if (hotAssetPaths.isEmpty()) return emptyList()
+        val loaded = ArrayList<DictData>(hotAssetPaths.size)
+        for (path in hotAssetPaths) {
+            try {
+                openAsset(path).use { loaded.add(DictFormat.read(it)) }
+            } catch (t: Throwable) {
+                onLoadFailure(SCOPE_HOT, t)
+                alwaysLog(failureMessage(SCOPE_HOT, t))
+            }
         }
+        return loaded
     }
 
     companion object {
@@ -113,7 +117,7 @@ class PinyinEngineLoader(
 
         const val SCOPE_FULL = "full"
 
-        const val SCOPE_PACKS = "packs"
+        const val SCOPE_HOT = "hot"
 
         const val PRELOAD_THREAD_NAME = "PinyinEnginePreload"
 

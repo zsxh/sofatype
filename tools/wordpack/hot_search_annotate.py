@@ -18,7 +18,7 @@ def annotate_word(word):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="筛出词经 pypinyin 注音为词包源文本行")
+    parser = argparse.ArgumentParser(description="筛出词经 pypinyin 注音为热词源文本行")
     parser.add_argument("--in", dest="input", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()

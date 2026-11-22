@@ -71,4 +71,12 @@ class DictFormatTest {
         assertEquals("欧美国家", round.words[0])
         assertArrayEquals(intArrayOf(0, 1, 2, 3), round.entries[0].syllableIds)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `词数超 uint16 字段上限拒绝写出`() {
+        val syllables = listOf("a")
+        val words = List(0x10001) { "词$it" }
+        val entries = words.mapIndexed { i, _ -> DictData.Entry(intArrayOf(0), i, 1.0) }
+        DictFormat.write(DictData(syllables, words, entries), ByteArrayOutputStream())
+    }
 }

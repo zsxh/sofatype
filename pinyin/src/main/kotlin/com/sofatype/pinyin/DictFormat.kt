@@ -15,7 +15,13 @@ object DictFormat {
 
     private const val MAX_WORD_BYTES = 64
 
+    private const val MAX_SYLLABLE_COUNT = 0x10000
+
+    private const val MAX_WORD_COUNT = 0x10000
+
     fun write(data: DictData, output: OutputStream) {
+        require(data.syllables.size <= MAX_SYLLABLE_COUNT) { "音节数超 uint16 字段上限：${data.syllables.size}" }
+        require(data.words.size <= MAX_WORD_COUNT) { "词数超 uint16 字段上限：${data.words.size}" }
         val out = DataOutputStream(output.buffered())
         out.write(MAGIC)
         out.writeInt(VERSION)

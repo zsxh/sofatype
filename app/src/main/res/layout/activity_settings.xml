@@ -299,31 +299,6 @@
             </LinearLayout>
         </LinearLayout>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/version_divider_h"
-            android:background="@color/divider_soft" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/version_test_row_height"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btn_dicts"
-                android:layout_width="@dimen/btn_width"
-                android:layout_height="@dimen/btn_height"
-                android:background="@drawable/bg_btn_accent"
-                android:contentDescription="@string/cd_btn_dicts"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text="@string/btn_dicts"
-                android:textColor="@color/text_body"
-                android:textSize="@dimen/btn_text"
-                android:textStyle="normal" />
-        </LinearLayout>
-
         <TextView
             android:id="@+id/update_notes"
             android:layout_width="match_parent"

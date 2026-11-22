@@ -11,7 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 
-class PinyinEngineLoaderPackTest {
+class PinyinEngineLoaderHotTest {
 
     private val syllables = listOf("da", "zi", "xian", "yan", "bao")
 
@@ -35,7 +35,7 @@ class PinyinEngineLoaderPackTest {
         ),
     )
 
-    private fun packBytes(): ByteArray = spd1Bytes(
+    private fun hotBytes(): ByteArray = spd1Bytes(
         dictData(listOf(Triple("显眼包", listOf("xian", "yan", "bao"), 5000.0))),
     )
 
@@ -49,46 +49,40 @@ class PinyinEngineLoaderPackTest {
 
     private fun loader(
         openAsset: (String) -> InputStream,
-        packProvider: (() -> List<DictData>)? = null,
+        hotAssetPaths: List<String> = emptyList(),
         logged: ((String) -> Unit)? = null,
     ): PinyinEngineLoader =
         PinyinEngineLoader(
             openAsset = openAsset,
             fullAssetPath = "full.bin",
             highFreqAssetPath = "highfreq.bin",
-            packDataProvider = packProvider,
+            hotAssetPaths = hotAssetPaths,
             alwaysLog = logged ?: {},
         )
 
     private fun words(loader: PinyinEngineLoader, input: String): List<String> =
         loader.engineForQuery()?.query(input, limit = 20)?.map { it.word } ?: emptyList()
 
-    private fun awaitWords(loader: PinyinEngineLoader, input: String, expect: (List<String>) -> Boolean): List<String> {
-        val deadline = System.currentTimeMillis() + 5_000
-        var latest = words(loader, input)
-        while (!expect(latest) && System.currentTimeMillis() < deadline) {
-            Thread.sleep(20)
-            latest = words(loader, input)
-        }
-        return latest
-    }
-
     @Test
-    fun `预加载后词包并入全量段_整拼命中词包词且主库词序保持`() {
+    fun `预加载后内置热词并入全量段_整拼命中热词且主库词序保持`() {
         val testLoader = loader(
-            mapOpenAsset("full.bin" to baseBytes(), "highfreq.bin" to baseBytes()),
-            packProvider = { listOf(DictFormat.read(ByteArrayInputStream(packBytes()))) },
+            mapOpenAsset(
+                "full.bin" to baseBytes(),
+                "highfreq.bin" to baseBytes(),
+                "dict/hotwords.bin" to hotBytes(),
+            ),
+            hotAssetPaths = listOf("dict/hotwords.bin"),
         )
         testLoader.preloadSequence()
 
         assertEquals("显眼包", words(testLoader, "xianyanbao").firstOrNull())
-        assertEquals("主库查询结果不受词包并入影响", "打字", words(testLoader, "dazi").firstOrNull())
+        assertEquals("主库查询结果不受热词并入影响", "打字", words(testLoader, "dazi").firstOrNull())
         assertTrue("主库词仍在候选内", "大字" in words(testLoader, "dazi"))
-        assertEquals("显眼包 不应出现在 dazi 候选", null, words(testLoader, "dazi").firstOrNull { it == "显眼包" })
+        assertNull("显眼包 不应出现在 dazi 候选", words(testLoader, "dazi").firstOrNull { it == "显眼包" })
     }
 
     @Test
-    fun `无词包提供方_行为与现状一致`() {
+    fun `无热词资产_行为与纯主词库一致`() {
         val testLoader = loader(mapOpenAsset("full.bin" to baseBytes(), "highfreq.bin" to baseBytes()))
         testLoader.preloadSequence()
 
@@ -98,11 +92,11 @@ class PinyinEngineLoaderPackTest {
     }
 
     @Test
-    fun `词包提供方整体失败_回退纯主词库并恒记一行`() {
+    fun `热词资产缺失_回退纯主词库且按 hot 范围记失败`() {
         val logged = mutableListOf<String>()
         val testLoader = loader(
             mapOpenAsset("full.bin" to baseBytes(), "highfreq.bin" to baseBytes()),
-            packProvider = { throw IOException("pack provider broken") },
+            hotAssetPaths = listOf("dict/hotwords.bin"),
             logged = { line -> logged.add(line) },
         )
         testLoader.preloadSequence()
@@ -110,29 +104,64 @@ class PinyinEngineLoaderPackTest {
         assertEquals("显眼包不在候选", null, words(testLoader, "xianyanbao").firstOrNull())
         assertEquals(2, testLoader.engineForQuery()?.entryCount)
         assertEquals(1, logged.size)
-        assertTrue(logged[0].contains("scope=${PinyinEngineLoader.SCOPE_PACKS}"))
+        assertTrue(logged[0].contains("scope=${PinyinEngineLoader.SCOPE_HOT}"))
         assertTrue("引擎可用时不得落终态行", !logged.contains(PinyinEngineLoader.TERMINAL_FAILURE_MESSAGE))
     }
 
     @Test
-    fun `勾选集合变化触发重建_重建后词包词生效_取消后回退`() {
-        val enabled = mutableListOf<DictData>()
+    fun `热词资产损坏_回退纯主词库不崩`() {
         val testLoader = loader(
-            mapOpenAsset("full.bin" to baseBytes(), "highfreq.bin" to baseBytes()),
-            packProvider = { enabled.toList() },
+            mapOpenAsset(
+                "full.bin" to baseBytes(),
+                "highfreq.bin" to baseBytes(),
+                "dict/hotwords.bin" to byteArrayOf(1, 2, 3),
+            ),
+            hotAssetPaths = listOf("dict/hotwords.bin"),
         )
         testLoader.preloadSequence()
-        assertNull("初始无勾选词包", words(testLoader, "xianyanbao").firstOrNull())
 
-        enabled.add(DictFormat.read(ByteArrayInputStream(packBytes())))
-        testLoader.rebuild()
-        val afterEnable = awaitWords(testLoader, "xianyanbao") { it.isNotEmpty() }
-        assertEquals("勾选后重建应命中词包词", "显眼包", afterEnable.firstOrNull())
+        assertEquals(2, testLoader.engineForQuery()?.entryCount)
+        assertTrue("打字" in words(testLoader, "dazi"))
+    }
 
-        enabled.clear()
+    @Test
+    fun `多热词资产依序合并_任一失败其余仍生效`() {
+        val zunSyllables = listOf("zun", "du", "jia")
+        val zunDict = DictData(
+            zunSyllables,
+            listOf("尊嘟假嘟"),
+            listOf(DictData.Entry(intArrayOf(0, 1, 2, 1), 0, 4000.0)),
+        )
+        val testLoader = loader(
+            mapOpenAsset(
+                "full.bin" to baseBytes(),
+                "highfreq.bin" to baseBytes(),
+                "dict/hotwords.bin" to hotBytes(),
+                "dict/hotwords2.bin" to spd1Bytes(zunDict),
+            ),
+            hotAssetPaths = listOf("dict/hotwords.bin", "dict/hotwords-broken.bin", "dict/hotwords2.bin"),
+        )
+        testLoader.preloadSequence()
+
+        assertEquals("显眼包", words(testLoader, "xianyanbao").firstOrNull())
+        assertEquals("尊嘟假嘟", words(testLoader, "zundujiadu").firstOrNull())
+    }
+
+    @Test
+    fun `重建后热词生效_主库词序不变`() {
+        val testLoader = loader(
+            mapOpenAsset(
+                "full.bin" to baseBytes(),
+                "highfreq.bin" to baseBytes(),
+                "dict/hotwords.bin" to hotBytes(),
+            ),
+            hotAssetPaths = listOf("dict/hotwords.bin"),
+        )
+        testLoader.preloadSequence()
+
+        assertEquals("显眼包", words(testLoader, "xianyanbao").firstOrNull())
         testLoader.rebuild()
-        val afterDisable = awaitWords(testLoader, "xianyanbao") { it.isEmpty() }
-        assertTrue("取消勾选后回退纯主词库", afterDisable.isEmpty())
-        assertTrue("主库查询不受影响", "打字" in words(testLoader, "dazi"))
+        assertEquals("显眼包", words(testLoader, "xianyanbao").firstOrNull())
+        assertEquals("打字", words(testLoader, "dazi").firstOrNull())
     }
 }

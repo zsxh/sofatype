@@ -22,16 +22,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.sofatype.ime.debug.DebugLogStore
-import com.sofatype.ime.dicts.DictPackEngineSource
-import com.sofatype.ime.dicts.DictPackRefresher
-import com.sofatype.ime.dicts.DictPackStore
 import com.sofatype.ime.remote.RemoteBackPolicy
 import com.sofatype.ime.remote.RemoteInputServer
 import com.sofatype.ime.remote.RemoteInputServerManager
 import com.sofatype.ime.remote.RemoteReentryFocusPolicy
 import com.sofatype.ime.remote.RemoteTextScrollTarget
 import timber.log.Timber
-import java.io.File
 
 class SofatypeImeService : InputMethodService() {
 
@@ -51,7 +47,7 @@ class SofatypeImeService : InputMethodService() {
 
         const val DICT_HIGH_FREQ_ASSET_PATH = "dict/pinyin_dict_highfreq.bin"
 
-        const val DICT_PACK_DIR_NAME = "dicts"
+        const val DICT_HOT_ASSET_PATH = "dict/hotwords.bin"
 
         const val CURSOR_ANCHOR = "\u00A0"
 
@@ -72,7 +68,6 @@ class SofatypeImeService : InputMethodService() {
         super.onCreate()
         trace("onCreate")
 
-        DictPackRefresher.register { pinyinEngineLoader.rebuild() }
         pinyinEngineLoader.startPreload()
     }
 
@@ -122,7 +117,7 @@ class SofatypeImeService : InputMethodService() {
             openAsset = assets::open,
             fullAssetPath = DICT_ASSET_PATH,
             highFreqAssetPath = DICT_HIGH_FREQ_ASSET_PATH,
-            packDataProvider = { dictPackEngineSource.loadEnabled() },
+            hotAssetPaths = listOf(DICT_HOT_ASSET_PATH),
             onEngineReady = { scope, entryCount ->
                 trace("pinyin engine ready scope=$scope entryCount=$entryCount")
             },
@@ -131,15 +126,6 @@ class SofatypeImeService : InputMethodService() {
             },
 
             alwaysLog = { message -> Timber.tag(TRACE_TAG).w(message) },
-        )
-    }
-
-    private val dictPackEngineSource: DictPackEngineSource by lazy {
-        DictPackEngineSource(
-            store = DictPackStore(File(filesDir, DICT_PACK_DIR_NAME)),
-            onPackSkip = { name, reason ->
-                trace("pinyin dict pack skipped name=$name reason=$reason")
-            },
         )
     }
 
@@ -248,7 +234,6 @@ class SofatypeImeService : InputMethodService() {
 
         trace("onDestroy")
         deleteRepeatHandler.removeCallbacksAndMessages(null)
-        DictPackRefresher.register(null)
         RemoteInputServerManager.onPairingStateChanged = null
         RemoteInputServerManager.onRemoteTextChanged = null
         RemoteInputServerManager.onCommitRequested = null

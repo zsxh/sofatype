@@ -161,10 +161,6 @@ class SettingsActivity : Activity() {
             startActivity(Intent(this, LogSettingsActivity::class.java))
         }
 
-        findViewById<Button>(R.id.btn_dicts).setOnClickListener {
-            startActivity(Intent(this, DictPackSettingsActivity::class.java))
-        }
-
         findViewById<SettingsRootView>(R.id.settings_root).preImeKeyHandler = { handlePreImeKey(it) }
 
         imeTakeoverPrompt = ImeTakeoverPrompt(this)
