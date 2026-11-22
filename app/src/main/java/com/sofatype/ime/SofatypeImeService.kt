@@ -1218,7 +1218,13 @@ class SofatypeImeService : InputMethodService() {
             symbolsWindowOffset = 0
         }
         trace("keyboardMode -> $mode symbolsWidth -> $symbolsWidth")
-        rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = true)
+        rebuildKeys(requireNotNull(keyboardView), requestInitialFocus = false)
+        val focusTargetId = when (mode) {
+            KeyboardMode.SYMBOLS -> SymbolsLayout.BACK_ID
+            KeyboardMode.LETTERS -> KeyboardLayout.SYMBOLS_ENTRY_KEY_ID
+        }
+        trace("switch keyboard focus -> $focusTargetId")
+        keyboardView?.post { keyViews[focusTargetId]?.requestFocus(View.FOCUS_DOWN) }
     }
 
     private fun finishComposition() {
@@ -1466,10 +1472,14 @@ class SofatypeImeService : InputMethodService() {
     private fun deleteBackward() {
         val ic = currentInputConnection ?: return
         val selected = ic.getSelectedText(0)
-        if (selected.isNullOrEmpty()) {
-            ic.deleteSurroundingText(1, 0)
-        } else {
-            ic.commitText("", 1)
+        val selectedLength = selected?.length ?: 0
+        val beforeLength = if (selectedLength > 0) 0 else ic.getTextBeforeCursor(CURSOR_PROBE_CHARS, 0)?.length ?: 0
+        val afterLength = if (selectedLength > 0) 0 else ic.getTextAfterCursor(CURSOR_PROBE_CHARS, 0)?.length ?: 0
+        when (BackspacePolicy.resolve(selectionLength = selectedLength, beforeLength = beforeLength, afterLength = afterLength)) {
+            BackspacePolicy.Target.SELECTION -> ic.commitText("", 1)
+            BackspacePolicy.Target.BEFORE -> ic.deleteSurroundingText(1, 0)
+            BackspacePolicy.Target.AFTER -> ic.deleteSurroundingText(0, 1)
+            BackspacePolicy.Target.NONE -> Unit
         }
     }
 

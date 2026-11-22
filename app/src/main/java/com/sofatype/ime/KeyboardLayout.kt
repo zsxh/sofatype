@@ -85,6 +85,8 @@ data class KeyRow(val cells: List<Cell>)
 
 object KeyboardLayout {
 
+    const val SYMBOLS_ENTRY_KEY_ID = "symbols"
+
     val segmentKey: Key = Key(
         id = "segment",
         action = KeyAction.Segment,
