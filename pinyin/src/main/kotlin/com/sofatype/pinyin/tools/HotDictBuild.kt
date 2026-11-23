@@ -19,6 +19,18 @@ object HotDictBuild {
     private const val MAX_ENTRY_SYLLABLES = 6
     private const val MAX_WORD_UTF16_BYTES = 64
 
+    const val SHORT_WORD_FREQ: Double = 2500.0
+
+    const val LONG_WORD_FREQ: Double = 300.0
+
+    private const val SHORT_WORD_MAX_CHARS = 3
+
+    fun tierFreq(word: String): Double =
+        if (word.length <= SHORT_WORD_MAX_CHARS) SHORT_WORD_FREQ else LONG_WORD_FREQ
+
+    private fun tieredLine(word: String, restColumns: List<String>): String =
+        (listOf(word, tierFreq(word).toString()) + restColumns).joinToString(separator = " ")
+
     private fun overSpd1Limit(word: String, syllableCount: Int): Boolean =
         syllableCount > MAX_ENTRY_SYLLABLES || word.toByteArray(Charsets.UTF_16LE).size > MAX_WORD_UTF16_BYTES
 
@@ -41,7 +53,7 @@ object HotDictBuild {
                 scelSkipped++
                 continue
             }
-            lines.add("${w.word} ${w.freq} 0 ${w.syllables.joinToString(" ")}")
+            lines.add(tieredLine(w.word, listOf("0") + w.syllables))
             seen.add(w.word)
         }
         var hotHit = 0
@@ -53,8 +65,9 @@ object HotDictBuild {
             val line = raw.trim()
             if (line.isEmpty()) continue
             hotTotal++
-            val word = line.split(' ').first()
-            val syllableCount = line.split(' ').filter { it.isNotEmpty() }.size - 3
+            val columns = line.split(' ').filter { it.isNotEmpty() }
+            val word = columns.first()
+            val syllableCount = columns.size - 3
             if (overSpd1Limit(word, syllableCount)) {
                 hotOver++
                 continue
@@ -67,7 +80,7 @@ object HotDictBuild {
                 hotDup++
                 continue
             }
-            lines.add(line)
+            lines.add(tieredLine(word, columns.drop(2)))
             hotKept++
         }
         return Pair(

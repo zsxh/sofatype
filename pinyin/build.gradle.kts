@@ -94,7 +94,9 @@ tasks.register("buildDict") {
     dependsOn("verifyDict", "convertDict")
 }
 
-// ---- T96 · 热词内置离线化：热词源入库 + sha256 门禁 + 构建期转 SPD1（零网络，逐词库开关）----
+// T96 · 热词内置离线化：热词源入库 + sha256 门禁 + 构建期转 SPD1（零网络，逐词库开关）；
+// T99 修订：baidu-realtime（百度实时热搜榜）停止并入、退出默认源（源文件与抓取脚本保留供复评）；
+// 热词频次构建期按词长分档重写为绝对频次（HotDictBuild.tierFreq：2~3 字 2500 / ≥4 字 300），运行时原样并入不再 ×10。
 // 热词源文件（入库 pinyin/dictsrc/hotwords/，sha256 锁定见 sources.sha256）：
 // id -> (文件, 原料类型)；scel = 搜狗细胞词库原件（自带拼音），hot = 注音源文本行（词 频次 0 拼音…）。
 val hotDictSources = linkedMapOf(
@@ -102,7 +104,6 @@ val hotDictSources = linkedMapOf(
     "baidu-boiling" to Triple("baidu-boiling-years.txt", "hot", "百度沸点/搜索风云榜历年榜（人工整理）"),
     "nlc-netlang" to Triple("nlc-netlang-years.txt", "hot", "国家语言资源监测中心年度网络用语"),
     "yaowenjiaozi" to Triple("yaowenjiaozi-years.txt", "hot", "咬文嚼字年度十大流行语"),
-    "baidu-realtime" to Triple("baidu-realtime-days.txt", "hot", "百度实时榜多日积累"),
 )
 val hotDictSourceDir = layout.projectDirectory.dir("dictsrc/hotwords")
 val hotDictLockFile = hotDictSourceDir.file("sources.sha256")

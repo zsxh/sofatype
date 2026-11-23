@@ -2,14 +2,10 @@ package com.sofatype.pinyin
 
 object DictHotMerge {
 
-    const val DEFAULT_HOT_FREQ_BOOST: Double = 10.0
-
     fun mergeBaseWithHot(
         base: DictData,
         hotDicts: List<DictData>,
-        hotFreqBoost: Double = DEFAULT_HOT_FREQ_BOOST,
     ): DictData {
-        require(hotFreqBoost.isFinite() && hotFreqBoost > 0.0) { "热词频次加权系数非法：$hotFreqBoost" }
         if (hotDicts.isEmpty()) return base
 
         val syllables = ArrayList<String>(base.syllables)
@@ -43,13 +39,12 @@ object DictHotMerge {
                     wordId[wordText] = words.size
                     words.add(wordText)
                 }
-                val boosted = entry.freq * hotFreqBoost
-                require(boosted.isFinite()) { "热词频次加权后非法：${entry.freq} × $hotFreqBoost" }
+                require(entry.freq.isFinite()) { "热词频次非法：${entry.freq}" }
                 entries.add(
                     DictData.Entry(
                         IntArray(texts.size) { i -> syllableId.getValue(texts[i]) },
                         wordId.getValue(wordText),
-                        boosted,
+                        entry.freq,
                     ),
                 )
             }

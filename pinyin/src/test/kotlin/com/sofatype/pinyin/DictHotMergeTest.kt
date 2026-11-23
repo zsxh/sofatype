@@ -37,8 +37,8 @@ class DictHotMergeTest {
         val hotBytes = spd1(
             hot(
                 listOf(
-                    Triple("显眼包", listOf("xian", "yan", "bao"), 5000.0),
-                    Triple("搭子", listOf("da", "zi"), 3000.0),
+                    Triple("显眼包", listOf("xian", "yan", "bao"), 2500.0),
+                    Triple("搭子", listOf("da", "zi"), 2500.0),
                 ),
             ),
         )
@@ -46,7 +46,7 @@ class DictHotMergeTest {
         val engine = PinyinEngine.fromData(DictHotMerge.mergeBaseWithHot(base(), listOf(hotDict)))
 
         assertEquals("整拼应命中热词居首", "显眼包", engine.query("xianyanbao", limit = 5).firstOrNull()?.word)
-        assertEquals("整拼加权后热词应排在主库高频词前", "搭子", engine.query("dazi", limit = 5).firstOrNull()?.word)
+        assertEquals("档位频次热词应排在主库低频词前", "搭子", engine.query("dazi", limit = 5).firstOrNull()?.word)
         assertTrue("简拼 dz 应命中热词「搭子」", "搭子" in engine.query("dz", limit = 10).map { it.word })
         assertTrue("混合缩写 dazi 形态应命中「搭子」", "搭子" in engine.query("dazi", limit = 10).map { it.word })
         assertTrue("主库词「打字」在热词并入后仍在候选内", "打字" in engine.query("dazi", limit = 10).map { it.word })
@@ -99,33 +99,61 @@ class DictHotMergeTest {
     }
 
     @Test
-    fun `频次加权排序_热词词频乘系数后进入候选前列`() {
-        val hotDict = hot(listOf(Triple("泰裤辣", listOf("tai", "ku", "la"), 100.0)))
+    fun `热词频次不再乘系数_档位频次原样并入合并结果`() {
+        val hotDict = hot(listOf(Triple("泰裤辣", listOf("tai", "ku", "la"), 2500.0)))
         val engine = PinyinEngine.fromData(DictHotMerge.mergeBaseWithHot(base(), listOf(hotDict)))
 
         assertEquals("泰裤辣", engine.query("taikula", limit = 5).firstOrNull()?.word)
         assertEquals(
-            "加权频次应等于原频 × 系数",
-            100.0 * DictHotMerge.DEFAULT_HOT_FREQ_BOOST,
+            "热词频次应原样并入（构建期已写档位频次，运行时不再 ×10）",
+            2500.0,
             engine.query("taikula", limit = 5).first().freq,
             1e-9,
         )
     }
 
     @Test
-    fun `自定义加权系数生效且非法系数被拒`() {
-        val hotDict = hot(listOf(Triple("显眼包", listOf("xian", "yan", "bao"), 10.0)))
-        val boosted = DictHotMerge.mergeBaseWithHot(base(), listOf(hotDict), hotFreqBoost = 3.0)
-        val engine = PinyinEngine.fromData(boosted)
-        assertEquals(30.0, engine.query("xianyanbao").first().freq, 1e-9)
+    fun `合并后主库高频词居前_短热词次之_长尾热词最后`() {
+        val syllables = listOf("da", "zi", "dong", "zu", "wen", "hua")
+        val baseData = buildData(
+            syllables = syllables,
+            words = listOf(
+                Triple("打字", listOf("da", "zi"), 2695.0),
+                Triple("大字", listOf("da", "zi"), 557.0),
+            ),
+        )
+        val shortHot = DictData(
+            syllables,
+            listOf("打字", "大字", "搭子"),
+            listOf(
+                DictData.Entry(intArrayOf(0, 1), 0, 2695.0),
+                DictData.Entry(intArrayOf(0, 1), 1, 557.0),
+                DictData.Entry(intArrayOf(0, 1), 2, 2500.0),
+            ),
+        )
+        val longHot = DictData(
+            syllables,
+            listOf("侗族文化"),
+            listOf(DictData.Entry(intArrayOf(2, 3, 4, 5), 0, 300.0)),
+        )
+        val engine = PinyinEngine.fromData(
+            DictHotMerge.mergeBaseWithHot(baseData, listOf(shortHot, longHot)),
+        )
 
-        for (bad in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
-            try {
-                DictHotMerge.mergeBaseWithHot(base(), listOf(hotDict), hotFreqBoost = bad)
-                throw AssertionError("系数 $bad 应被拒绝")
-            } catch (expected: IllegalArgumentException) {
-            }
-        }
+        val daziWords = engine.query("dazi", limit = 20).map { it.word }
+        assertEquals("主库高频词「打字」合并后仍居 dazi 首位", "打字", daziWords.first())
+        assertTrue(
+            "短热词「搭子」应排在主库低频词「大字」之前",
+            daziWords.indexOf("搭子") < daziWords.indexOf("大字"),
+        )
+        val dzWords = engine.query("dz", limit = 20).map { it.word }
+        assertTrue("dz 简拼应命中「打字」", "打字" in dzWords)
+        assertTrue("dz 简拼应命中「搭子」", "搭子" in dzWords)
+        assertTrue(
+            "长尾热词「侗族文化」不得排在主库高频词与短热词之前",
+            dzWords.indexOf("侗族文化") > dzWords.indexOf("打字") &&
+                dzWords.indexOf("侗族文化") > dzWords.indexOf("搭子"),
+        )
     }
 
     @Test

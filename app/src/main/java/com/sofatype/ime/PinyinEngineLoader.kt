@@ -89,9 +89,7 @@ class PinyinEngineLoader(
         val engine = if (hotDicts.isEmpty()) {
             PinyinEngine.fromData(base)
         } else {
-            PinyinEngine.fromData(
-                DictHotMerge.mergeBaseWithHot(base, hotDicts, DictHotMerge.DEFAULT_HOT_FREQ_BOOST),
-            )
+            PinyinEngine.fromData(DictHotMerge.mergeBaseWithHot(base, hotDicts))
         }
         activeEngine = engine
         onEngineReady(SCOPE_FULL, engine.entryCount)

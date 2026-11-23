@@ -52,13 +52,44 @@ class HotDictBuildTest {
         )
         val (merged, stats) = HotDictBuild.mergeLines(scel, hot, setOf("电视", "手机"))
         assertEquals(3, merged.size)
-        assertEquals("搭子 3000 0 da zi", merged[0])
-        assertEquals("尊嘟假嘟 4000 0 zun du jia du", merged[2])
+        assertEquals("搭子 ${HotDictBuild.SHORT_WORD_FREQ} 0 da zi", merged[0])
+        assertEquals("尊嘟假嘟 ${HotDictBuild.LONG_WORD_FREQ} 0 zun du jia du", merged[2])
         assertEquals(5, stats.hotSourceLineCount)
         assertEquals(1, stats.hotMainDictHitCount)
         assertEquals(2, stats.hotDuplicateCount)
         assertEquals(2, stats.hotKeptCount)
         assertEquals(1, stats.scelWordCount)
+    }
+
+    @Test
+    fun `热词条目按词长分档重写绝对频次_同档同频次且长尾档低于短词档`() {
+        val scel = scelWords(
+            Triple("两字", 9000, listOf("liang", "zi")),
+            Triple("三字词", 1, listOf("san", "zi", "ci")),
+            Triple("长尾词条", 9000, listOf("chang", "wei", "tiao", "ci")),
+        )
+        val hot = listOf(
+            "词条表 3000 0 tiao ci biao",
+            "网络新词 3000 0 wang luo xin ci",
+            "网络热搜词 3000 0 wang luo re sou ci",
+            "年度网络热词 3000 0 nian du wang luo re ci",
+        )
+        val (merged, _) = HotDictBuild.mergeLines(scel, hot, emptySet())
+        val shortFreqs = merged.mapNotNull { line ->
+            val cols = line.split(' ')
+            if ((cols[0].length <= 3) && cols[1].toDoubleOrNull() != null) cols[1].toDouble() else null
+        }
+        val longFreqs = merged.mapNotNull { line ->
+            val cols = line.split(' ')
+            if ((cols[0].length >= 4) && cols[1].toDoubleOrNull() != null) cols[1].toDouble() else null
+        }
+        assertEquals(3, shortFreqs.size)
+        assertEquals(4, longFreqs.size)
+        assertTrue("同档（2~3 字）同频次", shortFreqs.all { it == HotDictBuild.SHORT_WORD_FREQ })
+        assertTrue("同档（≥4 字）同频次", longFreqs.all { it == HotDictBuild.LONG_WORD_FREQ })
+        assertTrue("长尾档应低于短词档", HotDictBuild.LONG_WORD_FREQ < HotDictBuild.SHORT_WORD_FREQ)
+        assertEquals(HotDictBuild.tierFreq("两字"), HotDictBuild.SHORT_WORD_FREQ, 0.0)
+        assertEquals(HotDictBuild.tierFreq("年度网络热词"), HotDictBuild.LONG_WORD_FREQ, 0.0)
     }
 
     @Test
@@ -118,8 +149,9 @@ class HotDictBuildTest {
         val (data, stats) = DictBuilder.build(merged.asSequence())
         assertEquals(2, stats.entryCount)
         assertEquals("搭子", data.words[data.entries[0].wordId])
-        assertEquals(3000.0, data.entries[0].freq, 0.0)
+        assertEquals("scel 原始频次应被档位频次覆盖（2 字档）", HotDictBuild.SHORT_WORD_FREQ, data.entries[0].freq, 0.0)
         assertEquals("破防", data.words[data.entries[1].wordId])
+        assertEquals("热词源频次应被档位频次覆盖（2 字档）", HotDictBuild.SHORT_WORD_FREQ, data.entries[1].freq, 0.0)
     }
 
     @Test
