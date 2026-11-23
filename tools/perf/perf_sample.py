@@ -275,6 +275,15 @@ def detect_browser_local():
     return detect_browser()
 
 
+def submit_via_page(session, text):
+    """H5 UI 全链提交：textarea 注入 → 上屏按钮（与 phone_driver 提交链同构）。"""
+    inject = ("var ta=document.getElementById('ghost-input');"
+              "ta.value='%s';"
+              "ta.dispatchEvent(new Event('input'));" % text)
+    session.eval_js(inject, timeout=10)
+    session.eval_js("document.getElementById('btn-commit').click()", timeout=10)
+
+
 def phone_e2e(args):
     device = args.device
     require_owner_approval(args)
