@@ -31,15 +31,16 @@ object DictHotMerge {
             for (entry in hot.entries) {
                 val texts = entry.syllableIds.map { raw ->
                     val text = hot.syllables[raw]
-                    if (syllableId.putIfAbsent(text, syllables.size) == null) {
+                    if (syllableId[text] == null) {
+                        syllableId[text] = syllables.size
                         syllables.add(text)
                     }
                     text
                 }
                 val wordText = hot.words[entry.wordId]
                 if (!seenKeys.add(entryKey(texts, wordText))) continue
-                val mappedWordId = wordId.putIfAbsent(wordText, words.size)
-                if (mappedWordId == null) {
+                if (wordId[wordText] == null) {
+                    wordId[wordText] = words.size
                     words.add(wordText)
                 }
                 val boosted = entry.freq * hotFreqBoost

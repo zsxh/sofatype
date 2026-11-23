@@ -10,7 +10,8 @@ fun DictData.topFreqSubset(limit: Int): DictData {
     val wordRemap = HashMap<Int, Int>()
     val newWords = ArrayList<String>(picked.size)
     for (entry in picked) {
-        if (wordRemap.putIfAbsent(entry.wordId, newWords.size) == null) {
+        if (wordRemap[entry.wordId] == null) {
+            wordRemap[entry.wordId] = newWords.size
             newWords.add(words[entry.wordId])
         }
     }
