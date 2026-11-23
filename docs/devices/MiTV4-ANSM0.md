@@ -120,3 +120,27 @@
 **现象**：装机记录为「已卸载」时，实测 `dumpsys package` 可能为旧版本已装且为当时 default（T91 批次实测 0.1.0(1)，firstInstallTime=lastUpdateTime=2026-11-19 11:48:57）。
 
 **应对**：装机类操作动手前一律 `dumpsys package <pkg>` 实测装机态（versionName / lastUpdateTime / pkgFlags），以实测为准，不按既有记录臆断；版本差异按升级链 `pm install -r` 处置并如实留痕。
+
+### 10. 屏保计时器与 adb 注入键（2026-11-23 批次实测）
+
+- MiTV 屏保计时器**不被 adb 注入键重置**（注入 tap/keyevent 后计时器照走，实测空闲 ~240s 即触发），屏保启动沿照旧强杀持系统窗口的包（四.1）。
+- 有效的防护 = `svc power stayon true`（T91 harness 既有口径）：抑制屏保启动；但**不驱散已激活的屏保**——先 DPAD 键驱散再挂 stayon。批次收尾 `svc power stayon false` 恢复。
+- IME 服务被强杀后，`ime set` 写 secure 设置成功但 IMMS 实际绑定（`mCurMethodId`）可能仍挂他方输入法，tap 只出「请求态不渲染」；就位判据必须读 `mCurMethodId`，不就位做「他方→本 IME」双切重绑。
+
+### 11. IMMS 残留窗口槽位（2026-11-23 批次实测）
+
+- 强杀链反复后，WindowManager 的 InputMethod 窗口槽位可滞留旧绑定窗口（`dumpsys window` 的 `mInputMethodWindow` 指向他方包），本 IME 服务层 `onWindowShown` 照常 trace 但窗口不渲染、键事件全落宿主（ImeKeyTrace 零 onKeyDown）。
+- 判据：`mInputMethodWindow` 归属 + 截图无键盘 + ImeKeyTrace 无 onKeyDown 三点并核。
+- remedy：显式 `ime set` 切到旧窗口所属输入法再切回本 IME（旧窗口拆除、槽位易主），随后 tap 唤键盘即恢复正常。
+
+### 12. instrument 启动期击杀（2026-11-23 批次补充）
+
+- `am instrument` 进程可在启动 ~1 秒内被 TvMgr 击杀（无 FATAL、无指纹、无 tsv 行，结果报 Process crashed）；与本批 harness/服务无关，属四.1/四.2 清杀族的非确定形态。
+- 处置：轮间恢复（BACK / `ime set` / logcat -c）后**同场景原样重跑**；本轮 s03 第 2 次、p01 第 1 次、p02 第 1 次均经重跑通过。tsv 无该场景行 = 本轮未完成，不计入结果。
+
+### 13. 性能采样编排事实（2026-11-23 批次补充）
+
+- ws-driver / phone-e2e 依赖 `perf_remote_url` marker；服务重启或配对轮换即令旧 token 失效（形态 = 配对被拒 ×N）。可靠链：服务重启后**本地解析 logcat** 取最新配对地址（设备端 `grep` 中文模式串经无线链路会返回过期行，不可靠）→ 写 marker → `settings get` 回读比对一致 → 再跑采样。
+- 无活跃输入会话时首条 commit 后 ~100ms 连接即断（服务端日志「收到上屏指令」后紧接「已配对连接断开」）：采样前保持打字页前台 + 键盘显示态（p02 原生编排即含此前置）。
+- 长间隔多轮采样注意 logcat 环形缓冲驱逐：先采的 span 会被后续日志体量挤出，collect 前不要插入高日志量环节；p01（约 7 分钟采样）应在最后一段采，采完立即 collect。
+- `tools/perf/perf_sample.py` 单轮 phone-e2e 路径曾缺 `submit_via_page` 定义（NameError，本轮已补，与 phone_driver 提交链同构）。
