@@ -20,6 +20,8 @@ enum class KeyTextSize {
     SMALL,
 
     DENSE,
+
+    TRIPLE,
 }
 
 enum class KeyIcon { SHIFT, HIDE, BACKSPACE, CURSOR_LEFT, CURSOR_RIGHT }
@@ -126,7 +128,7 @@ object KeyboardLayout {
                             action = KeyAction.ToggleLanguage,
                             variant = KeyVariant.FUNCTION,
                             label = "中/英",
-                            textSize = KeyTextSize.SMALL,
+                            textSize = KeyTextSize.TRIPLE,
                             contentDescription = "中英文切换",
 
                             stateOptions = "中" to "英",
@@ -138,7 +140,7 @@ object KeyboardLayout {
 
         KeyRow(
             digitCells('7', '9') + Cell.Spacer + letterCells('o', 'u') + Cell.Spacer +
-                listOf(fnCell("symbols", "123_!", KeyAction.OpenSymbols, "进入符号键盘")),
+                listOf(fnCell("symbols", "123_!", KeyAction.OpenSymbols, "进入符号键盘", KeyTextSize.TRIPLE)),
         ),
 
         KeyRow(
@@ -171,6 +173,7 @@ object KeyboardLayout {
         action = KeyAction.Done,
         variant = KeyVariant.ACCENT,
         label = "完成",
+        textSize = KeyTextSize.SMALL,
         contentDescription = "完成",
     )
 
@@ -238,13 +241,19 @@ object KeyboardLayout {
 
     private fun letterCells(from: Char, to: Char): List<Cell> = (from..to).map { charCell(it.toString(), it.toString()) }
 
-    private fun fnCell(id: String, label: String, action: KeyAction, description: String): Cell = Cell.KeyCell(
+    private fun fnCell(
+        id: String,
+        label: String,
+        action: KeyAction,
+        description: String,
+        textSize: KeyTextSize = KeyTextSize.SMALL,
+    ): Cell = Cell.KeyCell(
         Key(
             id = id,
             action = action,
             variant = KeyVariant.FUNCTION,
             label = label,
-            textSize = KeyTextSize.SMALL,
+            textSize = textSize,
             contentDescription = description,
         ),
     )

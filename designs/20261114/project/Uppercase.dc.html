@@ -12,9 +12,9 @@
 <style>
 body{margin:0;background:#06080C}
 button{font-family:inherit}
-.bkey{all:unset;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;width:96px;height:64px;background:#1D242F;border-radius:12px;color:#E8EEF5;font-size:24px;cursor:pointer}
+.bkey{all:unset;box-sizing:border-box;flex:none;display:flex;align-items:center;justify-content:center;width:96px;height:64px;background:#1D242F;border-radius:12px;color:#E8EEF5;font-size:30px;cursor:pointer}
 .bkey:hover{background:#242C39}
-.bkey-fn{font-size:18px;color:#C9D4E2}
+.bkey-fn{font-size:24px;color:#C9D4E2}
 .bkey-st .st{color:rgba(232,239,246,.5)}
 .bkey-st .st-on{color:#7DD3FC;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 .bkey-st .st-sep{color:rgba(232,239,246,.35);margin:0 2px}
@@ -64,32 +64,32 @@ button{font-family:inherit}
           <button class="bkey">A</button><button class="bkey">B</button><button class="bkey">C</button><button class="bkey">D</button><button class="bkey">E</button><button class="bkey">F</button><button class="bkey">G</button>
           <div class="kspacer"></div>
           <button class="bkey bkey-fn" aria-label="分词：组合态内切分拼音（如 xi'an），选词后不上屏；无组合态时忽略">分词</button>
-          <button class="bkey bkey-fn" aria-label="下屏，收起键盘"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="11" rx="2"/><path d="M6.5 7.5h.01M10 7.5h.01M13.5 7.5h.01M17 7.5h.01" stroke-width="2"/><path d="M6.5 11.5h11"/><path d="M8 17.5l4 3.5 4-3.5" stroke-width="2.2"/></svg></button>
+          <button class="bkey bkey-fn" aria-label="下屏，收起键盘"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="18" height="11" rx="2"/><path d="M6.5 7.5h.01M10 7.5h.01M13.5 7.5h.01M17 7.5h.01" stroke-width="2"/><path d="M6.5 11.5h11"/><path d="M8 17.5l4 3.5 4-3.5" stroke-width="2.2"/></svg></button>
         </div>
         <div class="krow" style="margin-top:10px">
           <button class="bkey">4</button><button class="bkey">5</button><button class="bkey">6</button>
           <div class="kspacer"></div>
           <button class="bkey">H</button><button class="bkey">I</button><button class="bkey">J</button><button class="bkey">K</button><button class="bkey">L</button><button class="bkey">M</button><button class="bkey">N</button>
           <div class="kspacer"></div>
-          <button class="bkey bkey-fn bkey-st" aria-label="中英文切换，当前为中文"><span class="st st-on">中</span><span class="st-sep">/</span><span class="st">英</span></button>
-          <button class="bkey bkey-fn" aria-label="删除"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8.5 5h11A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-11L3 12z"/><path d="M11.5 9.5l5 5"/><path d="M16.5 9.5l-5 5"/></svg></button>
+          <button class="bkey bkey-fn bkey-st" style="font-size:20px" aria-label="中英文切换，当前为中文"><span class="st st-on">中</span><span class="st-sep">/</span><span class="st">英</span></button>
+          <button class="bkey bkey-fn" aria-label="删除"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8.5 5h11A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-11L3 12z"/><path d="M11.5 9.5l5 5"/><path d="M16.5 9.5l-5 5"/></svg></button>
         </div>
         <div class="krow" style="margin-top:10px">
           <button class="bkey">7</button><button class="bkey">8</button><button class="bkey">9</button>
           <div class="kspacer"></div>
           <button class="bkey">O</button><button class="bkey">P</button><button class="bkey">Q</button><button class="bkey">R</button><button class="bkey">S</button><button class="bkey">T</button><button class="bkey">U</button>
           <div class="kspacer"></div>
-          <button class="bkey bkey-fn">123_!</button>
+          <button class="bkey bkey-fn" style="font-size:20px">123_!</button>
         </div>
         <div class="krow" style="margin-top:10px">
           <button class="bkey bkey-fn">.com</button><button class="bkey">0</button><button class="bkey">@</button>
           <div class="kspacer"></div>
-          <button class="bkey">V</button><button class="bkey">W</button><button class="bkey">X</button><button class="bkey">Y</button><button class="bkey">Z</button><button class="bkey" aria-label="光标左移"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button><button class="bkey" aria-label="光标右移"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
+          <button class="bkey">V</button><button class="bkey">W</button><button class="bkey">X</button><button class="bkey">Y</button><button class="bkey">Z</button><button class="bkey" aria-label="光标左移"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button><button class="bkey" aria-label="光标右移"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
           <div class="kspacer"></div>
-          <button class="bkey" style="font-size:18px">空格</button>
+          <button class="bkey" style="font-size:24px">空格</button>
         </div>
         <!-- 完成键：跨两行，样式与普通键一致（不高亮） -->
-        <button class="bkey" style="position:absolute;left:1278px;top:148px;width:100px;height:138px;font-size:22px">完成</button>
+        <button class="bkey" style="position:absolute;left:1282px;top:148px;width:96px;height:138px;font-size:24px">完成</button>
       </div>
     </div>
 

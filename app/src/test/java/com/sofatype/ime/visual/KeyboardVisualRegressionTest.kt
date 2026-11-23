@@ -121,6 +121,7 @@ class KeyboardVisualRegressionTest {
         com.sofatype.ime.KeyTextSize.NORMAL -> R.dimen.ime_key_text
         com.sofatype.ime.KeyTextSize.SMALL -> R.dimen.ime_key_fn_text
         com.sofatype.ime.KeyTextSize.DENSE -> R.dimen.ime_key_dense_text
+        com.sofatype.ime.KeyTextSize.TRIPLE -> R.dimen.ime_key_tri_text
     }
 
     private fun rowChildLefts(root: ViewGroup, rowIndex: Int): List<Int> {

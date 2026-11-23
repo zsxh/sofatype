@@ -55,27 +55,27 @@
     <dimen name="ime_key_width">48dp</dimen>
     <dimen name="ime_key_height">32dp</dimen>
     <dimen name="ime_key_corner">6dp</dimen>
-    <dimen name="ime_key_text">12sp</dimen>
-    <dimen name="ime_key_fn_text">9sp</dimen>
+    <dimen name="ime_key_text">15sp</dimen>
+    <dimen name="ime_key_fn_text">12sp</dimen>
+    <dimen name="ime_key_tri_text">10sp</dimen>
 
     <dimen name="ime_key_spacing">5dp</dimen>
     <dimen name="ime_row_spacing">5dp</dimen>
     <dimen name="ime_column_spacer">24dp</dimen>
 
-    <dimen name="ime_done_key_width">50dp</dimen>
-    <dimen name="ime_done_key_text">11sp</dimen>
-    <dimen name="ime_done_key_start">639dp</dimen>
+    <dimen name="ime_done_key_width">48dp</dimen>
+    <dimen name="ime_done_key_start">641dp</dimen>
     <dimen name="ime_overlay_key_height">69dp</dimen>
     <dimen name="ime_overlay_key_top">74dp</dimen>
-    <dimen name="ime_space_key_start">589dp</dimen>
+    <dimen name="ime_space_key_start">588dp</dimen>
     <dimen name="ime_space_key_width">48dp</dimen>
     <dimen name="ime_symbols_done_key_start">641dp</dimen>
     <dimen name="ime_symbols_done_key_width">48dp</dimen>
 
-    <dimen name="ime_icon_shift">13dp</dimen>
-    <dimen name="ime_icon_hide">12dp</dimen>
-    <dimen name="ime_icon_backspace">13dp</dimen>
-    <dimen name="ime_icon_cursor">11dp</dimen>
+    <dimen name="ime_icon_shift">15dp</dimen>
+    <dimen name="ime_icon_hide">15dp</dimen>
+    <dimen name="ime_icon_backspace">15dp</dimen>
+    <dimen name="ime_icon_cursor">15dp</dimen>
 
     <dimen name="ime_state_underline_height">1.5dp</dimen>
     <dimen name="ime_state_char_underline_height">1dp</dimen>

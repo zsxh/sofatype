@@ -137,10 +137,16 @@ class KeyboardLayoutTest {
     @Test
     fun functionVariantKeysUseSmallTextSize() {
 
-        val smallTextIds = setOf("shift", "segment", "hide", "lang", "backspace", "symbols", "space", "dot_com")
+        val smallTextIds = setOf("shift", "segment", "hide", "backspace", "space", "dot_com")
         for (key in keys) {
             if (key.id in smallTextIds) {
                 assertEquals("键 ${key.id} 应为小字号键面", KeyTextSize.SMALL, key.textSize)
+            }
+        }
+        val tripleTextIds = setOf("lang", "symbols")
+        for (key in keys) {
+            if (key.id in tripleTextIds) {
+                assertEquals("三字符标签键 ${key.id} 应为三字符键面（T98 口径 20px 档）", KeyTextSize.TRIPLE, key.textSize)
             }
         }
         val space = keys.first { it.id == "space" }
@@ -264,8 +270,8 @@ class KeyboardLayoutTest {
             assertEquals("行 3 功能列（123_!）", 1176, cellOriginPxs(rows[2])[12])
             assertEquals("行 4 功能列（空格）", 1176, cellOriginPxs(rows[3])[12])
 
-            assertEquals("完成键左缘与功能列右缘间距 = 1278 − 1272 = 6px", 6, 1278 - (1176 + 96))
-            assertEquals("完成键右缘贴键区列右缘（1278 + 100 = 1378）", 1378, 1278 + 100)
+            assertEquals("完成键左缘与功能列右缘间距 = 1282 − 1272 = 10px（T98 口径）", 10, 1282 - (1176 + 96))
+            assertEquals("完成键右缘贴键区列右缘（1282 + 96 = 1378，T98 口径）", 1378, 1282 + 96)
         }
     }
 

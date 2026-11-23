@@ -47,6 +47,7 @@ object SymbolsLayout {
         action = KeyAction.Done,
         variant = KeyVariant.ACCENT,
         label = "完成",
+        textSize = KeyTextSize.SMALL,
         contentDescription = "完成",
     )
 
@@ -56,7 +57,7 @@ object SymbolsLayout {
             action = KeyAction.ToggleWidth,
             variant = KeyVariant.FUNCTION,
             label = "全/半",
-            textSize = KeyTextSize.SMALL,
+            textSize = KeyTextSize.TRIPLE,
             contentDescription = "全角半角切换",
 
             stateOptions = "全" to "半",

@@ -131,7 +131,7 @@ class T65KeyFaceDefaultsTest {
         )
         val dimens = mainSource("res/values/dimens.xml")
 
-        assertTrue("⇧ 图标须 26px（T68 画板 SVG 尺寸）", dimens.contains("<dimen name=\"ime_icon_shift\">13dp</dimen>"))
+        assertTrue("⇧ 图标须 30px（T98 口径键内图标统一 30px）", dimens.contains("<dimen name=\"ime_icon_shift\">15dp</dimen>"))
         assertTrue(
             "⇧ 触发态短条 30×3px（T68 画板 trig-bar）",
             dimens.contains("<dimen name=\"ime_shift_underline_width\">15dp</dimen>") &&
@@ -345,7 +345,7 @@ class T65KeyFaceDefaultsTest {
         )
         val dimens = mainSource("res/values/dimens.xml")
 
-        assertTrue("下屏图标键面 24px（T68 画板 SVG 尺寸）", dimens.contains("<dimen name=\"ime_icon_hide\">12dp</dimen>"))
+        assertTrue("下屏图标键面 30px（T98 口径键内图标统一 30px）", dimens.contains("<dimen name=\"ime_icon_hide\">15dp</dimen>"))
     }
 
     @Test

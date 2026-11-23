@@ -978,6 +978,7 @@ class SofatypeImeService : InputMethodService() {
             KeyTextSize.SMALL -> R.dimen.ime_key_fn_text
 
             KeyTextSize.DENSE -> R.dimen.ime_key_dense_text
+            KeyTextSize.TRIPLE -> R.dimen.ime_key_tri_text
             KeyTextSize.NORMAL -> R.dimen.ime_key_text
         }
         return TextView(this).apply {
@@ -1004,7 +1005,7 @@ class SofatypeImeService : InputMethodService() {
             background = getDrawable(backgroundOf(key.variant))
             setOnFocusChangeListener { v, _ -> applyStateKeyAppearance(v) }
         }
-        val textPx = resources.getDimension(R.dimen.ime_key_fn_text)
+        val textPx = resources.getDimension(R.dimen.ime_key_tri_text)
 
         val barHeight = resources.getDimensionPixelSize(R.dimen.ime_state_char_underline_height)
         val barOffset = resources.getDimensionPixelSize(R.dimen.ime_state_underline_offset)
