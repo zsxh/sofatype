@@ -31,9 +31,9 @@ android {
         // PRD 第 12 章决策 13：Android TV 6.0+；验收机小米电视4（MiTV4-ANSM0）为 Android 6.0.1
         minSdk = 23
         targetSdk = 34
-        // PRD 第 12 章决策 19：版本随发布批次递增，首版基线 0.1.0(1)，当前 0.2.3(5)
-        versionCode = 5
-        versionName = "0.2.3"
+        // PRD 第 12 章决策 19：版本随发布批次递增，首版基线 0.1.0(1)，当前 0.2.4(6)
+        versionCode = 6
+        versionName = "0.2.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
