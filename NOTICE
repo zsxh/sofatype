@@ -41,4 +41,4 @@ APK 内置的热词包（`dict/hotwords.bin`）由以下源在构建期合并生
 
 ## 版权
 
-除上述第三方词库数据外，本仓库其余内容版权归 sofatype 项目所有。
+除上述第三方词库数据外，本仓库其余内容版权归 sofatype 项目作者所有，并以 [Apache License 2.0](LICENSE) 发布。

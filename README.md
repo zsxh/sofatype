@@ -1,5 +1,11 @@
 # SofaType 输入法
 
+[![CI](https://github.com/zsxh/sofatype/actions/workflows/ci.yml/badge.svg)](https://github.com/zsxh/sofatype/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![minSdk 23](https://img.shields.io/badge/minSdk-23-3DDC84.svg)
+![Android TV 6.0+](https://img.shields.io/badge/Android_TV-6.0%2B-3DDC84.svg)
+![Kotlin](https://img.shields.io/badge/Kotlin-1.9.24-7F52FF.svg)
+
 Android TV 输入法：电视端键盘 + 跨屏输入（电视出二维码、手机 H5 远程打字）+ 设置页。
 
 ## 功能
@@ -34,3 +40,7 @@ Android TV 输入法：电视端键盘 + 跨屏输入（电视出二维码、手
 | [designs/](designs/) | 设计稿定稿（视觉参考） |
 
 AI agent 协作规范见 [AGENTS.md](AGENTS.md)。
+
+## 许可
+
+本项目代码以 [Apache License 2.0](LICENSE) 发布。内置词库数据各有条款：AOSP 谷歌拼音词库（Apache-2.0）、THUOCL（MIT）等，逐源登记见 [NOTICE](NOTICE) 与 [docs/DICTS.md](docs/DICTS.md)。
