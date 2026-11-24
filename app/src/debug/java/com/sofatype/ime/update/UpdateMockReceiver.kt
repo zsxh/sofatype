@@ -13,8 +13,9 @@ class UpdateMockReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_SET_ENDPOINT -> {
                 val endpoint = intent.getStringExtra(EXTRA_ENDPOINT)
-                UpdateEndpoint.setDebugOverride(endpoint)
-                Log.i(TAG, "更新源接口地址覆写：${UpdateEndpoint.endpoint(context)}")
+                val atom = intent.getBooleanExtra(EXTRA_ATOM, false)
+                UpdateEndpoint.setDebugOverride(endpoint, atom)
+                Log.i(TAG, "更新源接口覆写：${UpdateEndpoint.config(context).url}（atom=$atom）")
             }
             else -> Unit
         }
@@ -24,5 +25,6 @@ class UpdateMockReceiver : BroadcastReceiver() {
         const val TAG = "UpdateCheck"
         const val ACTION_SET_ENDPOINT = "com.sofatype.ime.debug.action.SET_UPDATE_ENDPOINT"
         const val EXTRA_ENDPOINT = "endpoint"
+        const val EXTRA_ATOM = "atom"
     }
 }

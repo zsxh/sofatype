@@ -35,7 +35,9 @@
     <string name="status_install_success">更新安装成功</string>
     <string name="btn_download_update">下载更新</string>
     <string name="btn_retry">重试</string>
-    <string name="update_endpoint_url">https://api.github.com/repos/zsxh/sofatype/releases/latest</string>
+    <string name="update_atom_url">https://github.com/zsxh/sofatype/releases.atom</string>
+    <string name="update_proxy_title">gh-proxy.com 加速</string>
+    <string name="cd_update_proxy">检查更新与下载是否经 gh-proxy.com 代理，默认开启</string>
 
     <string name="back_exit_hint">再按一次返回退出sofatype设置页</string>
 

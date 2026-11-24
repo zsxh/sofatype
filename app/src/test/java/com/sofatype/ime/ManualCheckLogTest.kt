@@ -13,8 +13,8 @@ class ManualCheckLogTest {
     fun `手动检查发起日志接线存在`() {
         val text = mainSource("SettingsActivity.kt")
         assertTrue(
-            "startCheck 须以 UPDATE_LOG_TAG 写发起日志并携带 endpoint（T50 R2 取证口径；T71 起 Timber 形态）",
-            text.contains("Timber.tag(UPDATE_LOG_TAG).i(\"手动检查发起 endpoint=\$endpoint\")"),
+            "startCheck 须以 UPDATE_LOG_TAG 写发起日志并携带检查配置（T50 R2 取证口径；T71 起 Timber 形态；T103 起 url/atom/proxy 三要素）",
+            text.contains("Timber.tag(UPDATE_LOG_TAG).i(\n            \"手动检查发起 url=\${config.url} atom=\${config.atom} proxy=\${config.proxyPrefix}\","),
         )
     }
 

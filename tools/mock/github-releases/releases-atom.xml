@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Release notes from sofatype（mock）</title>
+  <entry>
+    <id>tag:github.com,2008:mock/__VER_NEWER__</id>
+    <title>v__VER_NEWER__</title>
+    <content type="html">&lt;p&gt;模拟新版 __VER_NEWER__ 的更新说明（Atom mock，T103）。仅供 debug 走查「检查 → 发现新版 → UI 呈现」段；下载态走查仍用 JSON mock（构造下载地址指向真实 GitHub，模拟新版不存在）。&lt;/p&gt;</content>
+  </entry>
+</feed>

@@ -15,6 +15,7 @@ T102 起：release 构建默认直连真实 GitHub Releases latest（`update_end
 | `build-incremented-apk.gradle` | Gradle init 脚本：构建 versionCode 真递增的 mock APK（用法见下方「APK 资产」） |
 | `releases-newer.json` | 发现新版态：tag `v__VER_NEWER__` 占位符（由 `--newer-version` 注入）+ 更新说明 + APK 资产 |
 | `releases-up-to-date.json` | 已是最新态：tag `v__VER_CUR__` 占位符（= 当前版本，由 `--current-version` 注入） |
+| `releases-atom.xml` | Atom 形状 mock（T103）：title `v__VER_NEWER__` + 说明，配 `--ez atom true` 注入；仅供「检查 → 发现新版 → UI 呈现」段走查（构造下载地址指向真实 GitHub，模拟新版不存在） |
 | `wordpack-sample-source.txt` | T94 样例词包源文本（词包原料，入库） |
 | `wordpack-sample.bin` | T94 样例词包 SPD1 产物（`./gradlew :pinyin:makeSampleWordPack` 手动产出，字节确定，入库） |
 | `wordpack-manifest.json` | T94 词包目录 manifest（名称/版本/sha256/字节数/下载地址；`url` 用 `__HOSTPORT__` 占位符） |

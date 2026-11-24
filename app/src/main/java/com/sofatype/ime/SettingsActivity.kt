@@ -20,6 +20,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -121,6 +122,7 @@ class SettingsActivity : Activity() {
     private lateinit var statusDot: View
     private lateinit var statusText: TextView
     private lateinit var updateNotes: TextView
+    private lateinit var updateProxyCheck: CheckBox
     private lateinit var downloadProgress: ProgressBar
     private lateinit var logStatusDot: View
     private lateinit var logStatusText: TextView
@@ -146,6 +148,12 @@ class SettingsActivity : Activity() {
         statusDot = findViewById(R.id.status_dot)
         statusText = findViewById(R.id.status_text)
         updateNotes = findViewById(R.id.update_notes)
+        updateProxyCheck = findViewById(R.id.check_update_proxy)
+        updateProxyCheck.isChecked = UpdateEndpoint.proxyEnabled(this)
+        updateProxyCheck.setOnCheckedChangeListener { _, checked ->
+            UpdateEndpoint.setProxyEnabled(this, checked)
+            Timber.tag(UPDATE_LOG_TAG).i("下载代理开关：$checked")
+        }
         downloadProgress = findViewById(R.id.download_progress)
 
         logStatusDot = findViewById(R.id.log_status_dot)
@@ -346,11 +354,13 @@ class SettingsActivity : Activity() {
         val generation = ++ioGeneration
         lastPostedPercent = -1
         applyState(UiState.CHECKING)
-        val endpoint = UpdateEndpoint.endpoint(this)
+        val config = UpdateEndpoint.config(this)
 
-        Timber.tag(UPDATE_LOG_TAG).i("手动检查发起 endpoint=$endpoint")
+        Timber.tag(UPDATE_LOG_TAG).i(
+            "手动检查发起 url=${config.url} atom=${config.atom} proxy=${config.proxyPrefix}",
+        )
         ioExecutor.execute {
-            val result = UpdateCheck.check(endpoint, currentVersionName()) { url ->
+            val result = UpdateCheck.check(config, currentVersionName()) { url ->
                 UpdateHttp.fetchText(url)
             }
             postIfCurrent(generation) { onCheckResult(result) }

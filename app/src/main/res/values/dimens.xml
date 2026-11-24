@@ -224,4 +224,5 @@
     <dimen name="client_code_label_text">8sp</dimen>
     <dimen name="client_code_number_text">8.5sp</dimen>
 
+    <dimen name="update_proxy_margin_start">24dp</dimen>
 </resources>

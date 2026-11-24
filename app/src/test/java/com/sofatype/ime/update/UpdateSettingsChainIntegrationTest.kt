@@ -142,7 +142,7 @@ class UpdateSettingsChainIntegrationTest {
 
         val apkPayload = ByteArray(512 * 1024) { i -> (i % 251).toByte() }
         val endpoint = serveReleases("v0.3.0", apkPayload)
-        val result = UpdateCheck.check(endpoint, "0.2.0") { url -> UpdateHttp.fetchText(url) }
+        val result = UpdateCheck.check(UpdateCheckConfig(url = endpoint), "0.2.0") { url -> UpdateHttp.fetchText(url) }
         val release = (result as UpdateCheckResult.Newer).release
         assertEquals("v0.3.0", release.tag)
         assertEquals("T91 全链 mock 演示数据。", release.notes)
@@ -180,18 +180,18 @@ class UpdateSettingsChainIntegrationTest {
     @Test
     fun `同版本检查报已是最新`() {
         val endpoint = serveReleases("v0.2.0", ByteArray(1024))
-        val result = UpdateCheck.check(endpoint, "0.2.0") { url -> UpdateHttp.fetchText(url) }
+        val result = UpdateCheck.check(UpdateCheckConfig(url = endpoint), "0.2.0") { url -> UpdateHttp.fetchText(url) }
         assertTrue(result is UpdateCheckResult.UpToDate)
     }
 
     @Test
     fun `检查失败链路传回失败原因与状态码`() {
-        assertEquals(UpdateCheckResult.Failed(UpdateFailureReason.EMPTY_ENDPOINT), UpdateCheck.check(" ", "0.2.0") { url -> UpdateHttp.fetchText(url) })
+        assertEquals(UpdateCheckResult.Failed(UpdateFailureReason.EMPTY_ENDPOINT), UpdateCheck.check(UpdateCheckConfig(url = " "), "0.2.0") { url -> UpdateHttp.fetchText(url) })
 
         val apkPayload = ByteArray(1024)
         val endpoint = serveReleases("v0.3.0", apkPayload)
         val brokenEndpoint = endpoint.replace("/releases.json", "/missing.json")
-        val failed = UpdateCheck.check(brokenEndpoint, "0.2.0") { url -> UpdateHttp.fetchText(url) }
+        val failed = UpdateCheck.check(UpdateCheckConfig(url = brokenEndpoint), "0.2.0") { url -> UpdateHttp.fetchText(url) }
         assertTrue(failed is UpdateCheckResult.Failed)
         val failure = failed as UpdateCheckResult.Failed
         assertEquals(UpdateFailureReason.CHECK_HTTP, failure.reason)

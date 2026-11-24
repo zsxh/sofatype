@@ -30,6 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.abspath(__file__))
 RATE_LIMIT_EXT = ".apk"
 JSON_EXT = ".json"
+ATOM_EXT = ".xml"
 HOSTPORT_PLACEHOLDER = "__HOSTPORT__"
 VER_CUR_PLACEHOLDER = "__VER_CUR__"
 VER_NEWER_PLACEHOLDER = "__VER_NEWER__"
@@ -54,7 +55,7 @@ class Handler(BaseHTTPRequestHandler):
         if not target.startswith(ROOT + os.sep) or not os.path.isfile(target):
             self.send_error(404, "Not Found")
             return
-        if target.endswith(JSON_EXT):
+        if target.endswith(JSON_EXT) or target.endswith(ATOM_EXT):
             with open(target, "r", encoding="utf-8") as f:
                 body = f.read()
             body = body.replace(HOSTPORT_PLACEHOLDER, self._hostport())
@@ -62,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
             body = body.replace(VER_NEWER_PLACEHOLDER, ARGS.newer_version)
             data = body.encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", "application/atom+xml" if target.endswith(ATOM_EXT) else "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
