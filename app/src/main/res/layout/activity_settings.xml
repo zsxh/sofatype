@@ -192,17 +192,6 @@
                 android:textSize="@dimen/btn_text"
                 android:textStyle="normal" />
 
-            <CheckBox
-                android:id="@+id/check_update_proxy"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/update_proxy_margin_start"
-                android:checked="true"
-                android:contentDescription="@string/cd_update_proxy"
-                android:text="@string/update_proxy_title"
-                android:textColor="@color/text_body"
-                android:textSize="@dimen/btn_text" />
-
             <Space
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -227,6 +216,62 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/set_status_gap"
                     android:text="@string/status_up_to_date"
+                    android:textColor="@color/text_dim"
+                    android:textSize="@dimen/set_status_text" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_action_row_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_update_proxy"
+                android:layout_width="@dimen/btn_width"
+                android:layout_height="@dimen/btn_height"
+                android:background="@drawable/bg_btn_accent"
+                android:contentDescription="@string/cd_update_proxy"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/update_proxy_enable"
+                android:textColor="@color/text_body"
+                android:textSize="@dimen/btn_text"
+                android:textStyle="normal" />
+
+            <TextView
+                android:id="@+id/update_proxy_domain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/update_proxy_margin_start"
+                android:text="@string/update_proxy_domain"
+                android:textColor="@color/text_dim"
+                android:textSize="@dimen/set_status_text" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/proxy_status_dot"
+                    android:layout_width="@dimen/set_status_dot_size"
+                    android:layout_height="@dimen/set_status_dot_size"
+                    android:background="@drawable/bg_status_dot_success" />
+
+                <TextView
+                    android:id="@+id/proxy_status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/set_status_gap"
+                    android:text="@string/update_proxy_on"
                     android:textColor="@color/text_dim"
                     android:textSize="@dimen/set_status_text" />
             </LinearLayout>

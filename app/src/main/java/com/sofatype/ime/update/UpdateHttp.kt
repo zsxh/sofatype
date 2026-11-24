@@ -103,8 +103,8 @@ object UpdateHttp {
         get() = this is SocketException || this is SocketTimeoutException ||
             this is UnknownHostException || this is SSLException
 
-    private const val CONNECT_TIMEOUT_MS = 10_000
-    private const val READ_TIMEOUT_MS = 15_000
+    private const val CONNECT_TIMEOUT_MS = 30_000
+    private const val READ_TIMEOUT_MS = 30_000
     private const val BUFFER_BYTES = 8 * 1024
     private const val USER_AGENT = "sofatype-ime-update"
 }

@@ -25,16 +25,16 @@ class UpdateCheckTest {
         </feed>"""
 
     private fun jsonConfig(url: String = "http://e/releases.json") =
-        UpdateCheckConfig(url = url, atom = false)
+        listOf(UpdateCheckCandidate(url = url, atom = false))
 
     private fun atomConfig(proxyPrefix: String = "", url: String = "http://e/releases.atom") =
-        UpdateCheckConfig(url = url, atom = true, proxyPrefix = proxyPrefix)
+        listOf(UpdateCheckCandidate(url = url, atom = true, proxyPrefix = proxyPrefix))
 
     @Test
     fun blankUrlFailsWithEmptyEndpoint() {
-        val result = UpdateCheck.check(UpdateCheckConfig(url = ""), "0.1.0") { "" }
+        val result = UpdateCheck.check(emptyList(), "0.1.0") { "" }
         assertEquals(UpdateFailureReason.EMPTY_ENDPOINT, (result as Failed).reason)
-        val blank = UpdateCheck.check(UpdateCheckConfig(url = "   "), "0.1.0") { "" }
+        val blank = UpdateCheck.check(listOf(UpdateCheckCandidate(url = "   ")), "0.1.0") { "" }
         assertEquals(UpdateFailureReason.EMPTY_ENDPOINT, (blank as Failed).reason)
     }
 
@@ -95,12 +95,24 @@ class UpdateCheckTest {
     }
 
     @Test
-    fun atomNewerAppliesProxyPrefixToConstructedDownloadUrl() {
-        val result = UpdateCheck.check(atomConfig(proxyPrefix = "https://gh-proxy.com/"), "0.1.0", fetchBody(validAtom))
+    fun atomNewerAppliesProxyPrefixToCheckAndDownloadUrls() {
+        var fetched: String? = null
+        val result = UpdateCheck.check(
+            atomConfig(proxyPrefix = "https://gh-proxy.com/", url = "https://github.com/zsxh/sofatype/releases.atom"),
+            "0.1.0",
+        ) { url ->
+            fetched = url
+            validAtom
+        }
         val newer = result as Newer
         assertEquals("v0.2.1", newer.release.tag)
         assertTrue(newer.release.notes.contains("热词内置与换源"))
         assertTrue(newer.release.notes.contains("0.2.1（2026-11-24）"))
+        assertEquals(
+            "检查请求应携带代理前缀",
+            "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases.atom",
+            fetched,
+        )
         assertEquals(
             "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
             newer.release.apkUrl,
@@ -128,4 +140,47 @@ class UpdateCheckTest {
     }
 
     private fun fetchBody(body: String): (String) -> String = { body }
+
+    @Test
+    fun proxyChainFallsThroughToNextCandidateOnFailure() {
+        val candidates = listOf(
+            UpdateCheckCandidate("http://e/ghproxy", atom = true, proxyPrefix = "https://gh-proxy.com/"),
+            UpdateCheckCandidate("http://e/v6", atom = true, proxyPrefix = "https://v6.gh-proxy.org/"),
+        )
+        val result = UpdateCheck.check(candidates, "0.2.0") { url ->
+            if (url.contains("http://e/ghproxy")) throw java.io.IOException("SNI 阻断模拟")
+            validAtom
+        }
+        val newer = result as Newer
+        assertEquals("v0.2.1", newer.release.tag)
+        assertEquals(
+            "https://v6.gh-proxy.org/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            newer.release.apkUrl,
+        )
+    }
+
+    @Test
+    fun allCandidatesFailedReturnsLastReason() {
+        val candidates = listOf(
+            UpdateCheckCandidate("http://e/a"),
+            UpdateCheckCandidate("http://e/b"),
+        )
+        val result = UpdateCheck.check(candidates, "0.2.0") { url ->
+            throw UpdateHttp.HttpException(UpdateFailureReason.CHECK_HTTP, if (url.endsWith("/a")) 503 else 404, "HTTP")
+        }
+        val failed = result as Failed
+        assertEquals(UpdateFailureReason.CHECK_HTTP, failed.reason)
+        assertEquals(404, failed.httpStatus)
+    }
+
+    @Test
+    fun blankCandidateUrlsAreSkipped() {
+        val result = UpdateCheck.check(
+            listOf(UpdateCheckCandidate("   "), UpdateCheckCandidate("http://e/ok", atom = true, proxyPrefix = "")),
+            "0.1.0",
+        ) { _ -> validAtom }
+        assertTrue(result is Newer)
+    }
+
 }
+

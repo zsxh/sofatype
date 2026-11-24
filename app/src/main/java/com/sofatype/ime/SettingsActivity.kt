@@ -20,7 +20,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -122,8 +121,11 @@ class SettingsActivity : Activity() {
     private lateinit var statusDot: View
     private lateinit var statusText: TextView
     private lateinit var updateNotes: TextView
-    private lateinit var updateProxyCheck: CheckBox
     private lateinit var downloadProgress: ProgressBar
+    private lateinit var btnUpdateProxy: Button
+    private lateinit var updateProxyDomain: TextView
+    private lateinit var proxyStatusDot: View
+    private lateinit var proxyStatusText: TextView
     private lateinit var logStatusDot: View
     private lateinit var logStatusText: TextView
 
@@ -148,11 +150,16 @@ class SettingsActivity : Activity() {
         statusDot = findViewById(R.id.status_dot)
         statusText = findViewById(R.id.status_text)
         updateNotes = findViewById(R.id.update_notes)
-        updateProxyCheck = findViewById(R.id.check_update_proxy)
-        updateProxyCheck.isChecked = UpdateEndpoint.proxyEnabled(this)
-        updateProxyCheck.setOnCheckedChangeListener { _, checked ->
-            UpdateEndpoint.setProxyEnabled(this, checked)
-            Timber.tag(UPDATE_LOG_TAG).i("下载代理开关：$checked")
+        btnUpdateProxy = findViewById(R.id.btn_update_proxy)
+        updateProxyDomain = findViewById(R.id.update_proxy_domain)
+        proxyStatusDot = findViewById(R.id.proxy_status_dot)
+        proxyStatusText = findViewById(R.id.proxy_status_text)
+        refreshProxyRow()
+        btnUpdateProxy.setOnClickListener {
+            val enabled = !UpdateEndpoint.proxyEnabled(this)
+            UpdateEndpoint.setProxyEnabled(this, enabled)
+            refreshProxyRow()
+            Timber.tag(UPDATE_LOG_TAG).i("下载代理开关：$enabled")
         }
         downloadProgress = findViewById(R.id.download_progress)
 
@@ -354,13 +361,12 @@ class SettingsActivity : Activity() {
         val generation = ++ioGeneration
         lastPostedPercent = -1
         applyState(UiState.CHECKING)
-        val config = UpdateEndpoint.config(this)
+        val candidates = UpdateEndpoint.candidates(this)
 
-        Timber.tag(UPDATE_LOG_TAG).i(
-            "手动检查发起 url=${config.url} atom=${config.atom} proxy=${config.proxyPrefix}",
-        )
+        Timber.tag(UPDATE_LOG_TAG).i("手动检查发起 candidates=${candidates.size} 首选=${candidates.firstOrNull()?.url}")
         ioExecutor.execute {
-            val result = UpdateCheck.check(config, currentVersionName()) { url ->
+            val result = UpdateCheck.check(candidates, currentVersionName()) { url ->
+                Timber.tag(UPDATE_LOG_TAG).i("手动检查请求 url=$url")
                 UpdateHttp.fetchText(url)
             }
             postIfCurrent(generation) { onCheckResult(result) }
@@ -371,13 +377,20 @@ class SettingsActivity : Activity() {
 
         Timber.tag(UPDATE_LOG_TAG).i("手动检查结果 ${checkResultLabel(result)}")
         when (result) {
-            is UpdateCheckResult.UpToDate -> applyState(UiState.UP_TO_DATE)
+            is UpdateCheckResult.UpToDate -> {
+                toast(getString(R.string.toast_up_to_date))
+                applyState(UiState.UP_TO_DATE)
+            }
             is UpdateCheckResult.Newer -> {
+                toast(getString(R.string.toast_newer, result.release.tag))
                 latestRelease = result.release
                 updateNotes.text = result.release.notes
                 applyState(UiState.NEWER)
             }
-            is UpdateCheckResult.Failed -> showFailed(R.string.failed_prefix_check, result)
+            is UpdateCheckResult.Failed -> {
+                toast(getString(R.string.failed_prefix_check) + reasonText(result))
+                showFailed(R.string.failed_prefix_check, result)
+            }
         }
     }
 
@@ -594,6 +607,20 @@ class SettingsActivity : Activity() {
         } else {
             statusText.text = getString(R.string.status_downloading_indeterminate)
         }
+    }
+
+    private fun refreshProxyRow() {
+        val enabled = UpdateEndpoint.proxyEnabled(this)
+        updateProxyDomain.text =
+            if (enabled) UpdateEndpoint.primaryProxyHost() else getString(R.string.update_proxy_direct)
+        proxyStatusDot.setBackgroundResource(
+            if (enabled) R.drawable.bg_status_dot_success else R.drawable.bg_status_dot_idle,
+        )
+        proxyStatusText.text = getString(if (enabled) R.string.update_proxy_on else R.string.update_proxy_off)
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun showFailed(prefixRes: Int, result: UpdateCheckResult.Failed) {

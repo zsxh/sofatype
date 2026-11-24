@@ -21,6 +21,8 @@
     <string name="status_preparing_install">安装准备中…</string>
     <string name="status_install_submitted">已提交系统安装</string>
     <string name="failed_prefix_check">检查失败：</string>
+    <string name="toast_up_to_date">已是最新版本</string>
+    <string name="toast_newer">发现新版 %1$s</string>
     <string name="failed_prefix_download">下载失败：</string>
     <string name="failed_prefix_install">安装失败：</string>
     <string name="reason_endpoint_empty">更新源未配置</string>
@@ -36,6 +38,11 @@
     <string name="btn_download_update">下载更新</string>
     <string name="btn_retry">重试</string>
     <string name="update_atom_url">https://github.com/zsxh/sofatype/releases.atom</string>
+    <string name="update_proxy_enable">启用代理</string>
+    <string name="update_proxy_domain">gh-proxy.com</string>
+    <string name="update_proxy_on">开</string>
+    <string name="update_proxy_off">关</string>
+    <string name="update_proxy_direct">直连</string>
     <string name="update_proxy_title">gh-proxy.com 加速</string>
     <string name="cd_update_proxy">检查更新与下载是否经 gh-proxy.com 代理，默认开启</string>
 

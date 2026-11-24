@@ -15,7 +15,7 @@ class UpdateMockReceiver : BroadcastReceiver() {
                 val endpoint = intent.getStringExtra(EXTRA_ENDPOINT)
                 val atom = intent.getBooleanExtra(EXTRA_ATOM, false)
                 UpdateEndpoint.setDebugOverride(endpoint, atom)
-                Log.i(TAG, "更新源接口覆写：${UpdateEndpoint.config(context).url}（atom=$atom）")
+                Log.i(TAG, "更新源接口覆写：${UpdateEndpoint.candidates(context).first().url}（atom=$atom）")
             }
             else -> Unit
         }
