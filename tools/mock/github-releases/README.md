@@ -4,6 +4,9 @@ T21 评审建议③落地（户主 2026-11-08 拍板入库）：本地 HTTP 服�
 （决策 17 mock 口径），供模拟器 / 真机批次联调「检查更新」三态，不依赖外网。
 app 侧检查请求、解析、下载、安装链全是真实实现，本目录只提供数据与下载源。
 
+T102 起：release 构建默认直连真实 GitHub Releases latest（`update_endpoint_url`），
+本目录 mock 仅 debug 构建经 `UpdateMockReceiver` 显式注入使用，不影响默认链路。
+
 ## 文件
 
 | 文件 | 用途 |

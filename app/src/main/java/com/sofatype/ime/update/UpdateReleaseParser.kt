@@ -47,6 +47,11 @@ object UpdateReleaseParser {
 
         fun parseDocument(): UpdateRelease {
             skipWhitespace()
+            if (peek() == '{') {
+                // /releases/latest 单对象形状：最新发布直接给出，不可用（draft/prerelease/空 tag）即失败
+                return parseReleaseObject()
+                    ?: throw ParseException(message = "latest 发布不可用（draft/prerelease/空 tag）")
+            }
             expect('[')
             skipWhitespace()
             if (peek() == ']') throw ParseException(message = "发布列表为空")

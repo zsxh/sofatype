@@ -130,4 +130,40 @@ class UpdateReleaseParserTest {
             assertEquals(expected, e.reason)
             e
         }
+
+    @Test
+    fun parsesLatestSingleObjectShape() {
+        val json = """
+            {
+              "url": "https://api.github.com/repos/zsxh/sofatype/releases/1",
+              "assets_url": "https://api.github.com/repos/zsxh/sofatype/releases/1/assets",
+              "author": {"login": "zsxh"},
+              "tag_name": "v0.2.1",
+              "name": "v0.2.1",
+              "draft": false,
+              "prerelease": false,
+              "body": "## 0.2.1（2026-11-24）\n\n热词内置与换源。",
+              "assets": [
+                {"name": "Source code (zip)", "browser_download_url": "https://e/src.zip"},
+                {"name": "sofatype-0.2.1-unsigned.apk", "browser_download_url": "https://e/sofatype-0.2.1-unsigned.apk"}
+              ]
+            }
+        """.trimIndent()
+        val release = UpdateReleaseParser.parse(json)
+        assertEquals("v0.2.1", release.tag)
+        assertTrue(release.notes.startsWith("## 0.2.1"))
+        assertEquals("https://e/sofatype-0.2.1-unsigned.apk", release.apkUrl)
+    }
+
+    @Test
+    fun latestSingleObjectUnavailableFails() {
+        val json = """{"tag_name": "v0.3.0-rc1", "prerelease": true, "assets": [
+            {"name": "a.apk", "browser_download_url": "https://e/rc.apk"}]}"""
+        try {
+            UpdateReleaseParser.parse(json)
+            throw AssertionError("latest 单对象为 prerelease 应解析失败")
+        } catch (expected: ParseException) {
+        }
+    }
+
 }
