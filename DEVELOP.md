@@ -43,7 +43,7 @@ workflow 在 `.github/workflows/`（T100）。CI 构建环境与本地 flake 不
 
 | workflow | 触发 | 干什么 |
 | --- | --- | --- |
-| `ci.yml` | push / PR 到 `master`，或手动 dispatch | `assembleDebug` + `testDebugUnitTest` + `:pinyin:test` + `assembleRelease`（不含视觉回归与模拟器测试） |
+| `ci.yml` | push / PR 到 `main`，或手动 dispatch | `assembleDebug` + `testDebugUnitTest` + `:pinyin:test` + `assembleRelease`（不含视觉回归与模拟器测试） |
 | `release.yml` | push `v*` tag | 门禁（tag = versionName）→ 抽取 CHANGELOG 版本节 → `assembleRelease` → 直发 GitHub Release，附件 `sofatype-<版本>-unsigned.apk` |
 
 发版流程（版本号随发布批次人工递增，决策 19）：

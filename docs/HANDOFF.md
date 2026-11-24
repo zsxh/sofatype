@@ -25,7 +25,7 @@
 - 词库：AOSP 谷歌拼音词库（65 105 条，Apache-2.0），源文件入库 + sha256 门禁 + 构建零网络（决策 28→29）。热词库（T96 内置，T99 频次档位治理，T101 换开源源）：THUOCL 清华开放中文词库（MIT，上游 10 域 DF 前 12000 派生）+ 语监中心 / 咬文嚼字年度词表（事实性榜单，NOTICE 逐源登记），构建期转 SPD1 内置 `assets/dict/hotwords.bin` 并按词长写入档位频次（2~3 字 2500 / ≥4 字 300），运行时按包内频次原样并入（不再 ×10）；逐词库 gradle 开关默认全内置；搜狗 scel（限个人使用条款，公开仓库冲突）与百度两源已出库（git 历史留证）；词库档案与开关用法见 `docs/DICTS.md`。
 - 评审口径：双 agent 盲审（`dev` 实现 / `review-qa` 审查，沟通经 lead 中转），同一 issue 上限 3 轮，评审通过经户主验收拍板后归档；交接以消息经 lead 中转，仓库不落交接文件。**证据纪律（T33 起）：交接与验收记录写「已验证」必附对应证据；条件式分支未触发须如实标注，描述与证据失实按评审不通过处理。**
 - 变更状态（任务制已废止，以 `docs/issues/` 目录为准）：closed T1~T99 与 T101 全部归档（T96~T99 真机已验证 2026-11-23；T101 构建 + 单测 + 模拟器已验证 2026-11-24）；open T100（GitHub CI/CD 集成，2026-11-24 立项实施中，细节见 `docs/issues/open/T100.md`）。
-- GitHub 通道：`.github/workflows/` 两 workflow——push/PR 到 master 跑 CI（runner 工具链 + Zulu 17，非 flake 通道）；push `v*` tag 直发 Release（门禁 tag=versionName、正文抽 CHANGELOG、unsigned 附件）；发版流程见 `DEVELOP.md`「GitHub CI 与发布」节。
+- GitHub 通道：`.github/workflows/` 两 workflow——push/PR 到 main 跑 CI（runner 工具链 + Zulu 17，非 flake 通道）；push `v*` tag 直发 Release（门禁 tag=versionName、正文抽 CHANGELOG、unsigned 附件）；发版流程见 `DEVELOP.md`「GitHub CI 与发布」节。
 - 遗留观察（挂账，不影响功能）：
   - tap 通道双击激活键盘切换存在焦点竞态（激活时点与布局重建窗口竞态，焦点被新布局同坐标键抢走 2 次复现；键码通道零偏差；2026-11-22 T97 review-qa 模拟器实测，与 T97 改动无关）：验收口径不受影响，是否立项评估待户主拍板。
   - 组合态活跃时切入符号键盘再返回，组合串终结为直出文本、候选栏消失（2026-11-18 T83 review-qa 模拟器实测；上层既有行为非 T83 引入，如需打磨另立 issue）。
