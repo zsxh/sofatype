@@ -2,6 +2,8 @@
 
 SofaType 输入法 · 第三方数据说明
 
+## 主词库
+
 本产品的拼音词库（`app` 模块 assets 内置的 `dict/pinyin_dict.bin` 全量产物与
 `dict/pinyin_dict_highfreq.bin` 高频子集产物，均 SPD1 自有精简格式，后者为前者按
 内建频次的子集，T85）
@@ -18,5 +20,25 @@ SofaType 输入法 · 第三方数据说明
   （`pinyin/dictsrc/rawdict_utf16_65105_freq.txt`，sha256 锁定）；构建期校验一致后
   转换为 SPD1 精简格式随 APK 内置，构建全程零网络依赖；SPD1 产物不入库；
   词频取词库内建频次。
+
+## 热词源（T101 起为可公开再分发的开放来源）
+
+APK 内置的热词包（`dict/hotwords.bin`）由以下源在构建期合并生成（逐源说明见
+`docs/DICTS.md`，派生工具见 `tools/wordpack/`）：
+
+- THUOCL 清华大学开放中文词库（派生文件 `pinyin/dictsrc/hotwords/thuocl-open.txt`：
+  上游 10 域词表按文档频率（DF）降序取前 12000 条，经拼音注音整理）
+  - 来源：https://github.com/thunlp/THUOCL
+  - 许可：MIT License，Copyright (c) 2018 THUNLP
+  - 上游建议的学术引用格式：韩世依, 张钰晖, 马云山, 涂存超, 郭志芃, 刘知远, 孙茂松.
+    THUOCL：清华大学开放中文词库. 2016.（Shiyi Han, Yuhui Zhang, Yunshan Ma,
+    Cunchao Tu, Zhipeng Guo, Zhiyuan Liu, Maosong Sun. THUOCL: Tsinghua Open
+    Chinese Lexicon. 2016.）
+- 国家语言资源监测中心年度十大网络用语（`nlc-netlang-years.txt`，2012 起逐年转录；
+  官方公开发布的年度词表转录整理）
+- 《咬文嚼字》年度十大流行语（`yaowenjiaozi-years.txt`，2008 起逐年转录；
+  编辑部公开发布的年度词表转录整理）
+
+## 版权
 
 除上述第三方词库数据外，本仓库其余内容版权归 sofatype 项目所有。

@@ -36,8 +36,8 @@ class HotDictSourceLockTest {
             assertTrue("锁定行非法：$line", parts.size == 2 && parts[0].length == 64)
             locked[parts[1]] = parts[0]
         }
-        assertTrue("锁定文件应至少覆盖 scel 与注音源两类", locked.size >= 5)
-        assertTrue("搜狗 scel 源应在锁内", "sogou-liuxingxinci.scel" in locked)
+        assertTrue("锁定文件应覆盖全部入库热词源", locked.size >= 3)
+        assertTrue("THUOCL 开源源应在锁内", "thuocl-open.txt" in locked)
 
         for ((name, expected) in locked) {
             val file = File(hotDictDir, name)

@@ -95,13 +95,13 @@ tasks.register("buildDict") {
 }
 
 // T96 · 热词内置离线化：热词源入库 + sha256 门禁 + 构建期转 SPD1（零网络，逐词库开关）；
-// T99 修订：baidu-realtime（百度实时热搜榜）停止并入、退出默认源（源文件与抓取脚本保留供复评）；
-// 热词频次构建期按词长分档重写为绝对频次（HotDictBuild.tierFreq：2~3 字 2500 / ≥4 字 300），运行时原样并入不再 ×10。
+// T99 修订：热词频次构建期按词长分档重写为绝对频次（HotDictBuild.tierFreq：2~3 字 2500 / ≥4 字 300），运行时原样并入不再 ×10；
+// T101 修订：搜狗 scel（限个人使用条款，公开仓库冲突）与百度两源出库，开放源换为 THUOCL（清华开放中文词库，MIT）；
+// scel 原料格式与 ScelDictParser 保留（通用解析能力，测试覆盖）。
 // 热词源文件（入库 pinyin/dictsrc/hotwords/，sha256 锁定见 sources.sha256）：
-// id -> (文件, 原料类型)；scel = 搜狗细胞词库原件（自带拼音），hot = 注音源文本行（词 频次 0 拼音…）。
+// id -> (文件, 原料类型)；hot = 注音源文本行（词 频次 0 拼音…）。
 val hotDictSources = linkedMapOf(
-    "sogou" to Triple("sogou-liuxingxinci.scel", "scel", "搜狗网络流行新词累积库"),
-    "baidu-boiling" to Triple("baidu-boiling-years.txt", "hot", "百度沸点/搜索风云榜历年榜（人工整理）"),
+    "thuocl-open" to Triple("thuocl-open.txt", "hot", "THUOCL 清华开放中文词库（MIT；DF 前 12000 派生，见 tools/wordpack）"),
     "nlc-netlang" to Triple("nlc-netlang-years.txt", "hot", "国家语言资源监测中心年度网络用语"),
     "yaowenjiaozi" to Triple("yaowenjiaozi-years.txt", "hot", "咬文嚼字年度十大流行语"),
 )

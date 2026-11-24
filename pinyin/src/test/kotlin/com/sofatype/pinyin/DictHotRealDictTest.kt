@@ -53,7 +53,7 @@ class DictHotRealDictTest {
     }
 
     @Test
-    fun `真实热词包分档写入绝对频次且不含baidu-realtime词条`() {
+    fun `真实热词包分档写入绝对频次且不含已出库源词条`() {
         val hot = loadRealHot()
 
         val shortFreqs = hot.entries.map { it.freq }.filterIndexed { i, _ -> hot.words[hot.entries[i].wordId].length <= 3 }.toSet()
@@ -63,8 +63,8 @@ class DictHotRealDictTest {
         assertTrue("长尾档应低于短词档", HotDictBuild.LONG_WORD_FREQ < HotDictBuild.SHORT_WORD_FREQ)
 
         val hotWords = hot.words.toSet()
-        for (realtimeWord in listOf("后劲太大", "金价跌势凌厉", "成功的会晤", "多地为何鼓励")) {
-            assertTrue("baidu-realtime 词条不应出现在热词包：$realtimeWord", realtimeWord !in hotWords)
+        for (retiredWord in listOf("后劲太大", "金价跌势凌厉", "成功的会晤", "多地为何鼓励", "尊嘟假嘟")) {
+            assertTrue("已出库源词条不应出现在热词包：$retiredWord", retiredWord !in hotWords)
         }
     }
 
@@ -78,7 +78,7 @@ class DictHotRealDictTest {
         assertEquals("dz 首位应为常用词「地址」", "地址", dz.first())
         assertTrue("dz 前排应含「电子」", dz.indexOf("电子") in 1..9)
         assertTrue("dz 前排应含「动作」", dz.indexOf("动作") in 1..9)
-        for (tail in listOf("侗族文化", "贵州从江警方")) {
+        for (tail in listOf("动之以情", "地址空间")) {
             val pos = dz.indexOf(tail)
             if (pos >= 0) {
                 assertTrue("长尾词「$tail」不得排在常用词之前", pos > dz.indexOf("动作"))
@@ -104,8 +104,9 @@ class DictHotRealDictTest {
         assertTrue("xyb 简拼应保留「显眼包」可命中（前 5 位）", engine.query("xyb", limit = 5).map { it.word }.contains("显眼包"))
 
         assertEquals("全拼 xianyanbao 仍应命中「显眼包」", "显眼包", engine.query("xianyanbao", limit = 5).firstOrNull()?.word)
-        assertEquals("全拼 zundujiadu 仍应命中「尊嘟假嘟」", "尊嘟假嘟", engine.query("zundujiadu", limit = 5).firstOrNull()?.word)
-        assertEquals("全拼 dongzuwenhua 仍应命中「侗族文化」", "侗族文化", engine.query("dongzuwenhua", limit = 5).firstOrNull()?.word)
+        assertTrue("全拼 qingtuan 应命中 THUOCL 热词「青团」（前 5 位）", engine.query("qingtuan", limit = 5).map { it.word }.contains("青团"))
+        assertTrue("全拼 dongzhiyiqing 应命中 THUOCL 长尾热词「动之以情」（前 3 位）", engine.query("dongzhiyiqing", limit = 3).map { it.word }.contains("动之以情"))
+        assertTrue("全拼 weichengnianren 应命中 THUOCL 长尾热词「未成年人」（前 3 位）", engine.query("weichengnianren", limit = 3).map { it.word }.contains("未成年人"))
     }
 
     @Test
