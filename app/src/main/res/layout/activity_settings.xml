@@ -221,6 +221,11 @@
             </LinearLayout>
         </LinearLayout>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/version_divider_h"
+            android:background="@color/divider_soft" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="@dimen/version_action_row_height"
@@ -377,15 +382,5 @@
             android:progressTint="@color/accent"
             android:visibility="gone" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/bottom_hint"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="@dimen/bottom_hint_margin_top"
-        android:text="@string/bottom_hint"
-        android:textColor="@color/text_hint_faint"
-        android:textSize="@dimen/bottom_hint_text" />
 
 </com.sofatype.ime.SettingsRootView>

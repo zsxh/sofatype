@@ -156,13 +156,13 @@
     <dimen name="version_label_text">9.5sp</dimen>
     <dimen name="version_value_text">10sp</dimen>
     <dimen name="version_divider_h">0.5dp</dimen>
-    <dimen name="version_action_row_height">59dp</dimen>
-    <dimen name="version_test_row_height">48dp</dimen>
+    <dimen name="version_action_row_height">44dp</dimen>
+    <dimen name="version_test_row_height">44dp</dimen>
+    <dimen name="bottom_hint_margin_top">515dp</dimen>
+    <dimen name="bottom_hint_text">7.5sp</dimen>
     <dimen name="set_status_dot_size">4dp</dimen>
     <dimen name="set_status_gap">4dp</dimen>
     <dimen name="set_status_text">8sp</dimen>
-    <dimen name="bottom_hint_margin_top">515dp</dimen>
-    <dimen name="bottom_hint_text">7.5sp</dimen>
 
     <dimen name="update_notes_text">8sp</dimen>
     <dimen name="update_notes_margin_top">5dp</dimen>
