@@ -1,0 +1,44 @@
+# CI：push / PR 到 master 时构建 + 单测
+#
+# 构建环境口径（T100 拍板，方案 B）：ubuntu runner 预装 Android SDK，
+# JDK 用 Zulu 17（与 flake 的 JDK 发行版对齐）；CI 不装 nix。
+# 任务面：assembleDebug + testDebugUnitTest + :pinyin:test + assembleRelease；
+# 不含 Paparazzi 视觉回归与模拟器 instrumented 测试。
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建 + 单测
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: 配置 JDK 17（Zulu，与 flake 同发行版）
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: 配置 Gradle（依赖与 wrapper 缓存）
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: 构建与单测（:pinyin 纯 JVM 模块单独补跑）
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest :pinyin:test assembleRelease
