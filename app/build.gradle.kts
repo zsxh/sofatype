@@ -8,6 +8,20 @@ base {
     archivesName = "sofatype"
 }
 
+// T105：发布签名经环境变量注入（CI 由 GitHub Secrets 还原 keystore 后传入；keystore 本体不入库）。
+// 四个变量须同时在场或同时缺席：部分在场直接失败，防止半配置状态下静默产出 unsigned 发布包。
+val ciStoreFile = System.getenv("SOFATYPE_RELEASE_STORE_FILE")
+val ciStorePassword = System.getenv("SOFATYPE_RELEASE_STORE_PASSWORD")
+val ciKeyAlias = System.getenv("SOFATYPE_RELEASE_KEY_ALIAS")
+val ciKeyPassword = System.getenv("SOFATYPE_RELEASE_KEY_PASSWORD")
+val ciSigningVars = listOf(ciStoreFile, ciStorePassword, ciKeyAlias, ciKeyPassword)
+val hasCiSigning = ciSigningVars.all { !it.isNullOrBlank() }
+if (ciSigningVars.any { !it.isNullOrBlank() } && !hasCiSigning) {
+    throw GradleException(
+        "发布签名环境变量部分缺失：SOFATYPE_RELEASE_STORE_FILE / STORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 须同时提供",
+    )
+}
+
 android {
     namespace = "com.sofatype.ime"
     compileSdk = 34 // 对齐 nix SDK 内 platform android-34
@@ -17,16 +31,32 @@ android {
         // PRD 第 12 章决策 13：Android TV 6.0+；验收机小米电视4（MiTV4-ANSM0）为 Android 6.0.1
         minSdk = 23
         targetSdk = 34
-        // PRD 第 12 章决策 19：版本随发布批次递增，首版基线 0.1.0(1)，当前 0.2.2(4)
-        versionCode = 4
-        versionName = "0.2.2"
+        // PRD 第 12 章决策 19：版本随发布批次递增，首版基线 0.1.0(1)，当前 0.2.3(5)
+        versionCode = 5
+        versionName = "0.2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasCiSigning) {
+            create("ciRelease") {
+                storeFile = file(ciStoreFile!!)
+                storePassword = ciStorePassword
+                keyAlias = ciKeyAlias
+                keyPassword = ciKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             // 首版不做混淆与裁剪，缩小构建变量面；后续版本需要时再评估
             isMinifyEnabled = false
+            // T105：有签名环境（CI / 本地显式注入）即产签名包，产物名 sofatype-release.apk；
+            // 无签名环境维持 unsigned 产物 sofatype-release-unsigned.apk（本地装机 jarsigner 路径不受影响）
+            if (hasCiSigning) {
+                signingConfig = signingConfigs.getByName("ciRelease")
+            }
         }
     }
 
