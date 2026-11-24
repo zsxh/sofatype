@@ -1,4 +1,4 @@
-# CI：push / PR 到 master 时构建 + 单测
+# CI：push / PR 到 main 时构建 + 单测
 #
 # 构建环境口径（T100 拍板，方案 B）：ubuntu runner 预装 Android SDK，
 # JDK 用 Zulu 17（与 flake 的 JDK 发行版对齐）；CI 不装 nix。
@@ -8,9 +8,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
