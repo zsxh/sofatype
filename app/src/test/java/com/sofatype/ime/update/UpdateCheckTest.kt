@@ -114,7 +114,7 @@ class UpdateCheckTest {
             fetched,
         )
         assertEquals(
-            "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1.apk",
             newer.release.apkUrl,
         )
     }
@@ -123,7 +123,7 @@ class UpdateCheckTest {
     fun atomWithoutProxyYieldsDirectDownloadUrl() {
         val result = UpdateCheck.check(atomConfig(), "0.1.0", fetchBody(validAtom))
         assertEquals(
-            "https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            "https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1.apk",
             (result as Newer).release.apkUrl,
         )
     }
@@ -154,7 +154,7 @@ class UpdateCheckTest {
         val newer = result as Newer
         assertEquals("v0.2.1", newer.release.tag)
         assertEquals(
-            "https://v6.gh-proxy.org/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            "https://v6.gh-proxy.org/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1.apk",
             newer.release.apkUrl,
         )
     }

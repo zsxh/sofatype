@@ -4,7 +4,7 @@ package com.sofatype.ime.update
  * T103 · GitHub Releases Atom 订阅源解析（github.com 网页侧通道，无 API 限额、代理可达）。
  * 只取首个 entry（feed 按新到旧排序）＝最新发布；tag 来自 title，说明来自 content
  * （GitHub 输出为 HTML 转义形态，清洗为纯文本后供 UI 呈现）。
- * 下载地址不来自 feed：按 T100 资产命名口径构造（releases/download/<tag>/sofatype-<版本>-unsigned.apk）。
+ * 下载地址不来自 feed：按发布资产命名口径构造（releases/download/<tag>/sofatype-<版本>.apk，T105 签名资产）。
  */
 object UpdateAtomParser {
 
@@ -38,7 +38,7 @@ object UpdateAtomParser {
         val clean = tag.trim()
         if (clean.isEmpty()) throw ParseException(message = "tag 为空，无法构造下载地址")
         val version = clean.removePrefix("v").removePrefix("V")
-        return "${proxyPrefix}${RELEASES_DOWNLOAD_BASE}$clean/sofatype-$version-unsigned.apk"
+        return "${proxyPrefix}${RELEASES_DOWNLOAD_BASE}$clean/sofatype-$version.apk"
     }
 
     private fun extractChild(text: String, openTag: String, closeTag: String): String? {

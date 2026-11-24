@@ -41,11 +41,11 @@ class UpdateAtomParserTest {
     @Test
     fun constructsDownloadUrlFromTagWithProxyPrefix() {
         assertEquals(
-            "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            "https://gh-proxy.com/https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1.apk",
             UpdateAtomParser.downloadUrl("v0.2.1", "https://gh-proxy.com/"),
         )
         assertEquals(
-            "https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1-unsigned.apk",
+            "https://github.com/zsxh/sofatype/releases/download/v0.2.1/sofatype-0.2.1.apk",
             UpdateAtomParser.downloadUrl("v0.2.1", ""),
         )
     }
