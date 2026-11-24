@@ -76,7 +76,7 @@ workflow 验证依赖真实推送后的 GitHub Actions；CI 上的 Gradle 依赖
 
   Puppeteer 用 `puppeteer.connect({ browserWSEndpoint: 'ws://127.0.0.1:9222' })`，Playwright 用 `chromium.connectOverCDP`。调试完退出实例、删临时目录，不留监听端口。
 
-- **检查更新 mock 源**：手动走查更新链路用 `tools/mock/github-releases/serve_mock.py`（版本值参数注入，JSON 零硬编码），用法见 [tools/mock/github-releases/README.md](tools/mock/github-releases/README.md)。
+- **检查更新 mock 源**：手动走查更新链路用 `tools/mock/github-releases/serve_mock.py`（版本值参数注入，JSON 零硬编码，经 debug 注入通道使用），用法见 [tools/mock/github-releases/README.md](tools/mock/github-releases/README.md)。release/默认构建直连真实 GitHub Releases latest（T102）。
 
 - **真机**：装机、地址、无线链路纪律、已踩坑一律先读 [docs/devices/](docs/devices/) 设备档案（一机一档）；集成 / 性能工具的真机段内置硬性确认门控（须设备所有者逐次确认），见两份 tools README。
 
