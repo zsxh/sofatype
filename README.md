@@ -16,6 +16,19 @@ Android TV 输入法：电视端键盘 + 跨屏输入（电视出二维码、手
 
 技术要点：纯 Kotlin，无第三方 SDK（仅二维码用 ZXing core）；自研拼音引擎 + 内置 AOSP 谷歌拼音词库（Apache-2.0）；H5 纯原生 HTML/CSS/JS、打包进 APK 本地下发，不依赖任何外部服务；输入内容不出电视，服务仅监听局域网接口。
 
+## 界面
+
+<p align="center">
+  <img src="assets/tv-keyboard.webp" alt="TV 键盘" width="600"><br>
+  TV 键盘（拼音 / 英文 / 符号 · 遥控器焦点导航）
+</p>
+
+**跨屏输入**：电视端出二维码，手机扫码（同一 Wi-Fi）打开 H5 页远程打字，实时上屏电视输入框。
+
+| 跨屏输入 · TV 端（远程模式 · 已连接） | 手机 H5 · 远程输入 |
+| :---: | :---: |
+| <img src="assets/remote-tv.webp" alt="跨屏输入 TV 端" width="480"> | <img src="assets/remote-h5.webp" alt="手机 H5 远程输入" width="125"> |
+
 | 项 | 值 |
 | --- | --- |
 | 语言 | Kotlin |

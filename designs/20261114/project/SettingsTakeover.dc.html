@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>TV 设置页 · 默认输入法被夺回（提示条 · 一键选回）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+body{margin:0;background:#06080C}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width:1920px;height:1080px;position:relative;overflow:hidden;background:#06080C;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+
+  <!-- 顶部页签 -->
+  <div style="position:absolute;top:56px;left:96px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;color:rgba(232,239,246,.4)">sofatype 输入法</span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.15)"></span>
+    <span style="font-size:20px;color:#F2F6FB">设置</span>
+  </div>
+
+  <!-- 默认输入法被夺回提示条（T82 · 决策 66：默认隐藏、零布局位移，OK 弹系统选择器） -->
+  <div style="position:absolute;top:128px;left:0;width:1920px;display:flex;justify-content:center">
+    <div style="display:flex;align-items:center;background:#12161E;border:1.5px solid rgba(255,255,255,.08);border-radius:28px;box-sizing:border-box;padding:8px 36px">
+      <span style="width:8px;height:8px;border-radius:50%;background:#F87171"></span>
+      <span style="font-size:19px;color:#E8EEF5;margin-left:8px">默认输入法已被切走</span>
+      <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer;margin-left:14px">一键选回</button>
+    </div>
+  </div>
+
+  <!-- 品牌 Logo -->
+  <div style="position:absolute;top:300px;left:0;width:1920px;display:flex;justify-content:center;align-items:center;gap:26px">
+    <span style="width:88px;height:88px;background:#38BDF8;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:900;color:#052330">S</span>
+    <span style="font-size:72px;font-weight:700;color:#F2F6FB;letter-spacing:1px">sofatype</span>
+  </div>
+  <div style="position:absolute;top:424px;left:0;width:1920px;text-align:center;font-size:18px;color:rgba(232,239,246,.5)">输入法 · 设置</div>
+
+  <!-- 设置卡片（与输入法同款平滑圆角卡） -->
+  <div style="position:absolute;top:488px;left:650px;width:620px;height:476px;background:#12161E;border:1.5px solid rgba(255,255,255,.08);border-radius:28px;box-sizing:border-box">
+    <div aria-hidden="true" style="position:absolute;left:20px;right:20px;top:26px;bottom:10px;background:rgba(0,0,0,.55);filter:blur(24px);border-radius:40px"></div>
+    <svg width="620" height="476" viewBox="0 0 620 476" aria-hidden="true" style="position:absolute;top:0;left:0"><rect x="0.75" y="0.75" width="618.5" height="474.5" rx="27.5" fill="#12161E" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/></svg>
+    <div style="position:absolute;top:0;left:0;width:620px;height:476px;box-sizing:border-box;padding:12px 36px">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:96px">
+        <span style="font-size:19px;color:rgba(232,239,246,.6)">当前版本</span>
+        <span style="font-size:20px;font-weight:600;color:#F2F6FB">v0.2.1</span>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.07)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;height:88px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">检查更新</button>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#34D399"></span>
+          <span style="font-size:16px;color:rgba(232,239,246,.55)">已是最新版本</span>
+        </span>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.07)"></div>
+      <div style="display:flex;align-items:center;height:88px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">启用代理</button>
+        <span style="font-size:16px;color:rgba(232,239,246,.55);margin-left:48px">gh-proxy.com</span>
+        <span style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <span style="width:8px;height:8px;border-radius:50%;background:#34D399"></span>
+          <span style="font-size:16px;color:rgba(232,239,246,.55)">开</span>
+        </span>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.07)"></div>
+      <div style="display:flex;align-items:center;height:88px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">测试打字</button>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.07)"></div>
+      <div style="display:flex;align-items:center;height:88px">
+        <button style="all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:196px;height:64px;background:#1D242F;border:1px solid rgba(255,255,255,.06);border-radius:14px;font-size:19px;color:#E8EEF5;cursor:pointer">日志</button>
+        <span style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <span style="width:8px;height:8px;border-radius:50%;background:rgba(232,239,246,.35)"></span>
+          <span style="font-size:16px;color:rgba(232,239,246,.55)">调试日志已关闭</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
