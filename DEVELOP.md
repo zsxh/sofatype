@@ -1,6 +1,6 @@
 # SofaType 开发指南
 
-本指南讲三件事：本地构建、本地开发、测试。面向首次上手或回归本项目的开发者（含 AI agent）。
+本指南讲四件事：本地构建、GitHub CI 与发布、本地开发、测试。面向首次上手或回归本项目的开发者（含 AI agent）。
 协作规范（issue 制 / 提交信息 / 注释白名单 / 红线）见 [AGENTS.md](AGENTS.md)，本文不重复。
 
 ## 环境准备
@@ -33,9 +33,26 @@
 **词库与热词（构建期内置）**：
 
 - APK 构建自动携带词库：`:pinyin` 的 `processResources` 先跑 `buildDict`（主词库 sha256 门禁 + 转换）与 `buildHotDict`（热词源 sha256 门禁 + 合并转换），无需单独执行。单独重建：`./gradlew --no-daemon :pinyin:buildDict :pinyin:buildHotDict`，产物在 `pinyin/assets/dict/`（构建产物不入库）。
-- 逐词库开关：`./gradlew assembleDebug -PsofatypeHotDicts=sogou,baidu-boiling`（逗号分隔热词源 id；默认全内置，空值全关回退纯主词库，未知 id 构建失败）。
-- 更新热词库（年更）：`nix develop -c bash tools/wordpack/refresh_hotwords.sh`——自动刷新搜狗累积库与百度实时榜并重算 `sources.sha256` 门禁；百度沸点 / 咬文嚼字 / 语监中心年度榜无 API，每年 12 月人工转录并入 `*_years.txt` 后重跑该脚本过门禁。
+- 逐词库开关：`./gradlew assembleDebug -PsofatypeHotDicts=thuocl-open,nlc-netlang`（逗号分隔热词源 id；默认全内置，空值全关回退纯主词库，未知 id 构建失败）。
+- 更新热词库（年更）：`nix develop -c bash tools/wordpack/refresh_hotwords.sh`——自动重取 THUOCL 上游域词表并确定性派生 `thuocl-open.txt`（DF 前 12000 + 注音），重算 `sources.sha256` 门禁；语监中心 / 咬文嚼字年度榜发布后人工转录并入 `*_years.txt`，再重跑该脚本过门禁。
 - 逐词库来源、词数、大小与合并总量详见 [docs/DICTS.md](docs/DICTS.md)。
+
+## GitHub CI 与发布
+
+workflow 在 `.github/workflows/`（T100）。CI 构建环境与本地 flake 不同源：CI 用 ubuntu runner 预装 Android SDK + Zulu 17（与 flake 的 JDK 发行版对齐），wrapper 与依赖版本由本仓库钉死；本地开发仍一律走 `nix develop`，两条通道不要混。
+
+| workflow | 触发 | 干什么 |
+| --- | --- | --- |
+| `ci.yml` | push / PR 到 `master`，或手动 dispatch | `assembleDebug` + `testDebugUnitTest` + `:pinyin:test` + `assembleRelease`（不含视觉回归与模拟器测试） |
+| `release.yml` | push `v*` tag | 门禁（tag = versionName）→ 抽取 CHANGELOG 版本节 → `assembleRelease` → 直发 GitHub Release，附件 `sofatype-<版本>-unsigned.apk` |
+
+发版流程（版本号随发布批次人工递增，决策 19）：
+
+1. 递增 `app/build.gradle.kts` 的 `versionName` / `versionCode`；
+2. 把 `CHANGELOG.md`「未发布」节改名为版本号 + 日期（Release workflow 从这里抽取发布正文，找不到该节会失败）；
+3. 提交后打 tag 推送：`git tag v<版本> && git push origin v<版本>`；Release 直发，无草稿环节。
+
+workflow 验证依赖真实推送后的 GitHub Actions；CI 上的 Gradle 依赖缓存与 wrapper 校验由 `gradle/actions/setup-gradle`（basic provider）承担。
 
 ## 本地开发
 
